@@ -1,0 +1,287 @@
+/* AQI.in — Clean Light Theme Design System */
+
+:root {
+  /* Light Theme Palette */
+  --bg-main: #f0f2f5;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8f9fa;
+  --bg-dark-card: #1e2a3a;
+  --bg-dark-card-alt: #243044;
+
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
+
+  --text-main: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --text-light: #cbd5e1;
+  --text-on-dark: #ffffff;
+  --text-on-dark-muted: #94a3b8;
+
+  --primary: #0284c7;
+  --primary-light: #38bdf8;
+  --accent-green: #22c55e;
+
+  /* AQI Colors */
+  --aqi-good: #22c55e;
+  --aqi-moderate: #f59e0b;
+  --aqi-poor: #f97316;
+  --aqi-unhealthy: #ef4444;
+  --aqi-severe: #a855f7;
+  --aqi-hazardous: #ec4899;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Container */
+.app-container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Light Card */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Dark Card (for weather parameters) */
+.card-dark {
+  background: var(--bg-dark-card);
+  border: none;
+  border-radius: var(--radius-lg);
+  color: var(--text-on-dark);
+  box-shadow: var(--shadow-md);
+}
+
+/* Tab System */
+/* Segmented Pill Tab Bar (Matching Reference Design with GPU-Accelerated Smooth Slider) */
+.pill-tab-bar {
+  display: inline-flex;
+  align-items: center;
+  background-color: #334155;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  width: 230px;
+}
+
+.pill-tab-slider {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border-radius: 8px;
+  box-shadow: 0 3px 12px rgba(59, 130, 246, 0.45);
+  transition: transform 0.12s cubic-bezier(0, 0, 0.2, 1);
+  z-index: 1;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.pill-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: #94a3b8;
+  transition: color 0.1s ease;
+  position: relative;
+  z-index: 2;
+  user-select: none;
+}
+
+.pill-tab-btn.active {
+  color: #ffffff;
+}
+
+.pill-tab-btn:hover:not(.active) {
+  color: #f1f5f9;
+}
+
+/* Tab View Container - Clean responsive layout with zero width overflow */
+.tab-view-container {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  width: 100%;
+  min-width: 0;
+}
+
+.tab-view-pane {
+  grid-area: 1 / 1 / 2 / 2;
+  min-width: 0;
+  width: 100%;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  display: none;
+  transition: opacity 0.1s ease-out;
+}
+
+.tab-view-pane.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  display: block;
+}
+
+.nav-active-bg {
+  position: absolute;
+  inset: 0;
+  background-color: #0284c7;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
+  z-index: 1;
+}
+
+.main-content-card {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.main-content-card.weather-transparent {
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Section heading */
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 16px;
+}
+
+/* Spin animation for refresh */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Loading state */
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Rain animation bars */
+@keyframes rainDrop {
+  0% { opacity: 0; transform: translateY(-4px); }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; transform: translateY(4px); }
+}
+
+.rain-bar {
+  width: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.4);
+  animation: rainDrop 1.2s ease-in-out infinite;
+}
+
+@keyframes fallingRain {
+  0% {
+    transform: translateY(-25px) rotate(-12deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(90px) rotate(-12deg);
+    opacity: 0;
+  }
+}
+
+.raindrop-streak {
+  position: absolute;
+  width: 2px;
+  height: 16px;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0) 0%, rgba(2, 132, 199, 0.85) 100%);
+  border-radius: 1px;
+  animation: fallingRain 0.9s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(0.88); }
+}
+
