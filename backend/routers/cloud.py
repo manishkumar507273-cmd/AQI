@@ -14,7 +14,7 @@ async def latest_cloud_data():
         raise HTTPException(status_code=502, detail=f"Supabase connection error: {str(e)}")
 
 @router.get("/history")
-async def historical_cloud_data(limit: int = Query(default=50, ge=5, le=500)):
+async def historical_cloud_data(limit: int = Query(default=96, ge=5, le=1000)):
     try:
         history = await get_cloud_history(limit=limit)
         return {"status": "success", "count": len(history), "history": history}
