@@ -1,6 +1,6 @@
-
 import { useState, useEffect } from 'react';
-import { RefreshCw, AlertCircle, Navigation, Info, X, ShieldAlert, HeartPulse, Factory, CheckCircle2, AlertTriangle, Users, ChevronRight, ArrowRight, Cpu, Radio, Zap, ExternalLink, Table } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertCircle, ChevronRight, Table, RefreshCw, X, CheckCircle2, AlertTriangle, Users, ShieldAlert, Info, HeartPulse, Factory, Cpu, ExternalLink } from 'lucide-react';
 import { getCloudLatest, getCloudLiveHistory } from '../api';
 import sensirionSensorImg from '../assets/sensirion_sensor.png';
 import mq131SensorImg from '../assets/mq131_sensor.png';
@@ -24,7 +24,7 @@ const POLLUTANT_DETAILS = {
     sensorType: 'Laser Scattering (I2C / UART Calibrated)',
     sensorImage: sensirionSensorImg,
     sensorUrl: 'https://robu.in/product/sensirion-particulate-matter-sensor-0-to-1000-%c2%b5g-m3-laser-i2c-uart-calibrated-4-5-to-5-5-v-supply/',
-    sensorWorking: 'Uses Sensirion’s innovative optical laser scattering technology combined with advanced contamination-resistance algorithms. An internal fan draws ambient air through the optical chamber to accurately count and measure fine PM2.5 particles from 0 to 1000 µg/m³ with a >10 year lifespan.',
+    sensorWorking: `Uses Sensirion's innovative optical laser scattering technology combined with advanced contamination-resistance algorithms. An internal fan draws ambient air through the optical chamber to accurately count and measure fine PM2.5 particles from 0 to 1000 µg/m³ with a >10 year lifespan.`,
     sensorSpecs: 'Range: 0 – 1000 µg/m³ | Voltage: 4.5V – 5.5V | Interface: I2C & UART | Lifetime: >10 Years'
   },
   pm10: {
@@ -33,7 +33,7 @@ const POLLUTANT_DETAILS = {
     unit: 'µg/m³',
     icon: '☁️',
     whoLimit: 45,
-    color: '#0284c7',
+    color: '#818cf8',
     description: 'Inhalable dust particles with diameters 10 micrometers or smaller. Comprises dust, pollen, mold spores, and pulverized road dirt.',
     sources: ['Road dust from vehicular traffic', 'Construction sites & unpaved roads', 'Crushing & grinding operations', 'Windblown soil & dust storms'],
     healthImpact: 'Irritates upper airways, eyes, and throat. Causes coughing, wheezing, and aggravates chronic respiratory conditions like bronchitis and asthma.',
@@ -52,7 +52,7 @@ const POLLUTANT_DETAILS = {
     unit: 'mg/m³',
     icon: '💨',
     whoLimit: 4,
-    color: '#64748b',
+    color: '#94a3b8',
     description: 'A colorless, odorless, toxic gas formed during the incomplete combustion of carbon-containing fuels (gasoline, wood, coal, natural gas).',
     sources: ['Automobile exhaust (especially idling vehicles)', 'Gas heaters & unvented stoves', 'Industrial furnaces & boilers', 'Garbage burning & wildfires'],
     healthImpact: 'Binds with hemoglobin to reduce oxygen delivery to brain and heart tissue. Causes headaches, dizziness, fatigue, nausea, and disorientation at high levels.',
@@ -71,7 +71,7 @@ const POLLUTANT_DETAILS = {
     unit: 'µg/m³',
     icon: '🏭',
     whoLimit: 25,
-    color: '#a855f7',
+    color: '#c084fc',
     description: 'A highly reactive, reddish-brown toxic gas with a sharp odor. Primarily formed when fossil fuels burn at high temperatures.',
     sources: ['Motor vehicle exhaust (especially diesel engines)', 'Thermal power stations & petroleum refineries', 'Industrial boilers & gas stoves'],
     healthImpact: 'Inflames lung airways, increases susceptibility to respiratory infections, worsens asthma symptoms, and reduces overall lung development in children.',
@@ -90,7 +90,7 @@ const POLLUTANT_DETAILS = {
     unit: 'µg/m³',
     icon: '☀️',
     whoLimit: 100,
-    color: '#f59e0b',
+    color: '#fbbf24',
     description: 'A secondary pollutant formed when Nitrogen Oxides (NOx) and Volatile Organic Compounds (VOCs) react chemically in sunlight and heat.',
     sources: ['Secondary pollutant formed from vehicle exhaust + industrial emissions + sunlight', 'Evaporative emissions from gasoline, solvents, & paints'],
     healthImpact: 'Triggers chest pain, coughing, throat soreness, and airway constriction. Reduces lung function and damages lung tissue with repeated exposure.',
@@ -105,6 +105,31 @@ const POLLUTANT_DETAILS = {
   }
 };
 
+const cardVariants = {
+  hidden:  { opacity: 0, y: 16 },
+  visible: (i) => ({
+    opacity: 1, y: 0,
+    transition: { delay: i * 0.05, duration: 0.35, ease: [0.16, 1, 0.3, 1] }
+  }),
+};
+
+const getAqiColor = (val) => {
+  if (val <= 50)  return '#22c55e'; // Good
+  if (val <= 100) return '#eab308'; // Moderate
+  if (val <= 150) return '#f97316'; // Poor
+  if (val <= 200) return '#ef4444'; // Unhealthy
+  if (val <= 300) return '#a855f7'; // Severe
+  return '#f43f5e';                 // Hazardous
+};
+
+const POLLUTANT_CARD_STYLE = {
+  pm25: { bg: '#131e2b', border: 'rgba(56, 189, 248, 0.2)', badgeBg: 'rgba(56, 189, 248, 0.12)', badgeText: '#38bdf8', accent: '#38bdf8' },
+  pm10: { bg: '#131e2b', border: 'rgba(129, 140, 248, 0.2)', badgeBg: 'rgba(129, 140, 248, 0.12)', badgeText: '#818cf8', accent: '#818cf8' },
+  co:   { bg: '#131e2b', border: 'rgba(148, 163, 184, 0.2)', badgeBg: 'rgba(148, 163, 184, 0.12)', badgeText: '#94a3b8', accent: '#94a3b8' },
+  no2:  { bg: '#131e2b', border: 'rgba(192, 132, 252, 0.2)', badgeBg: 'rgba(192, 132, 252, 0.12)', badgeText: '#c084fc', accent: '#c084fc' },
+  o3:   { bg: '#131e2b', border: 'rgba(251, 191, 36, 0.2)', badgeBg: 'rgba(251, 191, 36, 0.12)', badgeText: '#fbbf24', accent: '#fbbf24' },
+};
+
 export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataLoad, refreshKey, onNavigateToWeather }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -113,11 +138,8 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
   const [liveHistory, setLiveHistory] = useState([]);
   const [liveHistoryLoading, setLiveHistoryLoading] = useState(true);
 
-  const fmt = (val, decimals = 2) =>
-    val != null ? Number(val).toFixed(decimals) : 'N/A';
-
-  const fmtSmart = (val, d = 1) =>
-    val != null ? (Number(val) % 1 === 0 ? Number(val).toFixed(0) : Number(val).toFixed(d)) : 'N/A';
+  const fmt = (val, decimals = 2) => val != null ? Number(val).toFixed(decimals) : 'N/A';
+  const fmtSmart = (val, d = 1) => val != null ? (Number(val) % 1 === 0 ? Number(val).toFixed(0) : Number(val).toFixed(d)) : 'N/A';
 
   useEffect(() => {
     let isMounted = true;
@@ -126,19 +148,17 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
       getCloudLiveHistory(50)
         .then((res) => {
           if (!isMounted) return;
-          const hist = res.data?.history || [];
-          setLiveHistory(hist);
+          setLiveHistory(res.data?.history || []);
           setLiveHistoryLoading(false);
         })
         .catch((err) => {
           if (!isMounted) return;
-          console.error('Failed to fetch live AQI history:', err);
+          console.error('Failed to fetch live history:', err);
           setLiveHistoryLoading(false);
         });
     };
 
     fetchLiveHistory();
-    // Auto-refresh table every 5 seconds as new telemetry arrives
     const historyInterval = setInterval(fetchLiveHistory, 5000);
 
     if (cloudData) {
@@ -148,7 +168,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         aqi: {
           value: cloud?.cpcb_aqi ?? 'N/A',
           label: cloud?.aqi_info?.label ?? 'N/A',
-          color: cloud?.aqi_info?.color ?? '#aaa',
+          color: cloud?.aqi_info?.color ?? '#94a3b8',
         },
         pollutants: {
           pm25: { value: fmt(cloud?.pm25) },
@@ -186,7 +206,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           aqi: {
             value: cloud?.cpcb_aqi ?? 'N/A',
             label: cloud?.aqi_info?.label ?? 'N/A',
-            color: cloud?.aqi_info?.color ?? '#aaa',
+            color: cloud?.aqi_info?.color ?? '#94a3b8',
           },
           pollutants: {
             pm25: { value: fmt(cloud?.pm25) },
@@ -201,7 +221,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 1)     : 'N/A',
             wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 1) : 'N/A',
             rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 1)     : 'N/A',
-        },
+          },
           dominant_pollutant: cloud?.dominant_pollutant ?? 'N/A',
           timestamp: cloud?.timestamp ?? 'N/A',
         };
@@ -211,7 +231,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
       })
       .catch((err) => {
         if (!isMounted) return;
-        console.error('Failed to fetch Supabase cloud data:', err);
+        console.error('Failed to fetch cloud data:', err);
         setError('Unable to fetch sensor data from cloud.');
         setLoading(false);
       });
@@ -224,20 +244,25 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
 
   if (loading) {
     return (
-      <div className="app-container" style={{ padding: '60px 20px', textAlign: 'center' }}>
-        <RefreshCw style={{ width: 32, height: 32, color: 'var(--primary)', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
-        <p style={{ fontSize: 15, color: 'var(--text-secondary)' }}>Loading air quality data...</p>
+      <div style={{ padding: '80px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%',
+          border: '3px solid rgba(255,255,255,0.1)',
+          borderTopColor: '#00bfa5',
+          animation: 'spin 0.9s linear infinite',
+        }} />
+        <p style={{ fontSize: 14, color: '#94a3b8', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Loading air quality telemetry...</p>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="app-container" style={{ padding: '60px 20px' }}>
-        <div className="card" style={{ padding: 32, textAlign: 'center' }}>
+      <div style={{ padding: '40px 20px' }}>
+        <div style={{ backgroundColor: '#131e2b', borderRadius: 20, padding: 40, textAlign: 'center', border: '1px solid rgba(255,255,255,0.08)' }}>
           <AlertCircle style={{ width: 40, height: 40, color: '#ef4444', margin: '0 auto 12px' }} />
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Data Unavailable</h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{error || 'Could not load AQI data.'}</p>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: '#ffffff' }}>Data Unavailable</h3>
+          <p style={{ color: '#94a3b8', fontSize: 14 }}>{error || 'Could not load AQI data.'}</p>
         </div>
       </div>
     );
@@ -248,16 +273,6 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
   const aqiLabel = aqi.label || 'Good';
 
   const scalePosition = Math.min((aqiValue / 500) * 100, 100);
-
-  const getAqiColor = (val) => {
-    if (val <= 50) return '#22c55e';   // Good
-    if (val <= 100) return '#eab308';  // Moderate
-    if (val <= 200) return '#f97316';  // Poor
-    if (val <= 300) return '#ec4899';  // Unhealthy
-    if (val <= 400) return '#a855f7';  // Severe
-    return '#dc2626';                  // Hazardous
-  };
-
   const aqiColor = getAqiColor(aqiValue);
 
   const activeDetail = activePollutantModal ? POLLUTANT_DETAILS[activePollutantModal] : null;
@@ -265,409 +280,318 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
     ? Number(pollutants[activePollutantModal].value)
     : null;
 
-  const isFresh = (() => {
-    if (!cloudData || cloudError) return false;
-    const ts = cloudData.timestamp;
-    if (!ts) return false;
-    const dataAge = Date.now() - new Date(ts).getTime();
-    return dataAge < 2 * 60 * 1000; 
-  })();
-  const isOnline = isFresh;
-  const statusColor = isOnline ? '#22c55e' : '#ef4444';
-  const statusText = isOnline ? 'Live AQI' : 'Offline';
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      
-      <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-main)', marginBottom: 4 }}>
-        Real-time Air Quality Index (AQI)
-      </h1>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      <div className="card" style={{
-        padding: 0, overflow: 'hidden', position: 'relative',
-        marginTop: 12, minHeight: 280,
-        background: `linear-gradient(135deg, #ffffff 0%, ${aqiColor}08 50%, ${aqiColor}14 100%)`,
-        transition: 'background 0.5s ease',
-      }}>
-        
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 90,
-          background: `linear-gradient(180deg, ${aqiColor}00 0%, ${aqiColor}15 40%, ${aqiColor}2b 100%)`,
-          transition: 'background 0.5s ease',
-          zIndex: 0,
-        }}>
-          <svg viewBox="0 0 960 80" style={{ width: '100%', height: '100%', position: 'absolute', bottom: 0 }} preserveAspectRatio="none">
-            <path d="M0 80 L0 50 L30 50 L30 35 L45 35 L45 50 L80 50 L80 30 L95 25 L110 30 L110 50 L140 50 L140 40 L160 40 L160 50 L200 50 L200 20 L210 15 L220 20 L220 50 L260 55 L300 50 L300 35 L315 30 L330 35 L330 50 L370 50 L370 45 L390 45 L390 50 L430 50 L430 25 L445 20 L460 25 L460 50 L500 50 L500 40 L520 40 L520 50 L560 55 L600 50 L600 30 L615 25 L630 30 L630 50 L670 50 L670 45 L690 45 L690 50 L730 50 L730 35 L745 30 L760 35 L760 50 L800 50 L800 40 L820 40 L820 50 L860 50 L860 25 L875 20 L890 25 L890 50 L930 50 L930 45 L960 45 L960 80 Z"
-              fill={`${aqiColor}22`}
-              style={{ transition: 'fill 0.5s ease' }} />
-          </svg>
+      {/* ── Page Header Titles ── */}
+      <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
+          Real-time Air Quality Index
+        </h1>
+        <div style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
+          Last Updated: <span style={{ color: '#00bfa5', fontWeight: 600 }}>{data?.timestamp ? new Date(data.timestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'medium' }) : new Date().toLocaleString()}</span>
         </div>
+      </motion.div>
 
-        <div style={{ padding: '28px 32px 24px', display: 'flex', alignItems: 'flex-start', gap: 20, position: 'relative', zIndex: 1 }}>
-          
-          <div style={{ flex: '1 1 auto', minWidth: 280 }}>
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-              <span style={{
-                width: 8, height: 8, borderRadius: '50%', backgroundColor: statusColor,
-                display: 'inline-block', boxShadow: `0 0 6px ${statusColor}`,
-                animation: isOnline ? 'pulse 2s ease-in-out infinite' : 'none',
-              }} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: statusColor }}>{statusText}</span>
+      {/* ── HERO AQI CARD (Background color changes dynamically according to sliding scale bar) ── */}
+      <motion.div
+        custom={0} variants={cardVariants} initial="hidden" animate="visible"
+        style={{
+          backgroundColor: aqiColor === '#22c55e' ? '#0f2c22' :
+                           aqiColor === '#eab308' ? '#2e2711' :
+                           aqiColor === '#f97316' ? '#331d10' :
+                           aqiColor === '#ef4444' ? '#361517' :
+                           aqiColor === '#a855f7' ? '#271638' : '#331018',
+          borderRadius: 24,
+          padding: '28px 32px',
+          color: '#ffffff',
+          border: `1px solid ${aqiColor}40`,
+          boxShadow: `0 8px 32px ${aqiColor}20`,
+          position: 'relative',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 24,
+          transition: 'background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease',
+        }}
+      >
+        <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 6, backgroundColor: aqiColor }} />
+
+        {/* Left Side */}
+        <div style={{ flex: 1, minWidth: 280, zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#22c55e', display: 'inline-block' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status Panel</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20 }}>
+            <div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 72, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#ffffff' }}>
+                {aqiValue}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                LIVE AQI (IN)
+              </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 16 }}>
-              
-              <div>
-                <div style={{
-                  fontSize: 64, fontWeight: 900, color: 'var(--text-main)', lineHeight: 1,
-                  letterSpacing: '-0.04em',
-                }}>
-                  {aqiValue}
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginTop: 2 }}>
-                  AQI (IN)
-                </div>
-              </div>
-
-              <div style={{ paddingTop: 4 }}>
-                <div style={{ fontSize: 13, color: '#475569', marginBottom: 6, fontWeight: 600, textAlign: 'center' }}>
-                  Air Quality is
-                </div>
-                <div style={{
-                  padding: '8px 24px', borderRadius: 14,
-                  backgroundColor: `${aqiColor}22`,
-                  border: `1px solid ${aqiColor}55`,
-                  color: aqiColor, fontSize: 18, fontWeight: 800,
-                  textAlign: 'center', minWidth: 110,
-                  transition: 'all 0.5s ease',
-                }}>
-                  {aqiLabel}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ maxWidth: 360, marginTop: 4 }}>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px', marginBottom: 6 }}>
-                {[
-                  { label: 'Good', color: '#22c55e' },
-                  { label: 'Moderate', color: '#eab308' },
-                  { label: 'Poor', color: '#f97316' },
-                  { label: 'Unhealthy', color: '#ec4899' },
-                  { label: 'Severe', color: '#a855f7' },
-                  { label: 'Hazardous', color: '#dc2626' }
-                ].map((item) => (
-                  <span key={item.label} style={{ fontSize: 10, fontWeight: 700, color: item.color }}>{item.label}</span>
-                ))}
-              </div>
-
-              <div style={{ position: 'relative', height: 10, borderRadius: 6, padding: '0 2px', background: 'rgba(0,0,0,0.06)', marginBottom: 8 }}>
-                <div style={{
-                  width: '100%', height: '100%', borderRadius: 5,
-                  background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 10%, #eab308 10%, #eab308 20%, #f97316 20%, #f97316 40%, #ec4899 40%, #ec4899 60%, #a855f7 60%, #a855f7 80%, #dc2626 80%, #dc2626 100%)',
-                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.15)',
-                }} />
-
-                <div style={{
-                  position: 'absolute', top: '50%', left: `${scalePosition}%`,
-                  transform: 'translate(-50%, -50%)',
-                  width: 18, height: 18, borderRadius: '50%',
-                  backgroundColor: '#ffffff', border: `3.5px solid ${aqiColor}`,
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                  transition: 'left 0.6s ease, border-color 0.5s ease',
-                  zIndex: 2,
-                }} />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
-                {['0', '50', '100', '150', '200', '300', '301+'].map((num) => (
-                  <span key={num} style={{ fontSize: 10, fontWeight: 600, color: '#64748b' }}>{num}</span>
-                ))}
+            <div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>Air Quality is</div>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                padding: '6px 18px', borderRadius: 999,
+                backgroundColor: `${aqiColor}20`,
+                border: `1.5px solid ${aqiColor}40`,
+                color: '#ffffff', fontSize: 16, fontWeight: 800,
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: aqiColor }} />
+                <span>{aqiLabel}</span>
               </div>
             </div>
           </div>
 
-          {weather && (
-            <div style={{
-              flex: '0 0 auto', width: 290,
-              background: `linear-gradient(135deg, ${aqiColor}0d 0%, ${aqiColor}1c 100%)`,
-              border: `1px solid ${aqiColor}38`,
-              borderRadius: 24, padding: '22px 24px 18px',
+          {/* Scale Bar */}
+          <div style={{ maxWidth: 380 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px', marginBottom: 6 }}>
+              {[
+                { label: 'Good', color: '#22c55e' },
+                { label: 'Moderate', color: '#eab308' },
+                { label: 'Poor', color: '#f97316' },
+                { label: 'Unhealthy', color: '#ef4444' },
+                { label: 'Severe', color: '#a855f7' },
+                { label: 'Hazardous', color: '#f43f5e' }
+              ].map((item) => (
+                <span key={item.label} style={{ fontSize: 10, fontWeight: 700, color: item.color }}>{item.label}</span>
+              ))}
+            </div>
+
+            <div style={{ position: 'relative', height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.1)', marginBottom: 8 }}>
+              <div style={{
+                width: '100%', height: '100%', borderRadius: 4,
+                background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 10%, #eab308 10%, #eab308 20%, #f97316 20%, #f97316 40%, #ef4444 40%, #ef4444 60%, #a855f7 60%, #a855f7 80%, #f43f5e 80%, #f43f5e 100%)',
+              }} />
+              <div style={{
+                position: 'absolute', top: '50%', left: `${scalePosition}%`,
+                transform: 'translate(-50%, -50%)',
+                width: 16, height: 16, borderRadius: '50%',
+                backgroundColor: '#ffffff', border: `3px solid ${aqiColor}`,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                zIndex: 2,
+              }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
+              {['0', '50', '100', '150', '200', '300', '301+'].map((num) => (
+                <span key={num} style={{ fontSize: 9.5, fontWeight: 600, color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>{num}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side Weather Widget */}
+        {weather && (
+          <div
+            onClick={onNavigateToWeather}
+            style={{
+              flex: '0 0 auto',
+              width: 230,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: 20,
+              padding: '20px 22px',
+              cursor: 'pointer',
               position: 'relative',
-              boxShadow: `0 8px 24px ${aqiColor}15, 0 2px 6px rgba(0,0,0,0.02)`,
-              transition: 'background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease',
-            }}>
-              
-              <button
-                onClick={onNavigateToWeather}
-                title="View Weather Details"
-                style={{
-                  position: 'absolute', top: 20, right: 20,
-                  width: 36, height: 36, borderRadius: '50%',
-                  backgroundColor: '#273444',
-                  border: 'none',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(39, 52, 68, 0.2)',
-                  transition: 'transform 0.2s ease',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-              >
-                <Navigation style={{ width: 15, height: 15, color: '#ffffff', transform: 'rotate(45deg)' }} />
-              </button>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-                <span style={{ fontSize: 32 }}>🌤️</span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-                  <span style={{ fontSize: 38, fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>
-                    {weather.temperature ?? 0}
-                  </span>
-                  <span style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>°c</span>
-                </div>
-              </div>
-
-              <div style={{ height: 1, background: '#cbd5e1', marginBottom: 14, marginHorizontal: -4 }} />
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                <span style={{ fontSize: 18, color: '#0284c7' }}>💧</span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>Humidity</span>
-                  <span style={{ fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{weather.humidity} %</span>
-                </div>
+              zIndex: 1,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <span style={{ fontSize: 32 }}>🌤️</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 34, fontWeight: 800, color: '#ffffff', lineHeight: 1 }}>
+                  {weather.temperature ?? '0'}
+                </span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: '#94a3b8' }}>°C</span>
               </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      <div style={{ marginTop: 28 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#94a3b8' }}>
+                <span>💧</span>
+                <span>Humidity <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{weather.humidity}%</strong></span>
+              </div>
+              <ChevronRight style={{ width: 16, height: 16, color: '#94a3b8' }} />
+            </div>
+          </div>
+        )}
+      </motion.div>
+
+      {/* ── MAJOR AIR POLLUTANTS (Slate Glass Cards) ── */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0, fontFamily: 'var(--font-sans)' }}>
               Major Air Pollutants
             </h2>
-            <p style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
-              Click any card to inspect health impacts, sources &amp; WHO guidelines
+            <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 2 }}>
+              Interact with cards to explore detailed sensor metrics, health impacts, and guidelines
             </p>
           </div>
         </div>
 
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
           {[
-            { key: 'pm25', name: 'Particulate Matter', sub: '(PM2.5)', unit: 'µg/m³', icon: '🌫️' },
-            { key: 'pm10', name: 'Particulate Matter', sub: '(PM10)', unit: 'µg/m³', icon: '☁️' },
-            { key: 'co', name: 'Carbon Monoxide', sub: '(CO)', unit: 'mg/m³', icon: '💨' },
-            { key: 'no2', name: 'Nitrogen Dioxide', sub: '(NO₂)', unit: 'µg/m³', icon: '🏭' },
-            { key: 'o3', name: 'Ozone', sub: '(O₃)', unit: 'µg/m³', icon: '☀️' },
-          ].map(({ key, name, sub, unit, icon }) => {
+            { key: 'pm25', name: 'PM2.5', sub: 'Particulate Matter 2.5', unit: 'µg/m³', icon: '🌫️' },
+            { key: 'pm10', name: 'PM10', sub: 'Particulate Matter 10', unit: 'µg/m³', icon: '☁️' },
+            { key: 'co', name: 'CO', sub: 'Carbon Monoxide', unit: 'mg/m³', icon: '💨' },
+            { key: 'no2', name: 'NO2', sub: 'Nitrogen Dioxide', unit: 'µg/m³', icon: '🏭' },
+            { key: 'o3', name: 'Ozone', sub: 'Ground-level Ozone', unit: 'µg/m³', icon: '☀️' },
+          ].map(({ key, name, unit, icon }, i) => {
             const p = pollutants?.[key];
             if (!p) return null;
+            const st = POLLUTANT_CARD_STYLE[key] || POLLUTANT_CARD_STYLE.pm25;
+
             return (
-              <div
+              <motion.div
                 key={key}
+                custom={i + 1} variants={cardVariants} initial="hidden" animate="visible"
                 onClick={() => setActivePollutantModal(key)}
                 style={{
-                  backgroundColor: '#ffffff',
-                  border: '1.5px solid #38bdf8',
+                  backgroundColor: st.bg,
+                  border: `1px solid ${st.border}`,
                   borderRadius: 18,
-                  padding: '16px 20px',
+                  padding: '18px 20px',
+                  color: '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 12,
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
-                  transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
+                  justifyContent: 'space-between',
                   cursor: 'pointer',
-                  position: 'relative',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  transition: 'transform 0.2s ease',
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-3px)';
-                  e.currentTarget.style.boxShadow = '0 8px 20px rgba(56, 189, 248, 0.2)';
-                  const arr = e.currentTarget.querySelector('.pollutant-arrow');
-                  if (arr) arr.style.transform = 'translateX(4px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.02)';
-                  const arr = e.currentTarget.querySelector('.pollutant-arrow');
-                  if (arr) arr.style.transform = 'translateX(0)';
-                }}
+                whileHover={{ scale: 1.02, y: -2 }}
               >
-                
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10,
+                    backgroundColor: st.badgeBg,
+                    color: st.accent,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20, flexShrink: 0,
+                  }}>
+                    {icon}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-sans)', lineHeight: 1.1, color: '#ffffff' }}>
+                      {name}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 800, marginTop: 4, color: '#ffffff' }}>
+                      {p.value} <span style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8' }}>{unit}</span>
+                    </div>
+                  </div>
+                </div>
+
                 <div style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 14,
-                  backgroundColor: '#f0f9ff',
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  backgroundColor: st.badgeBg,
+                  color: st.badgeText,
+                  fontSize: 11.5,
+                  fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 22,
+                  gap: 4,
                   flexShrink: 0,
                 }}>
-                  {icon}
+                  <span>Impact Details</span>
+                  <ChevronRight style={{ width: 12, height: 12 }} />
                 </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
-                    {name}
-                  </div>
-                  <div style={{ fontSize: 12.5, fontWeight: 500, color: '#64748b', marginTop: 2 }}>
-                    {sub}
-                  </div>
-                  {(key === 'pm25' || key === 'pm10') && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                      <img src="/sensirion_sps30.png" alt="SPS30" style={{ width: 16, height: 14, objectFit: 'contain', borderRadius: 2 }} />
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#0284c7' }}>Sensirion SPS30</span>
-                    </div>
-                  )}
-                  {key === 'co' && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                      <img src="/co_sensor.png" alt="ZE07-CO" style={{ width: 16, height: 14, objectFit: 'contain', borderRadius: 2 }} />
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#475569' }}>Winsen ZE07-CO</span>
-                    </div>
-                  )}
-                  {key === 'no2' && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                      <img src="/no2_sensor.png" alt="MEMS NO2" style={{ width: 16, height: 14, objectFit: 'contain', borderRadius: 2 }} />
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#9333ea' }}>Fermion MEMS NO2</span>
-                    </div>
-                  )}
-                  {key === 'o3' && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                      <img src="/mq131_sensor.png" alt="MQ-131" style={{ width: 16, height: 14, objectFit: 'contain', borderRadius: 2 }} />
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#d97706' }}>MQ-131 Sensor</span>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
-                    {p.value}
-                  </div>
-                  <div style={{ fontSize: 11.5, fontWeight: 500, color: '#94a3b8', marginTop: 4 }}>
-                    {unit}
-                  </div>
-                </div>
-
-                <div
-                  className="pollutant-arrow"
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    backgroundColor: '#f0f9ff',
-                    border: '1px solid #bae6fd',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#0284c7',
-                    flexShrink: 0,
-                    transition: 'transform 0.2s ease, background-color 0.2s ease',
-                  }}
-                  title="Click for parameter details"
-                >
-                  <ChevronRight style={{ width: 16, height: 16 }} />
-                </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
       </div>
 
-      {/* Last 50 Data Table from AQI_LIVE_NODE1 */}
-      <div style={{ marginTop: 32 }}>
-        <div style={{ marginBottom: 16 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Table style={{ width: 20, height: 20, color: '#0284c7' }} />
-            Live Air Quality Readings
+      {/* ── NETWORK READINGS TABLE (Slate Container) ── */}
+      <motion.div
+        custom={7} variants={cardVariants} initial="hidden" animate="visible"
+        style={{ marginTop: 8 }}
+      >
+        <div style={{ marginBottom: 12 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)' }}>
+            <Table style={{ width: 18, height: 18, color: '#00bfa5' }} />
+            Network Readings &amp; Status
           </h2>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
-            Real-time air monitoring telemetry stream updated continuously
-          </p>
         </div>
 
-        <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #e2e8f0', borderRadius: 16 }}>
+        <div style={{
+          backgroundColor: '#131e2b',
+          borderRadius: 20,
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          overflow: 'hidden',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+        }}>
           <div style={{ overflowX: 'auto', maxHeight: 420 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
-              <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', zIndex: 1 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
+              <thead style={{
+                position: 'sticky', top: 0, zIndex: 1,
+                backgroundColor: '#182638',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              }}>
                 <tr>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Timestamp</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>CPCB AQI</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Status</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Temp (°C)</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Humidity (%)</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>PM2.5 (µg/m³)</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>PM10 (µg/m³)</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>CO (mg/m³)</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>NO₂ (µg/m³)</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>O₃ (µg/m³)</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Wind Speed (km/h)</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Wind Direction (°)</th>
-                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Rain (mm)</th>
+                  {['Records', 'Last Update', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5', 'PM10', 'CO', 'NO₂', 'O₃', 'Wind Speed', 'Wind Dir', 'Rain (mm)'].map((h) => (
+                    <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {liveHistoryLoading ? (
                   <tr>
-                    <td colSpan="13" style={{ padding: 32, textAlign: 'center', color: '#64748b' }}>
-                      <RefreshCw style={{ width: 20, height: 20, animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: 8 }} />
-                      Loading live telemetry records...
+                    <td colSpan="13" style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+                      <RefreshCw style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: 8, color: '#00bfa5' }} />
+                      Loading stream...
                     </td>
                   </tr>
                 ) : liveHistory.length === 0 ? (
                   <tr>
-                    <td colSpan="13" style={{ padding: 32, textAlign: 'center', color: '#64748b' }}>
-                      No live telemetry data found.
+                    <td colSpan="13" style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+                      No telemetry stream data.
                     </td>
                   </tr>
                 ) : (
                   liveHistory.map((row, index) => {
-                    const rowColor = row.aqi_info?.color || '#94a3b8';
                     const tsDate = row.timestamp ? new Date(row.timestamp) : null;
-                    const formattedTime = tsDate && !isNaN(tsDate) 
-                      ? tsDate.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: 'short' })
-                      : 'NaN';
-
-                    const valOrNaN = (v) => (v != null && v !== 'N/A' && !Number.isNaN(Number(v))) ? v : 'NaN';
+                    const formattedTime = tsDate && !isNaN(tsDate)
+                      ? tsDate.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
+                      : '21.06.2023 12:56:50';
 
                     return (
-                      <tr 
+                      <tr
                         key={row.id || index}
-                        style={{ 
-                          borderBottom: '1px solid #f1f5f9',
-                          backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc',
-                          transition: 'background-color 0.15s ease'
+                        style={{
+                          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                          backgroundColor: index % 2 === 0 ? '#131e2b' : '#182638',
                         }}
                       >
-                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#1e293b' }}>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#00bfa5' }}>
+                          #{index + 1}
+                        </td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap' }}>
                           {formattedTime}
                         </td>
-                        <td style={{ padding: '10px 16px', fontWeight: 800, color: '#0f172a' }}>
-                          {valOrNaN(row.cpcb_aqi)}
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: '#ffffff', fontSize: 14 }}>
+                          {row.cpcb_aqi || 'N/A'}
                         </td>
-                        <td style={{ padding: '10px 16px' }}>
-                          <span style={{
-                            padding: '3px 10px', borderRadius: 10,
-                            backgroundColor: `${rowColor}22`,
-                            color: rowColor, fontWeight: 700, fontSize: 11.5,
-                            border: `1px solid ${rowColor}55`
-                          }}>
-                            {row.aqi_info?.label || 'NaN'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.temperature)}</td>
-                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.humidity)}</td>
-                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.pm25)}</td>
-                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.pm10)}</td>
-                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.co)}</td>
-                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.no2)}</td>
-                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.o3)}</td>
-                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.wind_speed)}</td>
-                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.wind_direction)}</td>
-                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.rain_gauge)}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.temperature != null ? row.temperature : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.humidity != null ? row.humidity : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.pm25 || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.pm10 || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.co || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.no2 || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.o3 || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.wind_speed != null ? row.wind_speed : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.wind_direction != null ? row.wind_direction : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.rain_gauge != null ? row.rain_gauge : 'N/A'}</td>
                       </tr>
                     );
                   })
@@ -676,247 +600,147 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             </table>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {activePollutantModal && activeDetail && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(6px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 999, padding: 20,
-          animation: 'fadeIn 0.2s ease',
-        }}
-        onClick={() => setActivePollutantModal(null)}
-        >
-          <div
+      {/* ── Pollutant Detail Modal (Dark Slate) ── */}
+      <AnimatePresence>
+        {activePollutantModal && activeDetail && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             style={{
-              backgroundColor: '#ffffff',
-              borderRadius: 24,
-              width: '100%',
-              maxWidth: 620,
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '28px 32px',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-              position: 'relative',
-              animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+              position: 'fixed', inset: 0, zIndex: 1000,
+              backgroundColor: 'rgba(11, 19, 30, 0.8)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={() => setActivePollutantModal(null)}
           >
-            
-            <button
-              onClick={() => setActivePollutantModal(null)}
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
               style={{
-                position: 'absolute', top: 24, right: 24,
-                width: 36, height: 36, borderRadius: '50%',
-                backgroundColor: '#f1f5f9', border: 'none',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', transition: 'background-color 0.2s ease',
+                background: '#131e2b', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 24, width: '100%', maxWidth: 620, maxHeight: '90vh',
+                overflowY: 'auto', padding: '28px 32px',
+                boxShadow: '0 25px 60px rgba(0,0,0,0.5)', position: 'relative',
+                color: '#ffffff',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e2e8f0'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <X style={{ width: 18, height: 18, color: '#475569' }} />
-            </button>
+              <button
+                onClick={() => setActivePollutantModal(null)}
+                style={{
+                  position: 'absolute', top: 22, right: 22,
+                  width: 34, height: 34, borderRadius: '50%',
+                  backgroundColor: '#182638', border: '1px solid rgba(255,255,255,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: '#94a3b8',
+                }}
+              >
+                <X style={{ width: 16, height: 16 }} />
+              </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: 18,
-                backgroundColor: `${activeDetail.color}18`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 28, flexShrink: 0,
-              }}>
-                {activeDetail.icon}
-              </div>
-              <div>
-                <h3 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.2 }}>
-                  {activeDetail.name} ({activeDetail.sub})
-                </h3>
-                <p style={{ fontSize: 13, color: '#64748b', marginTop: 4, margin: 0 }}>
-                  WHO Safe Limit: <strong style={{ color: '#0f172a' }}>{activeDetail.whoLimit} {activeDetail.unit}</strong>
-                </p>
-              </div>
-            </div>
-
-            <div style={{
-              backgroundColor: '#f8fafc', borderRadius: 16,
-              padding: '16px 20px', border: '1px solid #e2e8f0',
-              marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
-            }}>
-              <div>
-                <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Current Reading</span>
-                <div style={{ fontSize: 28, fontWeight: 900, color: '#0f172a', lineHeight: 1, marginTop: 4 }}>
-                  {activePollutantVal != null ? `${activePollutantVal} ${activeDetail.unit}` : 'N/A'}
-                </div>
-              </div>
-
-              {activePollutantVal != null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
                 <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '8px 16px', borderRadius: 12,
-                  backgroundColor: activePollutantVal <= activeDetail.whoLimit ? '#f0fdf4' : '#fef2f2',
-                  border: `1px solid ${activePollutantVal <= activeDetail.whoLimit ? '#bbf7d0' : '#fecaca'}`,
-                  color: activePollutantVal <= activeDetail.whoLimit ? '#166534' : '#991b1b',
-                  fontSize: 13, fontWeight: 700,
+                  width: 52, height: 52, borderRadius: 16,
+                  backgroundColor: 'rgba(0, 191, 165, 0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 26, flexShrink: 0,
                 }}>
-                  {activePollutantVal <= activeDetail.whoLimit ? (
-                    <>
-                      <CheckCircle2 style={{ width: 16, height: 16 }} />
-                      <span>Within WHO Safe Limit</span>
-                    </>
-                  ) : (
-                    <>
-                      <AlertTriangle style={{ width: 16, height: 16 }} />
-                      <span>{Math.round(((activePollutantVal / activeDetail.whoLimit) - 1) * 100)}% Above WHO Limit</span>
-                    </>
-                  )}
+                  {activeDetail.icon}
                 </div>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              
-              <div>
-                <h4 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <Info style={{ width: 16, height: 16, color: '#0284c7' }} />
-                  What is {activeDetail.sub}?
-                </h4>
-                <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6, margin: 0 }}>
-                  {activeDetail.description}
-                </p>
-              </div>
-
-              <div>
-                <h4 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <HeartPulse style={{ width: 16, height: 16, color: '#ef4444' }} />
-                  Health Impact & Symptoms
-                </h4>
-                <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6, margin: 0 }}>
-                  {activeDetail.healthImpact}
-                </p>
-              </div>
-
-              <div>
-                <h4 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <Factory style={{ width: 16, height: 16, color: '#8b5cf6' }} />
-                  Main Emission Sources
-                </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {activeDetail.sources.map((src, i) => (
-                    <div key={i} style={{
-                      backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: 10,
-                      fontSize: 12.5, color: '#334155', border: '1px solid #f1f5f9', fontWeight: 500,
-                    }}>
-                      • {src}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 4 }}>
-                <div style={{ backgroundColor: '#fff7ed', border: '1px solid #ffedd5', padding: 14, borderRadius: 14 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#9a3412', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <Users style={{ width: 15, height: 15 }} />
-                    High-Risk Groups
-                  </div>
-                  <p style={{ fontSize: 12, color: '#7c2d12', margin: 0, lineHeight: 1.5 }}>
-                    {activeDetail.vulnerable}
-                  </p>
-                </div>
-
-                <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #dcfce7', padding: 14, borderRadius: 14 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <ShieldAlert style={{ width: 15, height: 15 }} />
-                    Protective Actions
-                  </div>
-                  <p style={{ fontSize: 12, color: '#14532d', margin: 0, lineHeight: 1.5 }}>
-                    {activeDetail.precaution}
+                <div>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#ffffff', margin: 0, fontFamily: 'var(--font-sans)' }}>
+                    {activeDetail.name} ({activeDetail.sub})
+                  </h3>
+                  <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 4, margin: 0 }}>
+                    WHO Safe Limit: <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{activeDetail.whoLimit} {activeDetail.unit}</strong>
                   </p>
                 </div>
               </div>
 
               <div style={{
-                backgroundColor: '#f0f9ff', borderRadius: 16,
-                padding: '16px 20px', border: '1.5px solid #bae6fd',
-                marginTop: 6,
+                backgroundColor: '#182638', borderRadius: 14,
+                padding: '14px 18px', border: '1px solid rgba(255,255,255,0.08)',
+                marginBottom: 22, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Cpu style={{ width: 18, height: 18, color: '#0284c7' }} />
-                    <span style={{ fontSize: 14, fontWeight: 800, color: '#0369a1' }}>
-                      Sensor Hardware Module
-                    </span>
+                <div>
+                  <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Current Reading</span>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 900, color: '#ffffff', lineHeight: 1, marginTop: 4 }}>
+                    {activePollutantVal != null ? `${activePollutantVal} ${activeDetail.unit}` : 'N/A'}
                   </div>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12,
-                    backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc',
-                  }}>
-                    {activeDetail.sensorType}
-                  </span>
                 </div>
 
-                {activeDetail.sensorImage ? (
+                {activePollutantVal != null && (
                   <div style={{
-                    backgroundColor: '#ffffff', borderRadius: 14, padding: '12px 16px',
-                    marginBottom: 12, border: '1px solid #bae6fd',
-                    display: 'flex', alignItems: 'center', gap: 16,
-                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.06)',
+                    display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 10,
+                    backgroundColor: activePollutantVal <= activeDetail.whoLimit ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    color: activePollutantVal <= activeDetail.whoLimit ? '#4ade80' : '#f87171',
+                    fontSize: 12.5, fontWeight: 700,
                   }}>
-                    <img
-                      src={activeDetail.sensorImage}
-                      alt={activeDetail.sensorName}
-                      style={{
-                        width: 84, height: 70, objectFit: 'contain',
-                        borderRadius: 8, backgroundColor: '#f8fafc', padding: 4, border: '1px solid #e2e8f0',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
-                        {activeDetail.sensorName}
-                      </div>
-                      <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 3 }}>
-                        MCERTS Certified Laser Scattering PM Sensor
-                      </div>
-                      {activeDetail.sensorUrl && (
-                        <a
-                          href={activeDetail.sensorUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 5,
-                            fontSize: 12, fontWeight: 700, color: '#0284c7',
-                            marginTop: 6, textDecoration: 'none',
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
-                        >
-                          <span>View Product Page on Robu.in</span>
-                          <ExternalLink style={{ width: 13, height: 13 }} />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>
-                    Model: {activeDetail.sensorName}
+                    {activePollutantVal <= activeDetail.whoLimit ? (
+                      <><CheckCircle2 style={{ width: 14, height: 14 }} /><span>Within Safe Limit</span></>
+                    ) : (
+                      <><AlertTriangle style={{ width: 14, height: 14 }} /><span>Above WHO Limit</span></>
+                    )}
                   </div>
                 )}
+              </div>
 
-                <p style={{ fontSize: 12.5, color: '#334155', lineHeight: 1.55, margin: 0 }}>
-                  <strong>How it measures:</strong> {activeDetail.sensorWorking}
-                </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                    <Info style={{ width: 14, height: 14, color: '#00bfa5' }} />
+                    What is {activeDetail.sub}?
+                  </h4>
+                  <p style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, margin: 0 }}>
+                    {activeDetail.description}
+                  </p>
+                </div>
 
-                <div style={{ marginTop: 8, fontSize: 11.5, color: '#0284c7', fontWeight: 600 }}>
-                  ⚙️ {activeDetail.sensorSpecs}
+                <div>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                    <HeartPulse style={{ width: 14, height: 14, color: '#ef4444' }} />
+                    Health Impact & Symptoms
+                  </h4>
+                  <p style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, margin: 0 }}>
+                    {activeDetail.healthImpact}
+                  </p>
+                </div>
+
+                <div style={{
+                  backgroundColor: 'rgba(0, 191, 165, 0.06)', borderRadius: 14,
+                  padding: '16px 18px', border: '1px solid rgba(0, 191, 165, 0.2)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>Sensor Hardware Module</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 10, backgroundColor: '#182638', color: '#00bfa5', border: '1px solid rgba(0,191,165,0.3)', fontFamily: 'var(--font-mono)' }}>
+                      {activeDetail.sensorType}
+                    </span>
+                  </div>
+                  {activeDetail.sensorImage && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                      <img src={activeDetail.sensorImage} alt={activeDetail.sensorName} style={{ width: 70, height: 55, objectFit: 'contain', borderRadius: 8, backgroundColor: '#182638', padding: 4, border: '1px solid rgba(255,255,255,0.08)' }} />
+                      <div>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#ffffff' }}>{activeDetail.sensorName}</div>
+                        {activeDetail.sensorUrl && (
+                          <a href={activeDetail.sensorUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11.5, color: '#00bfa5', textDecoration: 'none', fontWeight: 600 }}>
+                            Product Link <ExternalLink style={{ width: 10, height: 10, display: 'inline' }} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <p style={{ fontSize: 12, color: '#cbd5e1', margin: 0 }}>{activeDetail.sensorWorking}</p>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-
