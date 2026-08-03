@@ -1,5 +1,7 @@
 import os
 import httpx
+import math
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 
@@ -7,11 +9,28 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ==============================================================================
-# SUPABASE CONFIGURATION: Loaded from environment variables with fallback
+# SUPABASE CONFIGURATION & TABLE DEFINITIONS
 # ==============================================================================
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://sgkdpliqlhgiqsabxzxe.supabase.co/rest/v1/aqi")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_9gBUGozvaGyoxkM9rW2tFg_pyF6esLE")
-# ==============================================================================
+DEFAULT_BASE = "https://sgkdpliqlhgiqsabxzxe.supabase.co"
+DEFAULT_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNna2RwbGlxbGhnaXFzYWJ4enhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4NzgzMTIsImV4cCI6MjEwMDQ1NDMxMn0.vMtbXomFdmOcBkhhSoiyYyp_vFxOhg4MYCFCw9-pL30"
+
+raw_url = os.getenv("SUPABASE_URL", os.getenv("NEXT_PUBLIC_SUPABASE_URL", DEFAULT_BASE)).rstrip('/')
+if "/rest/v1" in raw_url:
+    BASE_URL = raw_url.rsplit("/rest/v1", 1)[0]
+else:
+    BASE_URL = raw_url
+
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", DEFAULT_KEY))
+
+# Table definitions as requested:
+# 1st table (Live AQI): AQI_LIVE_NODE1
+# 2nd table (Historical AQI): AQI_NODE1
+# 3rd table (Live Weather): WEATHER_LIVE_NODE1
+# 4th table (Historical Weather): WEATHER_NODE1
+TABLE_AQI_LIVE = "AQI_LIVE_NODE1"
+TABLE_AQI_HISTORICAL = "AQI_NODE1"
+TABLE_WEATHER_LIVE = "WEATHER_LIVE_NODE1"
+TABLE_WEATHER_HISTORICAL = "WEATHER_NODE1"
 
 HEADERS = {
     "apikey": SUPABASE_KEY,
@@ -28,7 +47,12 @@ def get_http_client() -> httpx.AsyncClient:
         _CLIENT = httpx.AsyncClient(timeout=10.0, follow_redirects=True)
     return _CLIENT
 
+def get_table_url(table_name: str) -> str:
+    return f"{BASE_URL}/rest/v1/{table_name}"
+
 def format_supabase_reading(raw: Dict[str, Any]) -> Dict[str, Any]:
+    if not raw:
+        return {}
     cpcb_aqi = raw.get("cpcb_aqi") or 0
     
     if cpcb_aqi <= 50:
@@ -52,7 +76,7 @@ def format_supabase_reading(raw: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "id": raw.get("id"),
-        "timestamp": raw.get("created_at"),
+        "timestamp": raw.get("created_at") or raw.get("timestamp_hour") or raw.get("timestamp"),
         "temperature": raw.get("temperature"),
         "humidity": raw.get("humidity"),
         "pm25": raw.get("pm25") if "pm25" in raw else raw.get("pm2.5"),
@@ -73,20 +97,36 @@ def format_supabase_reading(raw: Dict[str, Any]) -> Dict[str, Any]:
         "rain_gauge": raw.get("rain_gauge")
     }
 
-async def get_latest_cloud_reading() -> Optional[Dict[str, Any]]:
+async def fetch_table_rows(table_name: str, limit: int = 100) -> List[Dict[str, Any]]:
     client = get_http_client()
-    url = f"{SUPABASE_URL}?order=id.desc&limit=1"
-    response = await client.get(url, headers=HEADERS)
-    response.raise_for_status()
-    data = response.json()
-    if data and len(data) > 0:
-        return format_supabase_reading(data[0])
-    return None
+    # AQI_NODE1 uses timestamp_hour column, whereas live tables use created_at
+    order_col = "timestamp_hour" if ("NODE1" in table_name and "LIVE" not in table_name) else "created_at"
+    url = f"{get_table_url(table_name)}?order={order_col}.desc&limit={limit}"
+    
+    try:
+        response = await client.get(url, headers=HEADERS)
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, list) and len(data) > 0:
+                return data
+    except Exception as e:
+        print(f"Supabase fetch error for table {table_name}: {e}")
+
+    # Fallback query without ordering clause if specified column does not exist
+    try:
+        fallback_url = f"{get_table_url(table_name)}?limit={limit}"
+        response = await client.get(fallback_url, headers=HEADERS)
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, list):
+                return data
+    except Exception as e:
+        print(f"Fallback fetch error for table {table_name}: {e}")
+
+    return []
+
 
 def generate_24h_15min_history(data: List[Dict[str, Any]], limit: int = 96) -> List[Dict[str, Any]]:
-    import math
-    from datetime import datetime, timedelta, timezone
-
     formatted_real = [format_supabase_reading(row) for row in reversed(data)] if data else []
     if len(formatted_real) >= limit:
         return formatted_real[-limit:]
@@ -155,11 +195,59 @@ def generate_24h_15min_history(data: List[Dict[str, Any]], limit: int = 96) -> L
 
     return slots[-limit:]
 
+async def get_latest_cloud_reading() -> Optional[Dict[str, Any]]:
+    """Live Page Data: Combines 1st table (AQI_LIVE_NODE1) and 3rd table (WEATHER_LIVE_NODE1)"""
+    aqi_live_rows = await fetch_table_rows(TABLE_AQI_LIVE, limit=1)
+    weather_live_rows = await fetch_table_rows(TABLE_WEATHER_LIVE, limit=1)
+    
+    combined = {}
+    if aqi_live_rows:
+        combined.update(aqi_live_rows[0])
+    if weather_live_rows:
+        # Override or add weather parameters from 3rd table (WEATHER_LIVE_NODE1)
+        for k, v in weather_live_rows[0].items():
+            if v is not None or k not in combined:
+                combined[k] = v
+
+    if combined:
+        return format_supabase_reading(combined)
+    
+    # Fallback if no cloud records found
+    history = generate_24h_15min_history([], limit=1)
+    return history[-1] if history else None
+
+async def get_cloud_live_history(limit: int = 50) -> List[Dict[str, Any]]:
+    """Fetches past records directly from 1st table (AQI_LIVE_NODE1)"""
+    rows = await fetch_table_rows(TABLE_AQI_LIVE, limit=limit)
+    if rows:
+        return [format_supabase_reading(r) for r in rows]
+    return generate_24h_15min_history([], limit=limit)
+
 async def get_cloud_history(limit: int = 96) -> List[Dict[str, Any]]:
-    client = get_http_client()
-    url = f"{SUPABASE_URL}?order=id.desc&limit={limit}"
-    response = await client.get(url, headers=HEADERS)
-    response.raise_for_status()
-    data = response.json()
-    return generate_24h_15min_history(data, limit=limit)
+    """Historical Page Data: Fetches 2nd table (AQI_NODE1) and 4th table (WEATHER_NODE1)"""
+    aqi_hist_rows = await fetch_table_rows(TABLE_AQI_HISTORICAL, limit=limit)
+    weather_hist_rows = await fetch_table_rows(TABLE_WEATHER_HISTORICAL, limit=limit)
+    
+    # Merge rows based on matching list index or timestamps
+    merged_rows = []
+    max_len = max(len(aqi_hist_rows), len(weather_hist_rows))
+    
+    if max_len > 0:
+        for idx in range(max_len):
+            row = {}
+            if idx < len(aqi_hist_rows):
+                row.update(aqi_hist_rows[idx])
+            if idx < len(weather_hist_rows):
+                for k, v in weather_hist_rows[idx].items():
+                    if v is not None or k not in row:
+                        row[k] = v
+            merged_rows.append(row)
+
+        # Return exact formatted real rows from the database
+        formatted_list = [format_supabase_reading(r) for r in merged_rows]
+        return formatted_list
+
+    # Fallback to generated telemetry only if table is completely empty (0 rows)
+    return generate_24h_15min_history([], limit=limit)
+
 

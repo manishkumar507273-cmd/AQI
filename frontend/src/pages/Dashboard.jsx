@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { RefreshCw, AlertCircle, Navigation, Info, X, ShieldAlert, HeartPulse, Factory, CheckCircle2, AlertTriangle, Users, ChevronRight, ArrowRight, Cpu, Radio, Zap, ExternalLink } from 'lucide-react';
-import { getCloudLatest } from '../api';
+import { RefreshCw, AlertCircle, Navigation, Info, X, ShieldAlert, HeartPulse, Factory, CheckCircle2, AlertTriangle, Users, ChevronRight, ArrowRight, Cpu, Radio, Zap, ExternalLink, Table } from 'lucide-react';
+import { getCloudLatest, getCloudLiveHistory } from '../api';
 import sensirionSensorImg from '../assets/sensirion_sensor.png';
 import mq131SensorImg from '../assets/mq131_sensor.png';
 import no2SensorImg from '../assets/no2_sensor.png';
@@ -110,6 +110,8 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activePollutantModal, setActivePollutantModal] = useState(null);
+  const [liveHistory, setLiveHistory] = useState([]);
+  const [liveHistoryLoading, setLiveHistoryLoading] = useState(true);
 
   const fmt = (val, decimals = 2) =>
     val != null ? Number(val).toFixed(decimals) : 'N/A';
@@ -119,6 +121,26 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
 
   useEffect(() => {
     let isMounted = true;
+
+    const fetchLiveHistory = () => {
+      getCloudLiveHistory(50)
+        .then((res) => {
+          if (!isMounted) return;
+          const hist = res.data?.history || [];
+          setLiveHistory(hist);
+          setLiveHistoryLoading(false);
+        })
+        .catch((err) => {
+          if (!isMounted) return;
+          console.error('Failed to fetch live AQI history:', err);
+          setLiveHistoryLoading(false);
+        });
+    };
+
+    fetchLiveHistory();
+    // Auto-refresh table every 5 seconds as new telemetry arrives
+    const historyInterval = setInterval(fetchLiveHistory, 5000);
+
     if (cloudData) {
       const cloud = cloudData;
       const combined = {
@@ -179,7 +201,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 1)     : 'N/A',
             wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 1) : 'N/A',
             rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 1)     : 'N/A',
-          },
+        },
           dominant_pollutant: cloud?.dominant_pollutant ?? 'N/A',
           timestamp: cloud?.timestamp ?? 'N/A',
         };
@@ -194,7 +216,10 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         setLoading(false);
       });
 
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+      clearInterval(historyInterval);
+    };
   }, [cloudData, cloudError, refreshKey]);
 
   if (loading) {
@@ -225,12 +250,12 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
   const scalePosition = Math.min((aqiValue / 500) * 100, 100);
 
   const getAqiColor = (val) => {
-    if (val <= 50) return '#22c55e';
-    if (val <= 100) return '#f59e0b';
-    if (val <= 200) return '#f97316';
-    if (val <= 300) return '#ef4444';
-    if (val <= 400) return '#a855f7';
-    return '#ec4899';
+    if (val <= 50) return '#22c55e';   // Good
+    if (val <= 100) return '#eab308';  // Moderate
+    if (val <= 200) return '#f97316';  // Poor
+    if (val <= 300) return '#ec4899';  // Unhealthy
+    if (val <= 400) return '#a855f7';  // Severe
+    return '#dc2626';                  // Hazardous
   };
 
   const aqiColor = getAqiColor(aqiValue);
@@ -261,16 +286,20 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
       <div className="card" style={{
         padding: 0, overflow: 'hidden', position: 'relative',
         marginTop: 12, minHeight: 280,
+        background: `linear-gradient(135deg, #ffffff 0%, ${aqiColor}08 50%, ${aqiColor}14 100%)`,
+        transition: 'background 0.5s ease',
       }}>
         
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0, height: 90,
-          background: 'linear-gradient(180deg, rgba(74, 222, 128, 0) 0%, rgba(74, 222, 128, 0.15) 40%, rgba(34, 197, 94, 0.25) 100%)',
+          background: `linear-gradient(180deg, ${aqiColor}00 0%, ${aqiColor}15 40%, ${aqiColor}2b 100%)`,
+          transition: 'background 0.5s ease',
           zIndex: 0,
         }}>
           <svg viewBox="0 0 960 80" style={{ width: '100%', height: '100%', position: 'absolute', bottom: 0 }} preserveAspectRatio="none">
             <path d="M0 80 L0 50 L30 50 L30 35 L45 35 L45 50 L80 50 L80 30 L95 25 L110 30 L110 50 L140 50 L140 40 L160 40 L160 50 L200 50 L200 20 L210 15 L220 20 L220 50 L260 55 L300 50 L300 35 L315 30 L330 35 L330 50 L370 50 L370 45 L390 45 L390 50 L430 50 L430 25 L445 20 L460 25 L460 50 L500 50 L500 40 L520 40 L520 50 L560 55 L600 50 L600 30 L615 25 L630 30 L630 50 L670 50 L670 45 L690 45 L690 50 L730 50 L730 35 L745 30 L760 35 L760 50 L800 50 L800 40 L820 40 L820 50 L860 50 L860 25 L875 20 L890 25 L890 50 L930 50 L930 45 L960 45 L960 80 Z"
-              fill="rgba(34, 197, 94, 0.18)" />
+              fill={`${aqiColor}22`}
+              style={{ transition: 'fill 0.5s ease' }} />
           </svg>
         </div>
 
@@ -311,39 +340,49 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                   border: `1px solid ${aqiColor}55`,
                   color: aqiColor, fontSize: 18, fontWeight: 800,
                   textAlign: 'center', minWidth: 110,
+                  transition: 'all 0.5s ease',
                 }}>
                   {aqiLabel}
                 </div>
               </div>
             </div>
 
-            <div style={{ maxWidth: 320 }}>
+            <div style={{ maxWidth: 360, marginTop: 4 }}>
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                {['Good', 'Moderate', 'Poor', 'Unhealthy', 'Severe', 'Hazardous'].map((label) => (
-                  <span key={label} style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)' }}>{label}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px', marginBottom: 6 }}>
+                {[
+                  { label: 'Good', color: '#22c55e' },
+                  { label: 'Moderate', color: '#eab308' },
+                  { label: 'Poor', color: '#f97316' },
+                  { label: 'Unhealthy', color: '#ec4899' },
+                  { label: 'Severe', color: '#a855f7' },
+                  { label: 'Hazardous', color: '#dc2626' }
+                ].map((item) => (
+                  <span key={item.label} style={{ fontSize: 10, fontWeight: 700, color: item.color }}>{item.label}</span>
                 ))}
               </div>
 
-              <div style={{ position: 'relative', height: 8, borderRadius: 4, overflow: 'visible', marginBottom: 6 }}>
+              <div style={{ position: 'relative', height: 10, borderRadius: 6, padding: '0 2px', background: 'rgba(0,0,0,0.06)', marginBottom: 8 }}>
                 <div style={{
-                  width: '100%', height: '100%', borderRadius: 4,
-                  background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 10%, #f59e0b 10%, #f59e0b 20%, #f97316 20%, #f97316 40%, #ef4444 40%, #ef4444 60%, #a855f7 60%, #a855f7 80%, #ec4899 80%, #ec4899 100%)',
+                  width: '100%', height: '100%', borderRadius: 5,
+                  background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 10%, #eab308 10%, #eab308 20%, #f97316 20%, #f97316 40%, #ec4899 40%, #ec4899 60%, #a855f7 60%, #a855f7 80%, #dc2626 80%, #dc2626 100%)',
+                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.15)',
                 }} />
 
                 <div style={{
                   position: 'absolute', top: '50%', left: `${scalePosition}%`,
                   transform: 'translate(-50%, -50%)',
-                  width: 14, height: 14, borderRadius: '50%',
-                  backgroundColor: '#fff', border: `3px solid ${aqiColor}`,
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-                  transition: 'left 0.6s ease',
+                  width: 18, height: 18, borderRadius: '50%',
+                  backgroundColor: '#ffffff', border: `3.5px solid ${aqiColor}`,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                  transition: 'left 0.6s ease, border-color 0.5s ease',
+                  zIndex: 2,
                 }} />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                {['0', '50', '100', '200', '300', '400', '500+'].map((num) => (
-                  <span key={num} style={{ fontSize: 9, fontWeight: 500, color: 'var(--text-muted)' }}>{num}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
+                {['0', '50', '100', '150', '200', '300', '301+'].map((num) => (
+                  <span key={num} style={{ fontSize: 10, fontWeight: 600, color: '#64748b' }}>{num}</span>
                 ))}
               </div>
             </div>
@@ -352,11 +391,12 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           {weather && (
             <div style={{
               flex: '0 0 auto', width: 290,
-              background: 'linear-gradient(135deg, #f0fdf4 0%, #e6f4ea 100%)',
-              border: '1px solid #bbf7d0',
+              background: `linear-gradient(135deg, ${aqiColor}0d 0%, ${aqiColor}1c 100%)`,
+              border: `1px solid ${aqiColor}38`,
               borderRadius: 24, padding: '22px 24px 18px',
               position: 'relative',
-              boxShadow: '0 8px 24px rgba(34, 197, 94, 0.08), 0 2px 6px rgba(0,0,0,0.02)',
+              boxShadow: `0 8px 24px ${aqiColor}15, 0 2px 6px rgba(0,0,0,0.02)`,
+              transition: 'background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease',
             }}>
               
               <button
@@ -409,34 +449,11 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               Major Air Pollutants
             </h2>
             <p style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
-              Click any card to inspect health impacts, sources & WHO guidelines
+              Click any card to inspect health impacts, sources &amp; WHO guidelines
             </p>
           </div>
-          <button
-            onClick={() => setActivePollutantModal('pm25')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 14px', borderRadius: 20,
-              backgroundColor: '#f0f9ff', border: '1px solid #bae6fd',
-              color: '#0284c7', fontSize: 13, fontWeight: 700,
-              cursor: 'pointer', transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#e0f2fe';
-              const arrow = e.currentTarget.querySelector('.guide-arrow');
-              if (arrow) arrow.style.transform = 'translateX(3px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#f0f9ff';
-              const arrow = e.currentTarget.querySelector('.guide-arrow');
-              if (arrow) arrow.style.transform = 'translateX(0)';
-            }}
-          >
-            <Info style={{ width: 14, height: 14 }} />
-            <span>Parameter Guide</span>
-            <ArrowRight className="guide-arrow" style={{ width: 13, height: 13, transition: 'transform 0.2s ease' }} />
-          </button>
         </div>
+
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           {[
@@ -557,6 +574,107 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Last 50 Data Table from AQI_LIVE_NODE1 */}
+      <div style={{ marginTop: 32 }}>
+        <div style={{ marginBottom: 16 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Table style={{ width: 20, height: 20, color: '#0284c7' }} />
+            Live Air Quality Readings
+          </h2>
+          <p style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+            Real-time air monitoring telemetry stream updated continuously
+          </p>
+        </div>
+
+        <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #e2e8f0', borderRadius: 16 }}>
+          <div style={{ overflowX: 'auto', maxHeight: 420 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+              <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', zIndex: 1 }}>
+                <tr>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Timestamp</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>CPCB AQI</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Status</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Temp (°C)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Humidity (%)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>PM2.5 (µg/m³)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>PM10 (µg/m³)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>CO (mg/m³)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>NO₂ (µg/m³)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>O₃ (µg/m³)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Wind Speed (km/h)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Wind Direction (°)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700, color: '#475569' }}>Rain (mm)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {liveHistoryLoading ? (
+                  <tr>
+                    <td colSpan="13" style={{ padding: 32, textAlign: 'center', color: '#64748b' }}>
+                      <RefreshCw style={{ width: 20, height: 20, animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: 8 }} />
+                      Loading live telemetry records...
+                    </td>
+                  </tr>
+                ) : liveHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan="13" style={{ padding: 32, textAlign: 'center', color: '#64748b' }}>
+                      No live telemetry data found.
+                    </td>
+                  </tr>
+                ) : (
+                  liveHistory.map((row, index) => {
+                    const rowColor = row.aqi_info?.color || '#94a3b8';
+                    const tsDate = row.timestamp ? new Date(row.timestamp) : null;
+                    const formattedTime = tsDate && !isNaN(tsDate) 
+                      ? tsDate.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: 'short' })
+                      : 'NaN';
+
+                    const valOrNaN = (v) => (v != null && v !== 'N/A' && !Number.isNaN(Number(v))) ? v : 'NaN';
+
+                    return (
+                      <tr 
+                        key={row.id || index}
+                        style={{ 
+                          borderBottom: '1px solid #f1f5f9',
+                          backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc',
+                          transition: 'background-color 0.15s ease'
+                        }}
+                      >
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#1e293b' }}>
+                          {formattedTime}
+                        </td>
+                        <td style={{ padding: '10px 16px', fontWeight: 800, color: '#0f172a' }}>
+                          {valOrNaN(row.cpcb_aqi)}
+                        </td>
+                        <td style={{ padding: '10px 16px' }}>
+                          <span style={{
+                            padding: '3px 10px', borderRadius: 10,
+                            backgroundColor: `${rowColor}22`,
+                            color: rowColor, fontWeight: 700, fontSize: 11.5,
+                            border: `1px solid ${rowColor}55`
+                          }}>
+                            {row.aqi_info?.label || 'NaN'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.temperature)}</td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.humidity)}</td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.pm25)}</td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.pm10)}</td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.co)}</td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.no2)}</td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.o3)}</td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.wind_speed)}</td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.wind_direction)}</td>
+                        <td style={{ padding: '10px 16px', color: '#334155', fontWeight: 600 }}>{valOrNaN(row.rain_gauge)}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
