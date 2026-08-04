@@ -11,6 +11,7 @@ const CLOUD_POLL_MS = 5000;
 export default function App() {
   const [activeNav, setActiveNav] = useState('home');
   const [activeTab, setActiveTab] = useState('aqi');
+  const [selectedStation, setSelectedStation] = useState('station-1');
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [cloudData, setCloudData] = useState(null);
@@ -74,38 +75,39 @@ export default function App() {
       onNavChange={setActiveNav}
       activeTab={activeTab}
       onTabChange={setActiveTab}
+      selectedStation={selectedStation}
+      onStationChange={setSelectedStation}
       lastCloudId={lastCloudId}
     >
-      <div className="tab-view-container">
-        <div className={`tab-view-pane ${activeNav === 'home' && activeTab === 'aqi' ? 'active' : ''}`}>
-          <Dashboard
-            cloudData={cloudData}
-            cloudLoading={cloudLoading}
-            cloudError={cloudError}
-            onDataLoad={handleDataLoad}
-            refreshKey={refreshKey}
-            onNavigateToWeather={() => setActiveTab('weather')}
-          />
-        </div>
+      {activeNav === 'home' && activeTab === 'aqi' && (
+        <Dashboard
+          cloudData={cloudData}
+          cloudLoading={cloudLoading}
+          cloudError={cloudError}
+          onDataLoad={handleDataLoad}
+          refreshKey={refreshKey}
+          selectedStation={selectedStation}
+          onNavigateToWeather={() => setActiveTab('weather')}
+        />
+      )}
 
-        <div className={`tab-view-pane ${activeNav === 'home' && activeTab === 'weather' ? 'active' : ''}`}>
-          <Weather
-            cloudData={cloudData}
-            cloudLoading={cloudLoading}
-            cloudError={cloudError}
-            refreshKey={refreshKey}
-          />
-        </div>
+      {activeNav === 'home' && activeTab === 'weather' && (
+        <Weather
+          cloudData={cloudData}
+          cloudLoading={cloudLoading}
+          cloudError={cloudError}
+          refreshKey={refreshKey}
+          selectedStation={selectedStation}
+        />
+      )}
 
-        <div className={`tab-view-pane ${activeNav === 'forecast' ? 'active' : ''}`}>
-          <Forecast refreshKey={refreshKey} />
-        </div>
+      {activeNav === 'forecast' && (
+        <Forecast refreshKey={refreshKey} selectedStation={selectedStation} />
+      )}
 
-        <div className={`tab-view-pane ${activeNav === 'historical' ? 'active' : ''}`}>
-          <Historical refreshKey={refreshKey} />
-        </div>
-      </div>
+      {activeNav === 'historical' && (
+        <Historical refreshKey={refreshKey} selectedStation={selectedStation} />
+      )}
     </Layout>
   );
 }
-

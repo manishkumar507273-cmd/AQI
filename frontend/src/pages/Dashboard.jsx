@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, ChevronRight, Table, RefreshCw, X, CheckCircle2, AlertTriangle, Users, ShieldAlert, Info, HeartPulse, Factory, Cpu, ExternalLink } from 'lucide-react';
+import { AlertCircle, ChevronRight, Table, RefreshCw, X, CheckCircle2, AlertTriangle, Users, ShieldAlert, Info, HeartPulse, Factory, Cpu, ExternalLink, TrendingUp, Activity, Layers } from 'lucide-react';
+import { ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { getCloudLatest, getCloudLiveHistory } from '../api';
 import sensirionSensorImg from '../assets/sensirion_sensor.png';
 import mq131SensorImg from '../assets/mq131_sensor.png';
@@ -123,26 +124,141 @@ const getAqiColor = (val) => {
 };
 
 const POLLUTANT_CARD_STYLE = {
-  pm25: { bg: '#131e2b', border: 'rgba(56, 189, 248, 0.2)', badgeBg: 'rgba(56, 189, 248, 0.12)', badgeText: '#38bdf8', accent: '#38bdf8' },
-  pm10: { bg: '#131e2b', border: 'rgba(129, 140, 248, 0.2)', badgeBg: 'rgba(129, 140, 248, 0.12)', badgeText: '#818cf8', accent: '#818cf8' },
-  co:   { bg: '#131e2b', border: 'rgba(148, 163, 184, 0.2)', badgeBg: 'rgba(148, 163, 184, 0.12)', badgeText: '#94a3b8', accent: '#94a3b8' },
-  no2:  { bg: '#131e2b', border: 'rgba(192, 132, 252, 0.2)', badgeBg: 'rgba(192, 132, 252, 0.12)', badgeText: '#c084fc', accent: '#c084fc' },
-  o3:   { bg: '#131e2b', border: 'rgba(251, 191, 36, 0.2)', badgeBg: 'rgba(251, 191, 36, 0.12)', badgeText: '#fbbf24', accent: '#fbbf24' },
+  pm25: { bg: '#ffffff', border: '#e2e8f0', badgeBg: '#e0f2fe', badgeText: '#0284c7', accent: '#0284c7', whoLimit: 15 },
+  pm10: { bg: '#ffffff', border: '#e2e8f0', badgeBg: '#e0e7ff', badgeText: '#4f46e5', accent: '#4f46e5', whoLimit: 45 },
+  co:   { bg: '#ffffff', border: '#e2e8f0', badgeBg: '#dcfce7', badgeText: '#16a34a', accent: '#16a34a', whoLimit: 4 },
+  no2:  { bg: '#ffffff', border: '#e2e8f0', badgeBg: '#f3e8ff', badgeText: '#9333ea', accent: '#9333ea', whoLimit: 25 },
+  o3:   { bg: '#ffffff', border: '#e2e8f0', badgeBg: '#fef3c7', badgeText: '#d97706', accent: '#d97706', whoLimit: 100 },
 };
 
-export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataLoad, refreshKey, onNavigateToWeather }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+const computeInitialDashboardData = (cloud) => {
+  if (!cloud) return null;
+  const fmt = (val, decimals = 2) => val != null ? Number(val).toFixed(decimals) : 'N/A';
+  const fmtSmart = (val, d = 1) => val != null ? (Number(val) % 1 === 0 ? Number(val).toFixed(0) : Number(val).toFixed(d)) : 'N/A';
+  return {
+    location: { name: 'SMVITM Station Node', country: 'IN' },
+    aqi: {
+      value: cloud?.cpcb_aqi ?? 'N/A',
+      label: cloud?.aqi_info?.label ?? 'N/A',
+      color: cloud?.aqi_info?.color ?? '#94a3b8',
+    },
+    pollutants: {
+      pm25: { value: fmt(cloud?.pm25) },
+      pm10: { value: fmt(cloud?.pm10) },
+      co:   { value: fmt(cloud?.co) },
+      no2:  { value: fmt(cloud?.no2) },
+      o3:   { value: fmt(cloud?.o3) },
+    },
+    weather: {
+      temperature:     fmtSmart(cloud?.temperature, 1),
+      humidity:        fmtSmart(cloud?.humidity, 1),
+      wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 1)     : 'N/A',
+      wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 1) : 'N/A',
+      rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 1)     : 'N/A',
+    },
+    dominant_pollutant: cloud?.dominant_pollutant ?? 'N/A',
+    timestamp: cloud?.timestamp ?? 'N/A',
+  };
+};
+
+export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataLoad, refreshKey, selectedStation = 'station-1', onNavigateToWeather }) {
+  const [data, setData] = useState(() => selectedStation === 'station-1' ? computeInitialDashboardData(cloudData) : null);
+  const [loading, setLoading] = useState(() => selectedStation === 'station-1' && !cloudData);
   const [error, setError] = useState(null);
   const [activePollutantModal, setActivePollutantModal] = useState(null);
   const [liveHistory, setLiveHistory] = useState([]);
   const [liveHistoryLoading, setLiveHistoryLoading] = useState(true);
+  const [visiblePollutants, setVisiblePollutants] = useState({
+    pm25: true,
+    pm10: true,
+    co: true,
+    no2: true,
+    o3: true,
+  });
+
+  const togglePollutant = (key) => {
+    setVisiblePollutants(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const liveHistoryChartData = useMemo(() => {
+    if (!liveHistory || liveHistory.length === 0) return [];
+    return [...liveHistory].reverse().map((row, idx) => {
+      const dt = row.timestamp ? new Date(row.timestamp) : null;
+      const timeLabel = dt && !isNaN(dt)
+        ? dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }).toLowerCase()
+        : 'N/A';
+      return {
+        uniqueKey: dt && !isNaN(dt) ? `${dt.getTime()}_${idx}` : `live_${idx}`,
+        time: timeLabel,
+        rawDate: dt,
+        fullTime: dt && !isNaN(dt) ? dt.toLocaleString('en-IN') : 'N/A',
+        cpcb_aqi: row.cpcb_aqi != null && !isNaN(Number(row.cpcb_aqi)) ? Number(row.cpcb_aqi) : 0,
+        pm25: row.pm25 != null && !isNaN(Number(row.pm25)) ? Number(row.pm25) : 0,
+        pm10: row.pm10 != null && !isNaN(Number(row.pm10)) ? Number(row.pm10) : 0,
+        co: row.co != null && !isNaN(Number(row.co)) ? Number(row.co) : 0,
+        no2: row.no2 != null && !isNaN(Number(row.no2)) ? Number(row.no2) : 0,
+        o3: row.o3 != null && !isNaN(Number(row.o3)) ? Number(row.o3) : 0,
+      };
+    });
+  }, [liveHistory]);
+
+  const chart15MinTicks = useMemo(() => {
+    if (!liveHistoryChartData || liveHistoryChartData.length === 0) return undefined;
+    const ticks = [];
+    let lastTimeMs = -Infinity;
+    const gapMs = 15 * 60 * 1000; // 15 mins gap
+
+    liveHistoryChartData.forEach((item) => {
+      if (!item.rawDate || isNaN(item.rawDate.getTime())) return;
+      const currentMs = item.rawDate.getTime();
+      if (currentMs - lastTimeMs >= gapMs) {
+        ticks.push(item.uniqueKey);
+        lastTimeMs = currentMs;
+      }
+    });
+
+    return ticks.length > 0 ? ticks : undefined;
+  }, [liveHistoryChartData]);
 
   const fmt = (val, decimals = 2) => val != null ? Number(val).toFixed(decimals) : 'N/A';
   const fmtSmart = (val, d = 1) => val != null ? (Number(val) % 1 === 0 ? Number(val).toFixed(0) : Number(val).toFixed(d)) : 'N/A';
 
   useEffect(() => {
     let isMounted = true;
+
+    if (selectedStation !== 'station-1') {
+      setLiveHistory([]);
+      setLiveHistoryLoading(false);
+      const nullData = {
+        location: { name: `Station Node (${selectedStation.toUpperCase()})`, country: 'IN' },
+        aqi: {
+          value: 'N/A',
+          label: 'Standby / No Data',
+          color: '#94a3b8',
+        },
+        pollutants: {
+          pm25: { value: 'N/A' },
+          pm10: { value: 'N/A' },
+          co:   { value: 'N/A' },
+          no2:  { value: 'N/A' },
+          o3:   { value: 'N/A' },
+        },
+        weather: {
+          temperature:     'N/A',
+          humidity:        'N/A',
+          wind_speed:      'N/A',
+          wind_direction:  'N/A',
+          rain_gauge:      'N/A',
+        },
+        dominant_pollutant: 'N/A',
+        timestamp: null,
+      };
+      setData(nullData);
+      if (onDataLoad) onDataLoad(nullData.location);
+      setLoading(false);
+      setError(null);
+      return;
+    }
 
     const fetchLiveHistory = () => {
       getCloudLiveHistory(50)
@@ -164,7 +280,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
     if (cloudData) {
       const cloud = cloudData;
       const combined = {
-        location: { name: 'Sensor Station', country: 'IN' },
+        location: { name: 'SMVITM Station Node', country: 'IN' },
         aqi: {
           value: cloud?.cpcb_aqi ?? 'N/A',
           label: cloud?.aqi_info?.label ?? 'N/A',
@@ -202,7 +318,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         if (!isMounted) return;
         const cloud = cloudRes.data?.data;
         const combined = {
-          location: { name: 'Sensor Station', country: 'IN' },
+          location: { name: 'SMVITM Station Node', country: 'IN' },
           aqi: {
             value: cloud?.cpcb_aqi ?? 'N/A',
             label: cloud?.aqi_info?.label ?? 'N/A',
@@ -240,18 +356,52 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
       isMounted = false;
       clearInterval(historyInterval);
     };
-  }, [cloudData, cloudError, refreshKey]);
+  }, [cloudData, cloudError, refreshKey, selectedStation]);
+
+  if (selectedStation !== 'station-1') {
+    return (
+      <div style={{ minHeight: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 20px' }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 24,
+            padding: '48px 56px',
+            textAlign: 'center',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
+            maxWidth: 380,
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 4 }}>⚠️</div>
+          <h3 style={{ fontSize: 20, fontWeight: 700, color: '#ef4444', margin: 0, fontFamily: 'var(--font-sans)' }}>
+            Sensor Offline
+          </h3>
+          <p style={{ color: '#64748b', fontSize: 14, margin: 0, fontFamily: 'var(--font-sans)' }}>
+            No sensor data available.
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
       <div style={{ padding: '80px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
         <div style={{
           width: 44, height: 44, borderRadius: '50%',
-          border: '3px solid rgba(255,255,255,0.1)',
+          border: '3px solid #e2e8f0',
           borderTopColor: '#00bfa5',
           animation: 'spin 0.9s linear infinite',
         }} />
-        <p style={{ fontSize: 14, color: '#94a3b8', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Loading air quality telemetry...</p>
+        <p style={{ fontSize: 14, color: '#64748b', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Loading air quality telemetry...</p>
       </div>
     );
   }
@@ -259,10 +409,10 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
   if (error || !data) {
     return (
       <div style={{ padding: '40px 20px' }}>
-        <div style={{ backgroundColor: '#131e2b', borderRadius: 20, padding: 40, textAlign: 'center', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 40, textAlign: 'center', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
           <AlertCircle style={{ width: 40, height: 40, color: '#ef4444', margin: '0 auto 12px' }} />
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: '#ffffff' }}>Data Unavailable</h3>
-          <p style={{ color: '#94a3b8', fontSize: 14 }}>{error || 'Could not load AQI data.'}</p>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: '#0f172a' }}>Data Unavailable</h3>
+          <p style={{ color: '#64748b', fontSize: 14 }}>{error || 'Could not load AQI data.'}</p>
         </div>
       </div>
     );
@@ -283,36 +433,68 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+      {/* ── Standby Station Notice Banner ── */}
+      {selectedStation !== 'station-1' && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderLeft: '4px solid #00bfa5',
+            borderRadius: 16,
+            padding: '14px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Info style={{ width: 18, height: 18, color: '#00bfa5', flexShrink: 0 }} />
+            <span style={{ fontSize: 13.5, color: '#475569', fontWeight: 600 }}>
+              <strong style={{ color: '#0f172a' }}>Station Standby Mode:</strong> This monitoring station node is un-developed / pending deployment. All telemetry values are displayed as <span style={{ color: '#00bfa5', fontWeight: 700 }}>null / N/A</span> on the standard station interface.
+            </span>
+          </div>
+          <span style={{ fontSize: 11.5, fontWeight: 700, padding: '4px 12px', borderRadius: 999, backgroundColor: '#f1f5f9', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+            UN-DEVELOPED NODE
+          </span>
+        </motion.div>
+      )}
+
       {/* ── Page Header Titles ── */}
       <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
           Real-time Air Quality Index
         </h1>
-        <div style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
-          Last Updated: <span style={{ color: '#00bfa5', fontWeight: 600 }}>{data?.timestamp ? new Date(data.timestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'medium' }) : new Date().toLocaleString()}</span>
+        <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
+          Last Updated: <span style={{ color: '#00bfa5', fontWeight: 600 }}>{data?.timestamp ? new Date(data.timestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'medium' }) : (selectedStation === 'station-1' ? new Date().toLocaleString() : 'N/A (Station Standby)')}</span>
         </div>
       </motion.div>
 
-      {/* ── HERO AQI CARD (Background color changes dynamically according to sliding scale bar) ── */}
+      {/* ── HERO AQI CARD ── */}
       <motion.div
         custom={0} variants={cardVariants} initial="hidden" animate="visible"
         style={{
-          backgroundColor: aqiColor === '#22c55e' ? '#0f2c22' :
-                           aqiColor === '#eab308' ? '#2e2711' :
-                           aqiColor === '#f97316' ? '#331d10' :
-                           aqiColor === '#ef4444' ? '#361517' :
-                           aqiColor === '#a855f7' ? '#271638' : '#331018',
+          backgroundColor: aqiColor === '#22c55e' ? '#f0fdf4' :
+                           aqiColor === '#eab308' ? '#fefce8' :
+                           aqiColor === '#f97316' ? '#fff7ed' :
+                           aqiColor === '#ef4444' ? '#fef2f2' :
+                           aqiColor === '#a855f7' ? '#faf5ff' : '#fff1f2',
           borderRadius: 24,
           padding: '28px 32px',
-          color: '#ffffff',
-          border: `1px solid ${aqiColor}40`,
-          boxShadow: `0 8px 32px ${aqiColor}20`,
+          color: '#0f172a',
+          border: `1.5px solid ${aqiColor}40`,
+          boxShadow: `0 8px 30px ${aqiColor}15, 0 1px 3px rgba(15,23,42,0.04)`,
           position: 'relative',
           overflow: 'hidden',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 24,
+          flexWrap: 'wrap',
           transition: 'background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease',
         }}
       >
@@ -322,27 +504,28 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         <div style={{ flex: 1, minWidth: 280, zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#22c55e', display: 'inline-block' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status Panel</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status Panel</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20 }}>
             <div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 72, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#ffffff' }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 72, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#0f172a' }}>
                 {aqiValue}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-                LIVE AQI (IN)
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                LIVE AQI
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>Air Quality is</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Air Quality is</div>
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 7,
                 padding: '6px 18px', borderRadius: 999,
-                backgroundColor: `${aqiColor}20`,
-                border: `1.5px solid ${aqiColor}40`,
-                color: '#ffffff', fontSize: 16, fontWeight: 800,
+                backgroundColor: '#ffffff',
+                border: `1.5px solid ${aqiColor}50`,
+                color: '#0f172a', fontSize: 16, fontWeight: 800,
+                boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)',
               }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: aqiColor }} />
                 <span>{aqiLabel}</span>
@@ -365,7 +548,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               ))}
             </div>
 
-            <div style={{ position: 'relative', height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.1)', marginBottom: 8 }}>
+            <div style={{ position: 'relative', height: 8, borderRadius: 4, background: '#e2e8f0', marginBottom: 8 }}>
               <div style={{
                 width: '100%', height: '100%', borderRadius: 4,
                 background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 10%, #eab308 10%, #eab308 20%, #f97316 20%, #f97316 40%, #ef4444 40%, #ef4444 60%, #a855f7 60%, #a855f7 80%, #f43f5e 80%, #f43f5e 100%)',
@@ -375,14 +558,14 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 transform: 'translate(-50%, -50%)',
                 width: 16, height: 16, borderRadius: '50%',
                 backgroundColor: '#ffffff', border: `3px solid ${aqiColor}`,
-                boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
                 zIndex: 2,
               }} />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
               {['0', '50', '100', '150', '200', '300', '301+'].map((num) => (
-                <span key={num} style={{ fontSize: 9.5, fontWeight: 600, color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>{num}</span>
+                <span key={num} style={{ fontSize: 9.5, fontWeight: 600, color: '#64748b', fontFamily: 'var(--font-mono)' }}>{num}</span>
               ))}
             </div>
           </div>
@@ -395,61 +578,66 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             style={{
               flex: '0 0 auto',
               width: 230,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: '#ffffff',
+              border: '1px solid #e2e8f0',
               borderRadius: 20,
               padding: '20px 22px',
               cursor: 'pointer',
               position: 'relative',
               zIndex: 1,
+              boxShadow: '0 4px 16px rgba(15, 23, 42, 0.04)',
               transition: 'all 0.2s ease',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <span style={{ fontSize: 32 }}>🌤️</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 34, fontWeight: 800, color: '#ffffff', lineHeight: 1 }}>
-                  {weather.temperature ?? '0'}
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: weather?.temperature === 'N/A' ? 26 : 34, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
+                  {weather?.temperature ?? 'N/A'}
                 </span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: '#94a3b8' }}>°C</span>
+                {weather?.temperature !== 'N/A' && (
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: '#64748b' }}>°C</span>
+                )}
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#94a3b8' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#64748b' }}>
                 <span>💧</span>
-                <span>Humidity <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{weather.humidity}%</strong></span>
+                <span>Humidity <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{weather?.humidity !== 'N/A' ? `${weather?.humidity}%` : 'N/A'}</strong></span>
               </div>
-              <ChevronRight style={{ width: 16, height: 16, color: '#94a3b8' }} />
+              <ChevronRight style={{ width: 16, height: 16, color: '#64748b' }} />
             </div>
           </div>
         )}
       </motion.div>
 
-      {/* ── MAJOR AIR POLLUTANTS (Slate Glass Cards) ── */}
+      {/* ── MAJOR AIR POLLUTANTS (Cool Light Theme Cards - No Overflow Bug) ── */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0, fontFamily: 'var(--font-sans)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0, fontFamily: 'var(--font-sans)' }}>
               Major Air Pollutants
             </h2>
-            <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 2 }}>
-              Interact with cards to explore detailed sensor metrics, health impacts, and guidelines
+            <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>
+              Click any pollutant card for WHO safety limits, health impacts, and sensor specs
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: 14 }}>
           {[
             { key: 'pm25', name: 'PM2.5', sub: 'Particulate Matter 2.5', unit: 'µg/m³', icon: '🌫️' },
             { key: 'pm10', name: 'PM10', sub: 'Particulate Matter 10', unit: 'µg/m³', icon: '☁️' },
             { key: 'co', name: 'CO', sub: 'Carbon Monoxide', unit: 'mg/m³', icon: '💨' },
             { key: 'no2', name: 'NO2', sub: 'Nitrogen Dioxide', unit: 'µg/m³', icon: '🏭' },
             { key: 'o3', name: 'Ozone', sub: 'Ground-level Ozone', unit: 'µg/m³', icon: '☀️' },
-          ].map(({ key, name, unit, icon }, i) => {
+          ].map(({ key, name, sub, unit, icon }, i) => {
             const p = pollutants?.[key];
             if (!p) return null;
             const st = POLLUTANT_CARD_STYLE[key] || POLLUTANT_CARD_STYLE.pm25;
+            const valNum = p.value !== 'N/A' ? Number(p.value) : null;
+            const isSafe = valNum != null ? valNum <= st.whoLimit : true;
 
             return (
               <motion.div
@@ -457,54 +645,83 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 custom={i + 1} variants={cardVariants} initial="hidden" animate="visible"
                 onClick={() => setActivePollutantModal(key)}
                 style={{
-                  backgroundColor: st.bg,
-                  border: `1px solid ${st.border}`,
-                  borderRadius: 18,
-                  padding: '18px 20px',
-                  color: '#ffffff',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 20,
+                  padding: '20px 20px',
+                  color: '#0f172a',
                   display: 'flex',
-                  alignItems: 'center',
+                  flexDirection: 'column',
                   justifyContent: 'space-between',
+                  gap: 16,
                   cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-                  transition: 'transform 0.2s ease',
+                  boxShadow: '0 4px 16px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02)',
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
-                whileHover={{ scale: 1.02, y: -2 }}
+                whileHover={{ scale: 1.02, y: -3, borderColor: '#00bfa5' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 10,
-                    backgroundColor: st.badgeBg,
-                    color: st.accent,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, flexShrink: 0,
-                  }}>
-                    {icon}
+                {/* Top Row: Icon + Name on left, Info Icon Button on top right */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                      width: 38, height: 38, borderRadius: 10,
+                      backgroundColor: st.badgeBg,
+                      color: st.accent,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 18, flexShrink: 0,
+                    }}>
+                      {icon}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-sans)', color: '#0f172a', lineHeight: 1.1 }}>
+                        {name}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 2, whiteSpace: 'nowrap' }}>
+                        WHO: ≤{st.whoLimit}
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-sans)', lineHeight: 1.1, color: '#ffffff' }}>
-                      {name}
-                    </div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 800, marginTop: 4, color: '#ffffff' }}>
-                      {p.value} <span style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8' }}>{unit}</span>
-                    </div>
+
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%',
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#64748b',
+                    flexShrink: 0,
+                  }}>
+                    <Info style={{ width: 13, height: 13 }} />
                   </div>
                 </div>
 
-                <div style={{
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  backgroundColor: st.badgeBg,
-                  color: st.badgeText,
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  flexShrink: 0,
-                }}>
-                  <span>Impact Details</span>
-                  <ChevronRight style={{ width: 12, height: 12 }} />
+                {/* Bottom Row: Monospace Value + Status Tag */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%', marginTop: 4 }}>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 800, color: st.accent, lineHeight: 1 }}>
+                      {p.value}
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
+                      {unit}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    backgroundColor: isSafe ? '#dcfce7' : '#fee2e2',
+                    border: `1px solid ${isSafe ? '#bbf7d0' : '#fecaca'}`,
+                    color: isSafe ? '#15803d' : '#b91c1c',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: isSafe ? '#16a34a' : '#dc2626' }} />
+                    <span>{isSafe ? 'Normal' : 'High'}</span>
+                  </div>
                 </div>
               </motion.div>
             );
@@ -512,49 +729,276 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         </div>
       </div>
 
-      {/* ── NETWORK READINGS TABLE (Slate Container) ── */}
+      {/* ── VISUALIZATIONS SECTION (AQI Lineplot & AQI Parameters Comparison Lineplot) ── */}
+      <motion.div
+        custom={6.5} variants={cardVariants} initial="hidden" animate="visible"
+        style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: 8 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)' }}>
+            <TrendingUp style={{ width: 20, height: 20, color: '#00bfa5' }} />
+            Air Quality Visualizations
+          </h2>
+          <div style={{ fontSize: 12, color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+            Live Stream Data Points: <strong style={{ color: '#00bfa5' }}>{liveHistoryChartData.length}</strong>
+          </div>
+        </div>
+
+        {/* Responsive Grid for both Line plots */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 20 }}>
+
+          {/* 1. AQI Lineplot Card */}
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            padding: 24,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Activity style={{ width: 16, height: 16, color: '#00bfa5' }} />
+                  AQI Line Plot
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  Real-time Air Quality Index progression
+                </div>
+              </div>
+              <div style={{
+                backgroundColor: 'rgba(0, 191, 165, 0.1)',
+                border: '1px solid rgba(0, 191, 165, 0.25)',
+                padding: '4px 10px',
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#00bfa5',
+                fontFamily: 'var(--font-mono)'
+              }}>
+                Current: {aqiValue}
+              </div>
+            </div>
+
+            <div style={{ width: '100%', height: 280, minWidth: 0 }}>
+              {liveHistoryLoading ? (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
+                  <RefreshCw style={{ width: 16, height: 16, animation: 'spin 1s linear infinite', marginRight: 8, color: '#00bfa5' }} />
+                  Loading graph...
+                </div>
+              ) : liveHistoryChartData.length === 0 ? (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
+                  No telemetry stream available.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={liveHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                    <defs>
+                      <linearGradient id="aqiGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#00bfa5" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#00bfa5" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="uniqueKey"
+                      ticks={chart15MinTicks}
+                      tickFormatter={(val) => {
+                        const item = liveHistoryChartData.find(d => d.uniqueKey === val);
+                        return item ? item.time : val;
+                      }}
+                      stroke="#94a3b8"
+                      fontSize={10}
+                      tick={{ fill: '#64748b' }}
+                      interval={0}
+                    />
+                    <YAxis stroke="#94a3b8" fontSize={10} tick={{ fill: '#64748b' }} domain={[0, 'auto']} />
+                    <Tooltip content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const d = payload[0].payload;
+                        const val = d.cpcb_aqi;
+                        const col = getAqiColor(val);
+                        return (
+                          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', borderRadius: 10, padding: '10px 14px', fontSize: 12, boxShadow: '0 10px 25px rgba(15,23,42,0.12)' }}>
+                            <div style={{ color: '#64748b', fontSize: 11, marginBottom: 4 }}>{d.fullTime}</div>
+                            <div style={{ fontWeight: 800, fontSize: 18, color: col }}>
+                              AQI: {val}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} />
+                    <Area type="monotone" dataKey="cpcb_aqi" name="AQI" stroke="#00bfa5" strokeWidth={2.5} fillOpacity={1} fill="url(#aqiGrad)" dot={{ r: 2, fill: '#00bfa5' }} activeDot={{ r: 5, fill: '#00bfa5', stroke: '#ffffff', strokeWidth: 2 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {/* 2. AQI Pollutants Comparison Lineplot Card */}
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            padding: 24,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Layers style={{ width: 16, height: 16, color: '#0284c7' }} />
+                  AQI Parameters Comparison
+                </div>
+                <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}>
+                  All AQI pollutants on a single graph (excl. temp, humidity, wind & rain)
+                </div>
+              </div>
+            </div>
+
+            {/* Pollutant Filter Chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {[
+                { key: 'pm25', label: 'PM2.5', color: '#0284c7' },
+                { key: 'pm10', label: 'PM10', color: '#6366f1' },
+                { key: 'co',   label: 'CO',   color: '#64748b' },
+                { key: 'no2',  label: 'NO₂',  color: '#9333ea' },
+                { key: 'o3',   label: 'O₃',   color: '#d97706' },
+              ].map((p) => {
+                const active = visiblePollutants[p.key];
+                return (
+                  <button
+                    key={p.key}
+                    onClick={() => togglePollutant(p.key)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      border: `1px solid ${active ? p.color : '#e2e8f0'}`,
+                      backgroundColor: active ? `${p.color}15` : '#f8fafc',
+                      color: active ? p.color : '#94a3b8',
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: active ? p.color : '#cbd5e1' }} />
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ width: '100%', height: 280, minWidth: 0 }}>
+              {liveHistoryLoading ? (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
+                  <RefreshCw style={{ width: 16, height: 16, animation: 'spin 1s linear infinite', marginRight: 8, color: '#00bfa5' }} />
+                  Loading comparison graph...
+                </div>
+              ) : liveHistoryChartData.length === 0 ? (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
+                  No telemetry stream available.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={liveHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="uniqueKey"
+                      ticks={chart15MinTicks}
+                      tickFormatter={(val) => {
+                        const item = liveHistoryChartData.find(d => d.uniqueKey === val);
+                        return item ? item.time : val;
+                      }}
+                      stroke="#94a3b8"
+                      fontSize={10}
+                      tick={{ fill: '#64748b' }}
+                      interval={0}
+                    />
+                    <YAxis stroke="#94a3b8" fontSize={10} tick={{ fill: '#64748b' }} />
+                    <Tooltip content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const d = payload[0].payload;
+                        return (
+                          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', borderRadius: 10, padding: '10px 14px', fontSize: 12, boxShadow: '0 10px 25px rgba(15,23,42,0.12)' }}>
+                            <div style={{ color: '#64748b', fontSize: 11, marginBottom: 6 }}>{d.fullTime}</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+                              {visiblePollutants.pm25 && <div style={{ color: '#0284c7', fontWeight: 600 }}>PM2.5: {d.pm25} <span style={{ fontSize: 10, color: '#64748b' }}>µg/m³</span></div>}
+                              {visiblePollutants.pm10 && <div style={{ color: '#6366f1', fontWeight: 600 }}>PM10: {d.pm10} <span style={{ fontSize: 10, color: '#64748b' }}>µg/m³</span></div>}
+                              {visiblePollutants.co   && <div style={{ color: '#64748b', fontWeight: 600 }}>CO: {d.co} <span style={{ fontSize: 10, color: '#64748b' }}>mg/m³</span></div>}
+                              {visiblePollutants.no2  && <div style={{ color: '#9333ea', fontWeight: 600 }}>NO₂: {d.no2} <span style={{ fontSize: 10, color: '#64748b' }}>µg/m³</span></div>}
+                              {visiblePollutants.o3   && <div style={{ color: '#d97706', fontWeight: 600 }}>O₃: {d.o3} <span style={{ fontSize: 10, color: '#64748b' }}>µg/m³</span></div>}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} />
+                    {visiblePollutants.pm25 && <Line type="monotone" dataKey="pm25" name="PM2.5" stroke="#0284c7" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                    {visiblePollutants.pm10 && <Line type="monotone" dataKey="pm10" name="PM10" stroke="#6366f1" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                    {visiblePollutants.co   && <Line type="monotone" dataKey="co"   name="CO"   stroke="#64748b" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                    {visiblePollutants.no2  && <Line type="monotone" dataKey="no2"  name="NO₂"  stroke="#9333ea" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                    {visiblePollutants.o3   && <Line type="monotone" dataKey="o3"   name="O₃"   stroke="#d97706" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </motion.div>
+
+      {/* ── NETWORK READINGS TABLE (Light Slate Container) ── */}
       <motion.div
         custom={7} variants={cardVariants} initial="hidden" animate="visible"
         style={{ marginTop: 8 }}
       >
         <div style={{ marginBottom: 12 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)' }}>
             <Table style={{ width: 18, height: 18, color: '#00bfa5' }} />
             Network Readings &amp; Status
           </h2>
         </div>
 
         <div style={{
-          backgroundColor: '#131e2b',
+          backgroundColor: '#ffffff',
           borderRadius: 20,
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          border: '1px solid #e2e8f0',
           overflow: 'hidden',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+          boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
         }}>
           <div style={{ overflowX: 'auto', maxHeight: 420 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
               <thead style={{
                 position: 'sticky', top: 0, zIndex: 1,
-                backgroundColor: '#182638',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                backgroundColor: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0',
               }}>
                 <tr>
                   {['Records', 'Last Update', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5', 'PM10', 'CO', 'NO₂', 'O₃', 'Wind Speed', 'Wind Dir', 'Rain (mm)'].map((h) => (
-                    <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {liveHistoryLoading ? (
                   <tr>
-                    <td colSpan="13" style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+                    <td colSpan="13" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
                       <RefreshCw style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: 8, color: '#00bfa5' }} />
                       Loading stream...
                     </td>
                   </tr>
                 ) : liveHistory.length === 0 ? (
                   <tr>
-                    <td colSpan="13" style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+                    <td colSpan="13" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
                       No telemetry stream data.
                     </td>
                   </tr>
@@ -569,29 +1013,35 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                       <tr
                         key={row.id || index}
                         style={{
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                          backgroundColor: index % 2 === 0 ? '#131e2b' : '#182638',
+                          borderBottom: '1px solid #f1f5f9',
+                          backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc',
                         }}
                       >
                         <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#00bfa5' }}>
                           #{index + 1}
                         </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
                           {formattedTime}
                         </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: '#ffffff', fontSize: 14 }}>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: '#0f172a', fontSize: 14 }}>
                           {row.cpcb_aqi || 'N/A'}
                         </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.temperature != null ? row.temperature : 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.humidity != null ? row.humidity : 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.pm25 || 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.pm10 || 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.co || 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.no2 || 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.o3 || 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.wind_speed != null ? row.wind_speed : 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.wind_direction != null ? row.wind_direction : 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#cbd5e1' }}>{row.rain_gauge != null ? row.rain_gauge : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.temperature != null ? row.temperature : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.humidity != null ? row.humidity : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm25 || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm10 || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.co || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.no2 || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.o3 || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>
+                          {row.wind_speed != null ? `${row.wind_speed} km/h` : (index === 0 && cloudData?.wind_speed != null ? `${cloudData.wind_speed} km/h` : 'N/A')}
+                        </td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>
+                          {row.wind_direction != null ? `${row.wind_direction}°` : (index === 0 && cloudData?.wind_direction != null ? `${cloudData.wind_direction}°` : 'N/A')}
+                        </td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>
+                          {row.rain_gauge != null ? row.rain_gauge : (index === 0 && cloudData?.rain_gauge != null ? cloudData.rain_gauge : 'N/A')}
+                        </td>
                       </tr>
                     );
                   })
@@ -602,7 +1052,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         </div>
       </motion.div>
 
-      {/* ── Pollutant Detail Modal (Dark Slate) ── */}
+      {/* ── Pollutant Detail Modal (Cool Light Theme) ── */}
       <AnimatePresence>
         {activePollutantModal && activeDetail && (
           <motion.div
@@ -611,7 +1061,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             exit={{ opacity: 0 }}
             style={{
               position: 'fixed', inset: 0, zIndex: 1000,
-              backgroundColor: 'rgba(11, 19, 30, 0.8)',
+              backgroundColor: 'rgba(15, 23, 42, 0.45)',
               backdropFilter: 'blur(8px)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
             }}
@@ -622,11 +1072,11 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               style={{
-                background: '#131e2b', border: '1px solid rgba(255,255,255,0.1)',
+                background: '#ffffff', border: '1px solid #e2e8f0',
                 borderRadius: 24, width: '100%', maxWidth: 620, maxHeight: '90vh',
                 overflowY: 'auto', padding: '28px 32px',
-                boxShadow: '0 25px 60px rgba(0,0,0,0.5)', position: 'relative',
-                color: '#ffffff',
+                boxShadow: '0 25px 60px rgba(15, 23, 42, 0.15)', position: 'relative',
+                color: '#0f172a',
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -635,9 +1085,9 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 style={{
                   position: 'absolute', top: 22, right: 22,
                   width: 34, height: 34, borderRadius: '50%',
-                  backgroundColor: '#182638', border: '1px solid rgba(255,255,255,0.1)',
+                  backgroundColor: '#f8fafc', border: '1px solid #cbd5e1',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', color: '#94a3b8',
+                  cursor: 'pointer', color: '#64748b',
                 }}
               >
                 <X style={{ width: 16, height: 16 }} />
@@ -646,30 +1096,30 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
                 <div style={{
                   width: 52, height: 52, borderRadius: 16,
-                  backgroundColor: 'rgba(0, 191, 165, 0.15)',
+                  backgroundColor: 'rgba(0, 191, 165, 0.12)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 26, flexShrink: 0,
                 }}>
                   {activeDetail.icon}
                 </div>
                 <div>
-                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#ffffff', margin: 0, fontFamily: 'var(--font-sans)' }}>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: 0, fontFamily: 'var(--font-sans)' }}>
                     {activeDetail.name} ({activeDetail.sub})
                   </h3>
-                  <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 4, margin: 0 }}>
+                  <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 4, margin: 0 }}>
                     WHO Safe Limit: <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{activeDetail.whoLimit} {activeDetail.unit}</strong>
                   </p>
                 </div>
               </div>
 
               <div style={{
-                backgroundColor: '#182638', borderRadius: 14,
-                padding: '14px 18px', border: '1px solid rgba(255,255,255,0.08)',
+                backgroundColor: '#f8fafc', borderRadius: 14,
+                padding: '14px 18px', border: '1px solid #e2e8f0',
                 marginBottom: 22, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
               }}>
                 <div>
-                  <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Current Reading</span>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 900, color: '#ffffff', lineHeight: 1, marginTop: 4 }}>
+                  <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Current Reading</span>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 900, color: '#0f172a', lineHeight: 1, marginTop: 4 }}>
                     {activePollutantVal != null ? `${activePollutantVal} ${activeDetail.unit}` : 'N/A'}
                   </div>
                 </div>
@@ -677,8 +1127,8 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 {activePollutantVal != null && (
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 10,
-                    backgroundColor: activePollutantVal <= activeDetail.whoLimit ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                    color: activePollutantVal <= activeDetail.whoLimit ? '#4ade80' : '#f87171',
+                    backgroundColor: activePollutantVal <= activeDetail.whoLimit ? '#dcfce7' : '#fee2e2',
+                    color: activePollutantVal <= activeDetail.whoLimit ? '#15803d' : '#b91c1c',
                     fontSize: 12.5, fontWeight: 700,
                   }}>
                     {activePollutantVal <= activeDetail.whoLimit ? (
@@ -692,40 +1142,40 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
-                  <h4 style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
                     <Info style={{ width: 14, height: 14, color: '#00bfa5' }} />
                     What is {activeDetail.sub}?
                   </h4>
-                  <p style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, margin: 0 }}>
+                  <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: 0 }}>
                     {activeDetail.description}
                   </p>
                 </div>
 
                 <div>
-                  <h4 style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
                     <HeartPulse style={{ width: 14, height: 14, color: '#ef4444' }} />
                     Health Impact & Symptoms
                   </h4>
-                  <p style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, margin: 0 }}>
+                  <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: 0 }}>
                     {activeDetail.healthImpact}
                   </p>
                 </div>
 
                 <div style={{
-                  backgroundColor: 'rgba(0, 191, 165, 0.06)', borderRadius: 14,
+                  backgroundColor: 'rgba(0, 191, 165, 0.04)', borderRadius: 14,
                   padding: '16px 18px', border: '1px solid rgba(0, 191, 165, 0.2)',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>Sensor Hardware Module</span>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 10, backgroundColor: '#182638', color: '#00bfa5', border: '1px solid rgba(0,191,165,0.3)', fontFamily: 'var(--font-mono)' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Sensor Hardware Module</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 10, backgroundColor: '#f8fafc', color: '#00bfa5', border: '1px solid rgba(0,191,165,0.3)', fontFamily: 'var(--font-mono)' }}>
                       {activeDetail.sensorType}
                     </span>
                   </div>
                   {activeDetail.sensorImage && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                      <img src={activeDetail.sensorImage} alt={activeDetail.sensorName} style={{ width: 70, height: 55, objectFit: 'contain', borderRadius: 8, backgroundColor: '#182638', padding: 4, border: '1px solid rgba(255,255,255,0.08)' }} />
+                      <img src={activeDetail.sensorImage} alt={activeDetail.sensorName} style={{ width: 70, height: 55, objectFit: 'contain', borderRadius: 8, backgroundColor: '#f8fafc', padding: 4, border: '1px solid #e2e8f0' }} />
                       <div>
-                        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#ffffff' }}>{activeDetail.sensorName}</div>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}>{activeDetail.sensorName}</div>
                         {activeDetail.sensorUrl && (
                           <a href={activeDetail.sensorUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11.5, color: '#00bfa5', textDecoration: 'none', fontWeight: 600 }}>
                             Product Link <ExternalLink style={{ width: 10, height: 10, display: 'inline' }} />
@@ -734,7 +1184,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                       </div>
                     </div>
                   )}
-                  <p style={{ fontSize: 12, color: '#cbd5e1', margin: 0 }}>{activeDetail.sensorWorking}</p>
+                  <p style={{ fontSize: 12, color: '#475569', margin: 0 }}>{activeDetail.sensorWorking}</p>
                 </div>
               </div>
             </motion.div>

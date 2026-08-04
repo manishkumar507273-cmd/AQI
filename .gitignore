@@ -1,4 +1,4 @@
-# Operating System Files
+# Operating System
 .DS_Store
 Thumbs.db
 desktop.ini
@@ -19,14 +19,20 @@ htmlcov/
 # Node / Frontend
 node_modules/
 frontend/node_modules/
+dist/
 frontend/dist/
 frontend/dist-ssr/
-*.local
+
+# Environment variables
 .env
 .env.local
 .env.*.local
+frontend/.env
+frontend/.env.local
+backend/.env
+backend/.env.local
 
-# IDEs and Editors
+# IDEs & Editors
 .vscode/
 .idea/
 *.swp

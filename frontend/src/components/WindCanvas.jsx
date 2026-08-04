@@ -19,27 +19,27 @@ export default function WindCanvas({ active }) {
     };
     window.addEventListener('resize', handleResize);
 
-    const STREAK_COUNT = 45;
+    const STREAK_COUNT = 40;
     const streaks = Array.from({ length: STREAK_COUNT }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
       length: 120 + Math.random() * 220,
-      speed: 2 + Math.random() * 3.5,
-      thickness: 1 + Math.random() * 2.5,
-      opacity: 0.15 + Math.random() * 0.35,
+      speed: 1.8 + Math.random() * 3.2,
+      thickness: 1 + Math.random() * 2,
+      opacity: 0.12 + Math.random() * 0.28,
       amplitude: 15 + Math.random() * 25,
       frequency: 0.005 + Math.random() * 0.008,
       offset: Math.random() * Math.PI * 2,
     }));
 
-    const MIST_COUNT = 30;
+    const MIST_COUNT = 24;
     const mists = Array.from({ length: MIST_COUNT }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
       radius: 40 + Math.random() * 80,
       vx: 0.8 + Math.random() * 1.5,
       vy: (Math.random() - 0.5) * 0.3,
-      opacity: 0.05 + Math.random() * 0.12,
+      opacity: 0.03 + Math.random() * 0.08,
     }));
 
     let time = 0;
@@ -56,8 +56,8 @@ export default function WindCanvas({ active }) {
         if (m.y > height + m.radius) m.y = -m.radius;
 
         const mistGrad = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.radius);
-        mistGrad.addColorStop(0, `rgba(255, 255, 255, ${m.opacity})`);
-        mistGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        mistGrad.addColorStop(0, `rgba(56, 189, 248, ${m.opacity})`);
+        mistGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
         ctx.fillStyle = mistGrad;
         ctx.beginPath();
         ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
@@ -83,10 +83,10 @@ export default function WindCanvas({ active }) {
         ctx.quadraticCurveTo(controlX, controlY, endX, endY);
 
         const streakGrad = ctx.createLinearGradient(startX, startY, endX, endY);
-        streakGrad.addColorStop(0, `rgba(255, 255, 255, 0)`);
-        streakGrad.addColorStop(0.4, `rgba(240, 249, 255, ${s.opacity})`);
-        streakGrad.addColorStop(0.8, `rgba(255, 255, 255, ${s.opacity * 0.8})`);
-        streakGrad.addColorStop(1, `rgba(255, 255, 255, 0)`);
+        streakGrad.addColorStop(0, `rgba(2, 132, 199, 0)`);
+        streakGrad.addColorStop(0.4, `rgba(2, 132, 199, ${s.opacity})`);
+        streakGrad.addColorStop(0.8, `rgba(56, 189, 248, ${s.opacity * 0.8})`);
+        streakGrad.addColorStop(1, `rgba(2, 132, 199, 0)`);
 
         ctx.strokeStyle = streakGrad;
         ctx.lineWidth = s.thickness;
@@ -123,4 +123,3 @@ export default function WindCanvas({ active }) {
     />
   );
 }
-
