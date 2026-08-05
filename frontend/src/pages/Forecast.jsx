@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { TrendingUp, AlertTriangle, Cpu, Zap } from 'lucide-react';
+import { AlertTriangle, Cpu, Zap, TrendingUp } from 'lucide-react';
 
 export default function Forecast() {
   return (
@@ -39,17 +39,6 @@ export default function Forecast() {
           <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a' }}>
             Inference Engine <span style={{ color: '#d97706', fontSize: 16, fontWeight: 600 }}>[ Standby ]</span>
           </div>
-        </div>
-
-        <div style={{
-          backgroundColor: '#f8fafc',
-          border: '1px solid #e2e8f0',
-          borderRadius: 16,
-          padding: '14px 20px',
-          fontSize: 13,
-          color: '#0f172a',
-        }}>
-          ⚡ Target Latency: <strong style={{ color: '#00bfa5' }}>&lt; 50ms</strong>
         </div>
       </motion.div>
 

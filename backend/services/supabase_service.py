@@ -234,6 +234,24 @@ async def get_latest_cloud_reading() -> Optional[Dict[str, Any]]:
     history = generate_24h_15min_history([], limit=1)
     return history[-1] if history else None
 
+async def get_weather_live_history(limit: int = 50) -> List[Dict[str, Any]]:
+    """Fetches past weather records directly from 3rd table (WEATHER_LIVE_NODE1)"""
+    weather_live_rows = await fetch_table_rows(TABLE_WEATHER_LIVE, limit=limit)
+    if weather_live_rows:
+        result = []
+        for raw in weather_live_rows:
+            result.append({
+                "id": raw.get("id"),
+                "timestamp": raw.get("created_at") or raw.get("timestamp_hour") or raw.get("timestamp"),
+                "temperature": raw.get("temperature"),
+                "humidity": raw.get("humidity"),
+                "wind_speed": raw.get("wind_speed"),
+                "wind_direction": raw.get("wind_direction"),
+                "rain_gauge": raw.get("rain_gauge") if "rain_gauge" in raw else raw.get("rain")
+            })
+        return result
+    return []
+
 async def get_cloud_live_history(limit: int = 50) -> List[Dict[str, Any]]:
     """Fetches past records directly from 1st table (AQI_LIVE_NODE1) and 3rd table (WEATHER_LIVE_NODE1)"""
     aqi_live_rows = await fetch_table_rows(TABLE_AQI_LIVE, limit=limit)
@@ -259,30 +277,28 @@ async def get_cloud_live_history(limit: int = 50) -> List[Dict[str, Any]]:
     return generate_24h_15min_history([], limit=limit)
 
 async def get_cloud_history(limit: int = 96) -> List[Dict[str, Any]]:
-    """Historical Page Data: Fetches 2nd table (AQI_NODE1) and 4th table (WEATHER_NODE1)"""
+    """Historical AQI Data: Fetches 2nd table (AQI_NODE1)"""
     aqi_hist_rows = await fetch_table_rows(TABLE_AQI_HISTORICAL, limit=limit)
-    weather_hist_rows = await fetch_table_rows(TABLE_WEATHER_HISTORICAL, limit=limit)
-    
-    # Merge rows based on matching list index or timestamps
-    merged_rows = []
-    max_len = max(len(aqi_hist_rows), len(weather_hist_rows))
-    
-    if max_len > 0:
-        for idx in range(max_len):
-            row = {}
-            if idx < len(aqi_hist_rows):
-                row.update(aqi_hist_rows[idx])
-            if idx < len(weather_hist_rows):
-                for k, v in weather_hist_rows[idx].items():
-                    if v is not None or k not in row:
-                        row[k] = v
-            merged_rows.append(row)
-
-        # Return exact formatted real rows from the database
-        formatted_list = [format_supabase_reading(r) for r in merged_rows]
-        return formatted_list
-
-    # Fallback to generated telemetry only if table is completely empty (0 rows)
+    if aqi_hist_rows:
+        return [format_supabase_reading(r) for r in aqi_hist_rows]
     return generate_24h_15min_history([], limit=limit)
+
+async def get_weather_history(limit: int = 96) -> List[Dict[str, Any]]:
+    """Historical Weather Data: Fetches 4th table (WEATHER_NODE1)"""
+    weather_hist_rows = await fetch_table_rows(TABLE_WEATHER_HISTORICAL, limit=limit)
+    if weather_hist_rows:
+        result = []
+        for raw in weather_hist_rows:
+            result.append({
+                "id": raw.get("timestamp_hour") or raw.get("id"),
+                "timestamp": raw.get("timestamp_hour") or raw.get("created_at") or raw.get("timestamp"),
+                "temperature": raw.get("temperature"),
+                "humidity": raw.get("humidity"),
+                "wind_speed": raw.get("wind_speed"),
+                "wind_direction": raw.get("wind_direction"),
+                "rain_gauge": raw.get("rain_gauge") if "rain_gauge" in raw else raw.get("rain")
+            })
+        return result
+    return []
 
 

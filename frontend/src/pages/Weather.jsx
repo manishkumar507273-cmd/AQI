@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getCloudLatest } from '../api';
-import { Cpu, ExternalLink, X, Droplets, Wind, CloudRain, Compass, ChevronRight, Info, HeartPulse, ShieldAlert, Users, CheckCircle2, AlertTriangle, Thermometer } from 'lucide-react';
+import { getCloudLatest, getCloudWeatherLiveHistory, getCachedData, isSensorOnline, getTimeAgo } from '../api';
+import { Cpu, ExternalLink, X, Droplets, Wind, CloudRain, Compass, ChevronRight, Info, HeartPulse, ShieldAlert, Users, CheckCircle2, AlertTriangle, Thermometer, Table, RefreshCw } from 'lucide-react';
 import sht45SensorImg from '../assets/sht45_sensor.png';
 import windSpeedSensorImg from '../assets/wind_speed_sensor.png';
 import windDirSensorImg from '../assets/wind_dir_sensor.png';
@@ -38,9 +38,9 @@ const getTempIcon = (t) => {
   if (t == null) return '🌡️';
   if (t < 10)  return '❄️';
   if (t < 20)  return '🌥️';
-  if (t < 28)  return '⛅';
+  if (t < 28)  return '☀️';
   if (t < 35)  return '🌤️';
-  return '☀️';
+  return '🔥';
 };
 
 const getRainLabel = (r) => {
@@ -71,71 +71,71 @@ const ICON_ANIMATIONS = {
 const WEATHER_DETAILS = {
   temperature: {
     name: 'Ambient Temperature',
-    sub: 'Thermal Degree',
+    sub: 'Thermal Telemetry',
     unit: '°C',
     icon: '🌡️',
     normalRange: '18°C – 28°C',
-    description: 'Degree or intensity of heat present in ambient air as measured by digital semiconductor thermal sensors.',
-    healthImpact: 'Extreme heat (>35°C) causes heat exhaustion, dehydration, and heatstroke, while exacerbating cardiovascular and lung conditions. Cold extremes (<10°C) trigger respiratory distress.',
-    vulnerable: 'Infants, elderly adults, outdoor workers, pregnant women, and individuals with cardiovascular diseases.',
-    precaution: 'Stay hydrated, limit peak outdoor exposure between 12 PM – 4 PM on high temperature days, and maintain ventilated indoor spaces.',
+    description: 'Degree of heat in ambient air measured by digital thermal sensors. Thermal comfort directly affects human activity.',
+    healthImpact: 'Extreme heat triggers heat exhaustion, dehydration, and cardiovascular strain.',
+    vulnerable: 'Elderly individuals, young children, and outdoor workers during heatwaves.',
+    precaution: 'Stay hydrated, stay indoors during peak sunshine hours, and use fan cooling.',
     sensorName: '7Semi SHT45 High Precision Temperature & Humidity Sensor',
-    sensorType: 'I2C Precision Digital Thermal Sensor',
+    sensorType: 'I2C Precision Digital Sensor',
     sensorImage: sht45SensorImg,
     sensorUrl: 'https://robocraze.com/products/7semi-sht45-humidity-temperature-sensor-breakout-board-with-4-pin-connector?variant=48177129554144',
-    sensorWorking: `Employs Sensirion's CMOSens® bandgap temperature sensing element delivering high precision (±0.1°C) with low power consumption across -40°C to 125°C range.`,
-    sensorSpecs: 'Accuracy: ±0.1°C | Range: -40°C to +125°C | Output: I2C Digital | Supply: 1.62V – 3.6V'
+    sensorWorking: 'CMOSens® technology integrates capacitive humidity and band-gap temperature sensors on a single chip.',
+    sensorSpecs: 'Accuracy: ±0.1°C / ±1.0% RH | Range: -40°C to +125°C | Output: I2C (0x44)'
   },
   humidity: {
     name: 'Relative Humidity',
-    sub: 'RH %',
+    sub: 'Moisture Saturation',
     unit: '%',
     icon: '💧',
     normalRange: '30% – 60%',
-    description: 'Amount of water vapor present in air expressed as a percentage of the amount needed for saturation at the same temperature.',
-    healthImpact: 'High humidity (>70%) promotes dust mite and mold growth, worsening asthma and respiratory allergies. Low humidity (<30%) dries nasal membranes and causes skin irritation.',
-    vulnerable: 'Asthma sufferers, infants, elderly, and individuals with eczema or sinus issues.',
-    precaution: 'Maintain indoor humidity between 30% and 50% using dehumidifiers or humidifiers. Ventilate bathrooms and kitchens to prevent moisture accumulation.',
-    sensorName: '7Semi SHT45 Humidity & Temperature Sensor Breakout Board',
-    sensorType: '4-Pin JST I2C Digital Sensor',
+    description: 'Water vapor percentage relative to maximum saturation at current temperature.',
+    healthImpact: 'High humidity (>70%) promotes mold spores, dust mites, and heat stress. Low humidity (<30%) causes dry skin and respiratory mucosal irritation.',
+    vulnerable: 'Asthma patients, allergy sufferers, and newborn infants.',
+    precaution: 'Use dehumidifiers in damp environments and humidifiers during dry weather.',
+    sensorName: '7Semi SHT45 Sensor Breakout Board',
+    sensorType: 'I2C Digital Sensor',
     sensorImage: sht45SensorImg,
     sensorUrl: 'https://robocraze.com/products/7semi-sht45-humidity-temperature-sensor-breakout-board-with-4-pin-connector?variant=48177129554144',
-    sensorWorking: `Uses Sensirion's 4th generation SHT45 CMOSens® technology with high-accuracy capacitive relative humidity measurement and integrated internal heater for condensation recovery.`,
-    sensorSpecs: 'Temp Accuracy ±0.1°C | RH Accuracy ±1.0% RH | Supply: 1.62V – 3.6V | I2C Output'
+    sensorWorking: 'Measures dielectric constant change of polymer dielectric layer in micro-capacitor.',
+    sensorSpecs: 'Range: 0–100% RH | Resolution: 0.01% RH | Ultra-low power consumption'
   },
   wind_speed: {
     name: 'Wind Speed',
-    sub: 'Velocity',
+    sub: 'Airflow Velocity',
     unit: 'km/h',
     icon: '💨',
     normalRange: '0 – 20 km/h',
-    description: 'Velocity of air movement caused by atmospheric pressure differences from high to low pressure regions.',
-    healthImpact: 'High winds transport particulate matter, dust storms, and airborne allergens across vast distances, accelerating respiratory exposure.',
-    vulnerable: 'Outdoor workers, cyclists, asthmatic individuals, and allergy sufferers.',
-    precaution: 'Secure outdoor loose objects during high wind advisories. Wear protective eyewear and N95 masks during windy dust conditions.',
+    description: 'Velocity of air movement caused by atmospheric pressure differences.',
+    healthImpact: 'Controls dispersion of particulate matter and gas pollutants in urban canopy.',
+    vulnerable: 'Structural installations, high-rise building maintenance personnel.',
+    precaution: 'Secure loose outdoor items when wind speeds exceed 35 km/h.',
     sensorName: 'Wind Speed Sensor SN-3000-FSJT-NPN (Three-Cup Anemometer)',
     sensorType: 'NPN Pulse Output Anemometer',
     sensorImage: windSpeedSensorImg,
     sensorUrl: 'https://robu.in/product/wind-speed-sensor-sn-3000-fsjt-npn/',
-    sensorWorking: 'Three rotating hemispherical cups generate magnetic Hall effect pulses proportional to ambient wind velocity.',
-    sensorSpecs: 'Range: 0 – 30 m/s (0 – 108 km/h) | Accuracy: ±1 m/s | Output: NPN Pulse | 12–24V DC'
+    sensorWorking: 'Three cups spin with wind rotation, triggering a Hall sensor pulse stream.',
+    sensorSpecs: 'Range: 0–30 m/s | Resolution: 0.1 m/s | Supply: 12–24V DC | Output: Pulse / NPN'
   },
   rain_gauge: {
     name: 'Precipitation Rainfall',
-    sub: 'Rain Gauge',
+    sub: 'Rain Gauge Accumulation',
     unit: 'mm',
     icon: '🌧️',
-    normalRange: '0 – 10 mm/hr',
-    description: 'Volume of liquid precipitation falling over a specified surface area measured in millimeters depth.',
-    healthImpact: 'Heavy rainfall leads to increased indoor dampness, mold spore surges, localized flooding, and runoff carrying ground pollutants.',
-    vulnerable: 'Residents in low-lying flood zones, individuals with mold allergies, and drivers.',
-    precaution: 'Inspect building roofs and drainage systems. Use indoor air purifiers following heavy rainfall to reduce airborne mold spore counts.',
-    sensorName: 'DFRobot Gravity: Tipping Bucket Rainfall Sensor',
+    normalRange: '0 – 10 mm',
+    description: 'Volume of liquid precipitation falling over surface area measured by tipping bucket.',
+    healthImpact: 'Rainfall washes out airborne dust (scavenging effect) but increases humidity and runoff.',
+    vulnerable: 'Low-lying urban areas prone to waterlogging and storm drain overflow.',
+    precaution: 'Carry rain protection gear when precipitation gauge shows active accumulation.',
+    sensorName: 'DFRobot Gravity Tipping Bucket Rainfall Sensor',
     sensorType: 'I2C / UART Tipping Bucket',
     sensorImage: rainGaugeSensorImg,
     sensorUrl: 'https://robocraze.com/products/dfrobot-gravity-tipping-bucket-rainfall-sensor-i2c-uart',
-    sensorWorking: 'Funneled rainwater fills an internal mechanical tipping bucket. Each tip event measures 0.2794 mm of precipitation via reed switch pulse counting.',
-    sensorSpecs: 'Resolution: 0.2794 mm/tip | Output: I2C & UART | Voltage: 3.3V – 5.0V DC'
+    sensorWorking: 'Rain funnels into a calibrated tipping bucket; each tip records 0.2mm precipitation.',
+    sensorSpecs: 'Resolution: 0.2mm | Accuracy: ±4% | Interface: Gravity I2C/UART | 3.3V–5V DC'
   },
   wind_dir: {
     name: 'Wind Azimuth Direction',
@@ -143,14 +143,14 @@ const WEATHER_DETAILS = {
     unit: '°',
     icon: '🧭',
     normalRange: '0° – 360°',
-    description: 'Compass heading indicating the direction from which atmospheric wind is originating.',
+    description: 'Compass heading indicating direction from which atmospheric wind originates.',
     healthImpact: 'Wind direction determines the transport corridor of industrial plumes, agricultural smoke, and urban pollution.',
     vulnerable: 'Communities downwind of industrial plants, highways, or agricultural burning regions.',
     precaution: 'Check wind direction forecasts to anticipate downwind smoke or pollution drift toward your residential area.',
     sensorName: 'Wind Direction Sensor SN-3000-FSJT-I20 (Wind Vane)',
     sensorType: '4-20mA Current Output Wind Vane',
     sensorImage: windDirSensorImg,
-    sensorUrl: 'https://robu.in/product/wind-speed-sensor-sn-3000-fsjt-i20/',
+    sensorUrl: 'https://robu.in/product/pro-range-polycarbon-4-20ma-8-wind-direction-sensor-sn-3000-fxjt-i20/',
     sensorWorking: 'Low-inertia wind vane drives a magnetic angle sensor mapped to 4-20mA current outputs for precise 0°–360° direction telemetry.',
     sensorSpecs: 'Range: 0°–360° (16 Directions) | Accuracy: ±3° | Output: 4-20mA | 12–24V DC'
   }
@@ -166,68 +166,84 @@ const cardVariants = {
 
 export default function Weather({ cloudData, cloudLoading, cloudError, refreshKey, selectedStation = 'station-1' }) {
   const [cloud, setCloud]   = useState(() => selectedStation === 'station-1' ? cloudData : null);
-  const [loading, setLoading] = useState(() => selectedStation === 'station-1' && !cloudData);
+  const [loading, setLoading] = useState(() => {
+    if (selectedStation !== 'station-1') return false;
+    const cachedHistory = getCachedData('CACHE_WEATHER_LIVE_HISTORY');
+    if (cachedHistory && cachedHistory.length > 0) return false;
+    return !cloudData;
+  });
   const [error, setError]   = useState(null);
   const [lastUpdated, setLastUpdated] = useState(() => cloudData ? new Date() : null);
   const [activeWeatherModal, setActiveWeatherModal] = useState(null);
+  const [liveHistory, setLiveHistory] = useState(() => {
+    if (selectedStation !== 'station-1') return [];
+    return getCachedData('CACHE_WEATHER_LIVE_HISTORY') || [];
+  });
+  const [liveHistoryLoading, setLiveHistoryLoading] = useState(() => {
+    if (selectedStation !== 'station-1') return false;
+    return (getCachedData('CACHE_WEATHER_LIVE_HISTORY') || []).length === 0;
+  });
 
   useEffect(() => {
     let isMounted = true;
 
+    const fetchHistory = () => {
+      getCloudWeatherLiveHistory(50)
+        .then((res) => {
+          if (!isMounted) return;
+          setLiveHistory(res.data?.history || []);
+          setLiveHistoryLoading(false);
+          setLoading(false);
+        })
+        .catch(() => {
+          if (!isMounted) return;
+          setLiveHistoryLoading(false);
+          setLoading(false);
+        });
+    };
+
+    fetchHistory();
+    const interval = setInterval(fetchHistory, 5000);
+
     if (selectedStation !== 'station-1') {
-      setCloud(null);
-      setLastUpdated(null);
       setLoading(false);
-      setError(null);
-      return;
+      return () => {
+        isMounted = false;
+        clearInterval(interval);
+      };
     }
 
-    if (cloudData) {
-      setCloud(cloudData);
-      setLastUpdated(new Date());
-      setLoading(false);
-      setError(cloudError ?? null);
-      return;
-    }
-    setError(null);
     getCloudLatest()
       .then((res) => {
         if (!isMounted) return;
-        setCloud(res.data?.data ?? null);
-        setLastUpdated(new Date());
+        if (res.data?.status === 'success' && res.data?.data) {
+          setCloud(res.data.data);
+          setLastUpdated(new Date());
+        }
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
         if (!isMounted) return;
-        setError('Unable to reach cloud sensor.');
+        setError(err.message || 'Failed to fetch weather telemetry');
         setLoading(false);
       });
-    return () => { isMounted = false; };
-  }, [cloudData, cloudError, refreshKey, selectedStation]);
 
-  if (loading) return (
-    <div style={{ minHeight: 450, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-      <div style={{ width: 44, height: 44, border: '3px solid #e2e8f0', borderTopColor: '#00bfa5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <p style={{ color: '#64748b', fontSize: 14, fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Reading weather telemetry...</p>
-    </div>
-  );
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [refreshKey, selectedStation]);
 
-  if (error || !cloud) return (
-    <div style={{ minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#ffffff', borderRadius: 20, padding: '40px 48px', textAlign: 'center', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
-        <p style={{ color: '#ef4444', fontWeight: 700, fontSize: 18, fontFamily: 'var(--font-sans)' }}>Sensor Offline</p>
-        <p style={{ color: '#64748b', fontSize: 14, marginTop: 8 }}>{error || 'No sensor data available.'}</p>
-      </div>
-    </div>
-  );
+  const latestTimestamp = liveHistory?.[0]?.timestamp || cloud?.timestamp;
+  const isOnline = selectedStation === 'station-1' && isSensorOnline(latestTimestamp, 5);
+  const timeAgoStr = getTimeAgo(latestTimestamp);
 
-  const temperature = cloud?.temperature    ?? null;
-  const humidity    = cloud?.humidity       ?? null;
-  const windSpeed   = cloud?.wind_speed     ?? null;
-  const windDir     = cloud?.wind_direction ?? null;
-  const rainGauge   = cloud?.rain_gauge     ?? null;
-  const aqi         = cloud?.cpcb_aqi       ?? null;
+  const temperature = cloud?.temperature ?? liveHistory?.[0]?.temperature ?? null;
+  const humidity    = cloud?.humidity    ?? liveHistory?.[0]?.humidity    ?? null;
+  const windSpeed   = cloud?.wind_speed  ?? liveHistory?.[0]?.wind_speed  ?? null;
+  const windDir     = cloud?.wind_direction ?? liveHistory?.[0]?.wind_direction ?? null;
+  const rainGauge   = cloud?.rain_gauge  ?? liveHistory?.[0]?.rain_gauge  ?? null;
+  const aqi         = cloud?.cpcb_aqi    ?? null;
   const aqiLabel    = cloud?.aqi_info?.label  ?? null;
   const aqiColor    = cloud?.aqi_info?.color  ?? '#94a3b8';
 
@@ -239,6 +255,13 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
   });
 
   const activeDetail = activeWeatherModal ? WEATHER_DETAILS[activeWeatherModal] : null;
+
+  if (loading && !cloud && liveHistory.length === 0) return (
+    <div style={{ minHeight: 450, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+      <div style={{ width: 44, height: 44, border: '3px solid #e2e8f0', borderTopColor: '#00bfa5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <p style={{ color: '#64748b', fontSize: 14, fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Reading weather telemetry...</p>
+    </div>
+  );
 
   return (
     <>
@@ -271,6 +294,37 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
             </div>
             <span style={{ fontSize: 11.5, fontWeight: 700, padding: '4px 12px', borderRadius: 999, backgroundColor: '#f1f5f9', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
               UN-DEVELOPED NODE
+            </span>
+          </motion.div>
+        )}
+
+        {/* ── Offline Hardware Notice Banner ── */}
+        {selectedStation === 'station-1' && !isOnline && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              backgroundColor: '#fff7ed',
+              border: '1px solid #ffedd5',
+              borderLeft: '4px solid #ea580c',
+              borderRadius: 16,
+              padding: '14px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12,
+              boxShadow: '0 2px 10px rgba(234, 88, 12, 0.05)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <AlertTriangle style={{ width: 18, height: 18, color: '#ea580c', flexShrink: 0 }} />
+              <span style={{ fontSize: 13.5, color: '#475569', fontWeight: 600 }}>
+                <strong style={{ color: '#9a3412' }}>Weather Sensor Offline:</strong> No new live telemetry received in cloud for &gt;5 mins (Last update: <span style={{ color: '#ea580c', fontWeight: 700 }}>{timeAgoStr}</span>). Showing past records below.
+              </span>
+            </div>
+            <span style={{ fontSize: 11.5, fontWeight: 700, padding: '4px 12px', borderRadius: 999, backgroundColor: '#ffedd5', color: '#c2410c', fontFamily: 'var(--font-mono)' }}>
+              OFFLINE ({timeAgoStr.toUpperCase()})
             </span>
           </motion.div>
         )}
@@ -413,27 +467,12 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                   </div>
                 </div>
 
-                {/* Bottom Row: Large Monospace Reading + Details Indicator */}
+                {/* Bottom Row: Large Monospace Reading */}
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%', marginTop: 4 }}>
                   <div>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 800, color: accent, lineHeight: 1 }}>
                       {val}
                     </div>
-                  </div>
-
-                  <div style={{
-                    padding: '4px 10px',
-                    borderRadius: 999,
-                    backgroundColor: badgeBg,
-                    color: badgeText,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 3,
-                  }}>
-                    <span>Details</span>
-                    <ChevronRight style={{ width: 11, height: 11 }} />
                   </div>
                 </div>
               </motion.div>
@@ -441,6 +480,100 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
           })}
         </div>
       </div>
+
+      {/* ── Weather Telemetry Stream Table ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.2 }}
+        style={{
+          backgroundColor: '#ffffff',
+          borderRadius: 20,
+          padding: 24,
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
+          marginTop: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Table style={{ width: 18, height: 18, color: '#00bfa5' }} />
+              Weather Telemetry Stream Records
+            </h3>
+            <p style={{ fontSize: 12, color: '#64748b', marginTop: 2, margin: 0 }}>
+              Live historical telemetry feed for ambient temperature, humidity, wind velocity, direction, and precipitation
+            </p>
+          </div>
+        </div>
+
+        <div style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto', maxHeight: 380 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
+              <thead style={{
+                position: 'sticky', top: 0, zIndex: 1,
+                backgroundColor: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0',
+              }}>
+                <tr>
+                  {['Records', 'Last Update', 'Wind Speed', 'Wind Dir', 'Rain (mm)'].map((h) => (
+                    <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {liveHistoryLoading ? (
+                  <tr>
+                    <td colSpan="5" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                      <RefreshCw style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: 8, color: '#00bfa5' }} />
+                      Loading weather stream...
+                    </td>
+                  </tr>
+                ) : liveHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                      No weather telemetry data.
+                    </td>
+                  </tr>
+                ) : (
+                  liveHistory.map((row, index) => {
+                    const tsDate = row.timestamp ? new Date(row.timestamp) : null;
+                    const formattedTime = tsDate && !isNaN(tsDate)
+                      ? tsDate.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
+                      : 'N/A';
+
+                    return (
+                      <tr
+                        key={row.id || index}
+                        style={{
+                          borderBottom: '1px solid #f1f5f9',
+                          backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc',
+                        }}
+                      >
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#00bfa5' }}>
+                          #{index + 1}
+                        </td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
+                          {formattedTime}
+                        </td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>
+                          {row.wind_speed != null ? `${Number(row.wind_speed).toFixed(1)} km/h` : 'N/A'}
+                        </td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>
+                          {row.wind_direction != null ? `${row.wind_direction}°` : 'N/A'}
+                        </td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>
+                          {row.rain_gauge != null ? `${Number(row.rain_gauge).toFixed(1)} mm` : '0.0 mm'}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </motion.div>
 
       {/* ── Weather Detail Modal with Product Links (Cool Light Theme) ── */}
       <AnimatePresence>

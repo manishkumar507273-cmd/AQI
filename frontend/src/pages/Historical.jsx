@@ -1,20 +1,24 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { Activity, CloudSun, Database, RefreshCw, Layers, Table } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { getCloudHistory } from '../api';
+import { getCloudHistory, getCloudWeatherHistory, getCachedData } from '../api';
 
-const PARAMS = [
-  { key: 'cpcb_aqi',       label: 'AQI',      unit: '',        color: '#00bfa5' },
-  { key: 'pm25',           label: 'PM2.5',    unit: 'µg/m³',   color: '#38bdf8' },
-  { key: 'pm10',           label: 'PM10',     unit: 'µg/m³',   color: '#818cf8' },
-  { key: 'co',             label: 'CO',       unit: 'mg/m³',   color: '#94a3b8' },
-  { key: 'no2',            label: 'NO₂',      unit: 'µg/m³',   color: '#c084fc' },
-  { key: 'o3',             label: 'O₃',       unit: 'µg/m³',   color: '#fbbf24' },
-  { key: 'temperature',    label: 'Temp',     unit: '°C',      color: '#f97316' },
-  { key: 'humidity',       label: 'Hum.',     unit: '%',       color: '#38bdf8' },
-  { key: 'wind_speed',     label: 'Wind Spd', unit: 'km/h',    color: '#818cf8' },
-  { key: 'wind_direction', label: 'Wind Dir', unit: '°',       color: '#22d3ee' },
-  { key: 'rain_gauge',     label: 'Rain',     unit: 'mm',      color: '#38bdf8' },
+const AQI_PARAMS = [
+  { key: 'cpcb_aqi', label: 'AQI', unit: '', color: '#00bfa5' },
+  { key: 'temperature', label: 'Temp', unit: '°C', color: '#f97316' },
+  { key: 'humidity', label: 'Hum.', unit: '%', color: '#00bfa5' },
+  { key: 'pm25', label: 'PM2.5', unit: 'µg/m³', color: '#0284c7' },
+  { key: 'pm10', label: 'PM10', unit: 'µg/m³', color: '#6366f1' },
+  { key: 'co', label: 'CO', unit: 'mg/m³', color: '#16a34a' },
+  { key: 'no2', label: 'NO₂', unit: 'µg/m³', color: '#9333ea' },
+  { key: 'o3', label: 'O₃', unit: 'µg/m³', color: '#d97706' },
+];
+
+const WEATHER_PARAMS = [
+  { key: 'wind_speed', label: 'Wind Spd', unit: 'km/h', color: '#4f46e5' },
+  { key: 'wind_direction', label: 'Wind Dir', unit: '°', color: '#0284c7' },
+  { key: 'rain_gauge', label: 'Rain', unit: 'mm', color: '#0284c7' },
 ];
 
 const getCompassDir = (deg) => {
@@ -43,14 +47,24 @@ const formatTimeString = (date) => {
 };
 
 export default function Historical({ refreshKey, selectedStation = 'station-1' }) {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [subTab, setSubTab] = useState('aqi'); // 'aqi' or 'weather'
+  const [rows, setRows] = useState(() => {
+    if (selectedStation !== 'station-1') return [];
+    return getCachedData('CACHE_AQI_HISTORICAL') || [];
+  });
+  const [loading, setLoading] = useState(() => {
+    if (selectedStation !== 'station-1') return false;
+    return (getCachedData('CACHE_AQI_HISTORICAL') || []).length === 0;
+  });
   const [error, setError] = useState(null);
-  const [selectedParam, setSelectedParam] = useState('cpcb_aqi');
+
+  const [selectedAqiParam, setSelectedAqiParam] = useState('cpcb_aqi');
+  const [selectedWeatherParam, setSelectedWeatherParam] = useState('wind_speed');
 
   useEffect(() => {
     let isMounted = true;
     setError(null);
+    setLoading(true);
 
     if (selectedStation !== 'station-1') {
       setRows([]);
@@ -58,30 +72,42 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       return;
     }
 
-    getCloudHistory(500)
-      .then((res) => {
-        if (!isMounted) return;
-        setRows(res.data?.history ?? []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (!isMounted) return;
-        console.error('Cloud history fetch failed:', err);
-        setError('Unable to fetch history from cloud.');
-        setLoading(false);
-      });
+    const fetchHistoryData = () => {
+      const fetcher = subTab === 'aqi' ? getCloudHistory : getCloudWeatherHistory;
+      fetcher(500)
+        .then((res) => {
+          if (!isMounted) return;
+          setRows(res.data?.history ?? []);
+          setLoading(false);
+        })
+        .catch((err) => {
+          if (!isMounted) return;
+          console.error('Cloud history fetch failed:', err);
+          setLoading(false);
+        });
+    };
 
-    return () => { isMounted = false; };
-  }, [refreshKey, selectedStation]);
+    fetchHistoryData();
+    const interval = setInterval(fetchHistoryData, 5000);
 
-  const activeParam = PARAMS.find(p => p.key === selectedParam) || PARAMS[0];
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [refreshKey, selectedStation, subTab]);
+
+  const activeParam = subTab === 'aqi'
+    ? (AQI_PARAMS.find(p => p.key === selectedAqiParam) || AQI_PARAMS[0])
+    : (WEATHER_PARAMS.find(p => p.key === selectedWeatherParam) || WEATHER_PARAMS[0]);
+
+  const activeParamKey = activeParam.key;
 
   const { chartData } = useMemo(() => {
     if (!rows || rows.length === 0) return { chartData: [] };
     const reversed = [...rows].reverse();
     const computed = reversed.map((r, idx) => {
       const dt = r.timestamp ? new Date(r.timestamp) : new Date();
-      const val = r[selectedParam] != null ? Number(r[selectedParam]) : 0;
+      const val = r[activeParamKey] != null && !isNaN(Number(r[activeParamKey])) ? Number(r[activeParamKey]) : 0;
       return {
         id: r.id || idx,
         uniqueKey: dt && !isNaN(dt) ? `${dt.getTime()}_${idx}` : `p_${idx}`,
@@ -91,86 +117,157 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       };
     });
     return { chartData: computed };
-  }, [rows, selectedParam]);
+  }, [rows, activeParamKey]);
 
-  const tableRows = [...rows].reverse();
+  const tableRows = rows;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'var(--font-sans)', color: '#0f172a' }}>
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
-          Historical Analytics
-        </h1>
-        <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>
-          Longitudinal sensor trends &amp; telemetry records
-        </p>
-      </motion.div>
-
-      {/* Hero Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-        style={{
-          backgroundColor: '#ffffff',
-          borderRadius: 24,
-          padding: '28px 32px',
-          color: '#0f172a',
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 16,
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-            Telemetry Archive
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#0f172a' }}>
-            {rows.length} <span style={{ fontSize: 14, fontWeight: 500, color: '#64748b' }}>Recorded Data Points</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Database style={{ width: 22, height: 22, color: '#00bfa5' }} />
+              Analytics Archive
+            </h1>
+            <p style={{ fontSize: 13, color: '#64748b', marginTop: 4, margin: 0 }}>
+              Longitudinal Sensor Trends &amp; Telemetry Log Records
+            </p>
           </div>
         </div>
+      </motion.div>
 
+      {/* Sub-Navigation Selector: AQI Historical vs Weather Historical */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 4,
+      }}>
         <div style={{
-          backgroundColor: '#f8fafc',
-          border: '1px solid #e2e8f0',
-          borderRadius: 16,
-          padding: '14px 20px',
-          fontSize: 13,
-          color: '#0f172a',
+          display: 'inline-flex',
+          alignItems: 'center',
+          backgroundColor: '#ffffff',
+          padding: '5px',
+          borderRadius: 999,
+          border: '1px solid #cbd5e1',
+          boxShadow: '0 4px 16px rgba(15, 23, 42, 0.06)',
+          gap: 6,
         }}>
-          📊 Active Parameter: <strong style={{ color: activeParam.color }}>{activeParam.label}</strong>
-        </div>
-      </motion.div>
+          <button
+            onClick={() => setSubTab('aqi')}
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '9px 24px',
+              borderRadius: 999,
+              border: 'none',
+              fontSize: 14,
+              fontWeight: 700,
+              fontFamily: 'var(--font-sans)',
+              cursor: 'pointer',
+              backgroundColor: 'transparent',
+              color: subTab === 'aqi' ? '#ffffff' : '#64748b',
+              transition: 'color 0.15s ease',
+            }}
+          >
+            {subTab === 'aqi' && (
+              <motion.div
+                layoutId="historicalSubTabPill"
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundColor: '#00bfa5',
+                  borderRadius: 999,
+                  boxShadow: '0 4px 14px rgba(0, 191, 165, 0.35)',
+                  zIndex: 0,
+                }}
+              />
+            )}
+            <Activity style={{ width: 17, height: 17, zIndex: 1 }} />
+            <span style={{ zIndex: 1 }}>AQI Historical Analytics</span>
+          </button>
 
-      {/* Chart Container */}
+          <button
+            onClick={() => setSubTab('weather')}
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '9px 24px',
+              borderRadius: 999,
+              border: 'none',
+              fontSize: 14,
+              fontWeight: 700,
+              fontFamily: 'var(--font-sans)',
+              cursor: 'pointer',
+              backgroundColor: 'transparent',
+              color: subTab === 'weather' ? '#ffffff' : '#64748b',
+              transition: 'color 0.15s ease',
+            }}
+          >
+            {subTab === 'weather' && (
+              <motion.div
+                layoutId="historicalSubTabPill"
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundColor: '#00bfa5',
+                  borderRadius: 999,
+                  boxShadow: '0 4px 14px rgba(0, 191, 165, 0.35)',
+                  zIndex: 0,
+                }}
+              />
+            )}
+            <CloudSun style={{ width: 17, height: 17, zIndex: 1 }} />
+            <span style={{ zIndex: 1 }}>Weather Historical Analytics</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Chart Section */}
       <div style={{ backgroundColor: '#ffffff', borderRadius: 24, padding: 24, border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>Parameter Trends</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Layers style={{ width: 16, height: 16, color: activeParam.color }} />
+            {subTab === 'aqi' ? 'Air Quality Trend Analysis' : 'Weather Atmospheric Trend Analysis'}
+          </h2>
+
+          {/* Parameter Filter Chips */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', background: '#f8fafc', padding: 4, borderRadius: 999, border: '1px solid #e2e8f0' }}>
-            {PARAMS.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => setSelectedParam(p.key)}
-                style={{
-                  padding: '6px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
-                  fontSize: 12, fontWeight: 600,
-                  background: selectedParam === p.key ? p.color : 'transparent',
-                  color: selectedParam === p.key ? '#ffffff' : '#64748b',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
+            {(subTab === 'aqi' ? AQI_PARAMS : WEATHER_PARAMS).map((p) => {
+              const isSelected = subTab === 'aqi' ? selectedAqiParam === p.key : selectedWeatherParam === p.key;
+              return (
+                <button
+                  key={p.key}
+                  onClick={() => subTab === 'aqi' ? setSelectedAqiParam(p.key) : setSelectedWeatherParam(p.key)}
+                  style={{
+                    padding: '6px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 600,
+                    background: isSelected ? p.color : 'transparent',
+                    color: isSelected ? '#ffffff' : '#64748b',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         <div style={{ width: '100%', height: 340, minWidth: 0 }}>
           {loading ? (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>Loading...</div>
+            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+              <RefreshCw style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', marginRight: 8, color: '#00bfa5' }} />
+              Loading chart...
+            </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 15, right: 20, left: 10, bottom: 30 }}>
@@ -206,18 +303,31 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
         </div>
       </div>
 
-      {/* Network Log Table */}
+      {/* Table Section: Render specific columns for AQI or Weather */}
       <div style={{ backgroundColor: '#ffffff', borderRadius: 24, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
-        <div style={{ padding: '20px 24px 12px' }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>Sensor Log History</h2>
+        <div style={{ padding: '20px 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Table style={{ width: 18, height: 18, color: '#00bfa5' }} />
+              {subTab === 'aqi' ? 'AQI Historical Log Records' : 'Weather Historical Log Records'}
+            </h2>
+            <p style={{ fontSize: 12, color: '#64748b', marginTop: 2, margin: 0 }}>
+              Calculated 1-Hour Aggregated Averages
+            </p>
+          </div>
         </div>
         <div style={{ overflowX: 'auto', maxHeight: 420 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
             <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
               <tr style={{ color: '#475569', fontSize: 12 }}>
-                {['Date', 'Time', 'AQI', 'PM2.5', 'PM10', 'CO', 'NO₂', 'O₃', 'Temp (°C)', 'Humidity (%)', 'Wind Spd (km/h)', 'Wind Dir (°)', 'Rain (mm)', 'Dominant'].map((h) => (
-                  <th key={h} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
-                ))}
+                {subTab === 'aqi'
+                  ? ['Date', 'Time', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5', 'PM10', 'CO', 'NO₂', 'O₃'].map((h) => (
+                      <th key={h} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
+                    ))
+                  : ['Date', 'Time', 'Wind Spd (km/h)', 'Wind Dir (°)', 'Rain (mm)'].map((h) => (
+                      <th key={h} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
+                    ))
+                }
               </tr>
             </thead>
             <tbody>
@@ -225,18 +335,25 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                 <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
                   <td style={{ padding: '10px 16px', color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>{row.timestamp ? formatDDMMYYYY(new Date(row.timestamp)) : '-'}</td>
                   <td style={{ padding: '10px 16px', color: '#00bfa5', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>{row.timestamp ? formatTimeString(new Date(row.timestamp)) : '-'}</td>
-                  <td style={{ padding: '10px 16px', fontWeight: 800, color: '#0f172a', fontFamily: 'var(--font-mono)' }}>{row.cpcb_aqi || '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm25 || '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm10 || '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.co || '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.no2 || '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.o3 || '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.temperature != null ? `${row.temperature}°C` : '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.humidity != null ? `${row.humidity}%` : '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>{row.wind_speed != null ? `${row.wind_speed} km/h` : '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>{row.wind_direction != null ? `${getCompassDir(row.wind_direction)} ${row.wind_direction}°`.trim() : '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.rain_gauge != null ? row.rain_gauge : '-'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.dominant_pollutant || '-'}</td>
+                  
+                  {subTab === 'aqi' ? (
+                    <>
+                      <td style={{ padding: '10px 16px', fontWeight: 800, color: '#0f172a', fontFamily: 'var(--font-mono)' }}>{row.cpcb_aqi || '-'}</td>
+                      <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.temperature != null ? `${Number(row.temperature).toFixed(1)}°C` : '-'}</td>
+                      <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.humidity != null ? `${Number(row.humidity).toFixed(1)}%` : '-'}</td>
+                      <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm25 || '-'}</td>
+                      <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm10 || '-'}</td>
+                      <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.co || '-'}</td>
+                      <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.no2 || '-'}</td>
+                      <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.o3 || '-'}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>{row.wind_speed != null ? `${Number(row.wind_speed).toFixed(1)} km/h` : '-'}</td>
+                      <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>{row.wind_direction != null ? `${getCompassDir(row.wind_direction)} ${row.wind_direction}°`.trim() : '-'}</td>
+                      <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.rain_gauge != null ? `${Number(row.rain_gauge).toFixed(1)} mm` : '0.0 mm'}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

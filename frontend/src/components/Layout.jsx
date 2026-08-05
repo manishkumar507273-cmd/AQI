@@ -4,10 +4,10 @@ import WindCanvas from './WindCanvas';
 
 export const STATIONS = [
   { id: 'station-1', name: 'SMVITM — Station 1', sub: 'Active Live Stream', location: 'SMVITM Campus', isLive: true },
-  { id: 'station-2', name: 'Station 2 — Industrial Zone', sub: 'Standby / Pending Setup', location: 'Industrial Sector 62', isLive: false },
-  { id: 'station-3', name: 'Station 3 — Suburban Eco Park', sub: 'Standby / Pending Setup', location: 'Eco Green District', isLive: false },
-  { id: 'station-4', name: 'Station 4 — Traffic Corridor', sub: 'Standby / Pending Setup', location: 'North Highway Junction', isLive: false },
-  { id: 'station-5', name: 'Station 5 — Coastal Baseline', sub: 'Standby / Pending Setup', location: 'Coastal Monitoring Post', isLive: false },
+  { id: 'station-2', name: 'Station 2', sub: 'Standby / Pending Setup', location: 'Station 2', isLive: false },
+  { id: 'station-3', name: 'Station 3', sub: 'Standby / Pending Setup', location: 'Station 3', isLive: false },
+  { id: 'station-4', name: 'Station 4', sub: 'Standby / Pending Setup', location: 'Station 4', isLive: false },
+  { id: 'station-5', name: 'Station 5', sub: 'Standby / Pending Setup', location: 'Station 5', isLive: false },
 ];
 
 export default function Layout({
@@ -24,16 +24,12 @@ export default function Layout({
   const getCurrentNavTab = () => {
     if (activeNav === 'historical') return 'historical';
     if (activeNav === 'forecast') return 'forecast';
-    return activeTab === 'weather' ? 'weather' : 'aqi';
+    return 'live';
   };
 
   const handleTopTabClick = (tabId) => {
-    if (tabId === 'aqi') {
-      onNavChange('home');
-      onTabChange('aqi');
-    } else if (tabId === 'weather') {
-      onNavChange('home');
-      onTabChange('weather');
+    if (tabId === 'live') {
+      onNavChange('live');
     } else if (tabId === 'forecast') {
       onNavChange('forecast');
     } else if (tabId === 'historical') {
@@ -45,10 +41,9 @@ export default function Layout({
   const currentStationObj = STATIONS.find(s => s.id === selectedStation) || STATIONS[0];
 
   const NAV_ITEMS = [
-    { id: 'aqi', label: 'AQI Dashboard', icon: Activity },
-    { id: 'weather', label: 'Weather Telemetry', icon: CloudSun },
-    { id: 'forecast', label: 'Predictive Forecast', icon: LineChart },
+    { id: 'live', label: 'Live Data Stream', icon: Radio },
     { id: 'historical', label: 'Analytics Archive', icon: Database },
+    { id: 'forecast', label: 'Predictive Forecast', icon: LineChart },
   ];
 
   return (
@@ -97,7 +92,7 @@ export default function Layout({
           </div>
           <div>
             <span style={{ fontSize: 21, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em', whiteSpace: 'nowrap' }}>
-              Atmo<span style={{ fontWeight: 400, color: '#00bfa5' }}>Logic</span>
+              Smart <span style={{ fontWeight: 500, color: '#00bfa5' }}>AirNet</span>
             </span>
             <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: -2 }}>
               Real-time AQI &amp; Weather
@@ -201,7 +196,7 @@ export default function Layout({
             >
               {STATIONS.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {st.name} {st.isLive ? '(Live)' : '(Standby)'}
+                  {st.name} {st.isLive ? '(Live)' : '(NaN)'}
                 </option>
               ))}
             </select>

@@ -1,4 +1,4 @@
-# Atmo-Logic — Real-Time AQI & Weather Monitor
+# Smart AirNet — Real-Time AQI & Weather Monitor
 
 A modern, full-stack web application for real-time air quality index (AQI) and weather telemetry monitoring, powered by **FastAPI**, **React 19**, **Vite**, and **Supabase Cloud**.
 
@@ -114,3 +114,5 @@ npm run dev
 | `GET` | `/api/aqi/forecast?limit=24` | 24-hour predictive forecast trends |
 | `GET` | `/api/weather/current` | Current weather telemetry reading |
 | `GET` | `/api/weather/hourly?limit=24` | Hourly weather trend history |
+
+

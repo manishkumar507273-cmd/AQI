@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import aqi, weather, cloud
 
 app = FastAPI(
-    title="Atmo-Logic API",
+    title="Smart AirNet API",
     description="AQI & Weather telemetry data powered by Supabase Cloud",
     version="1.0.0",
 )
@@ -22,5 +22,5 @@ app.include_router(cloud.router)
 
 @app.get("/")
 async def root():
-    return {"message": "Atmo-Logic API is running", "docs": "/docs"}
+    return {"message": "Smart AirNet API is running", "docs": "/docs"}
 

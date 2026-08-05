@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, ChevronRight, Table, RefreshCw, X, CheckCircle2, AlertTriangle, Users, ShieldAlert, Info, HeartPulse, Factory, Cpu, ExternalLink, TrendingUp, Activity, Layers } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { getCloudLatest, getCloudLiveHistory } from '../api';
+import { getCloudLatest, getCloudLiveHistory, getCachedData } from '../api';
 import sensirionSensorImg from '../assets/sensirion_sensor.png';
 import mq131SensorImg from '../assets/mq131_sensor.png';
 import no2SensorImg from '../assets/no2_sensor.png';
@@ -131,6 +131,173 @@ const POLLUTANT_CARD_STYLE = {
   o3:   { bg: '#ffffff', border: '#e2e8f0', badgeBg: '#fef3c7', badgeText: '#d97706', accent: '#d97706', whoLimit: 100 },
 };
 
+const POLLUTANT_SCALE_CONFIG = {
+  pm25: {
+    title: 'Particulate Matter 2.5 (PM2.5)',
+    max: 250,
+    unit: 'µg/m³',
+    ticks: ['0', '30', '60', '90', '120', '250', '250+'],
+    bands: [
+      { label: 'Good', limit: 30, color: '#22c55e' },
+      { label: 'Moderate', limit: 60, color: '#eab308' },
+      { label: 'Poor', limit: 90, color: '#f97316' },
+      { label: 'Unhealthy', limit: 120, color: '#ef4444' },
+      { label: 'Severe', limit: 250, color: '#a855f7' },
+      { label: 'Hazardous', limit: 300, color: '#f43f5e' },
+    ]
+  },
+  pm10: {
+    title: 'Particulate Matter 10 (PM10)',
+    max: 430,
+    unit: 'µg/m³',
+    ticks: ['0', '50', '100', '250', '350', '430', '430+'],
+    bands: [
+      { label: 'Good', limit: 50, color: '#22c55e' },
+      { label: 'Moderate', limit: 100, color: '#eab308' },
+      { label: 'Poor', limit: 250, color: '#f97316' },
+      { label: 'Unhealthy', limit: 350, color: '#ef4444' },
+      { label: 'Severe', limit: 430, color: '#a855f7' },
+      { label: 'Hazardous', limit: 500, color: '#f43f5e' },
+    ]
+  },
+  co: {
+    title: 'Carbon Monoxide (CO)',
+    max: 34,
+    unit: 'mg/m³',
+    ticks: ['0', '1.0', '2.0', '10', '17', '34', '34+'],
+    bands: [
+      { label: 'Good', limit: 1.0, color: '#22c55e' },
+      { label: 'Moderate', limit: 2.0, color: '#eab308' },
+      { label: 'Poor', limit: 10.0, color: '#f97316' },
+      { label: 'Unhealthy', limit: 17.0, color: '#ef4444' },
+      { label: 'Severe', limit: 34.0, color: '#a855f7' },
+      { label: 'Hazardous', limit: 40.0, color: '#f43f5e' },
+    ]
+  },
+  no2: {
+    title: 'Nitrogen Dioxide (NO₂)',
+    max: 400,
+    unit: 'µg/m³',
+    ticks: ['0', '40', '80', '180', '280', '400', '400+'],
+    bands: [
+      { label: 'Good', limit: 40, color: '#22c55e' },
+      { label: 'Moderate', limit: 80, color: '#eab308' },
+      { label: 'Poor', limit: 180, color: '#f97316' },
+      { label: 'Unhealthy', limit: 280, color: '#ef4444' },
+      { label: 'Severe', limit: 400, color: '#a855f7' },
+      { label: 'Hazardous', limit: 500, color: '#f43f5e' },
+    ]
+  },
+  o3: {
+    title: 'Ground-level Ozone (O₃)',
+    max: 748,
+    unit: 'µg/m³',
+    ticks: ['0', '50', '100', '168', '208', '748', '748+'],
+    bands: [
+      { label: 'Good', limit: 50, color: '#22c55e' },
+      { label: 'Moderate', limit: 100, color: '#eab308' },
+      { label: 'Poor', limit: 168, color: '#f97316' },
+      { label: 'Unhealthy', limit: 208, color: '#ef4444' },
+      { label: 'Severe', limit: 748, color: '#a855f7' },
+      { label: 'Hazardous', limit: 800, color: '#f43f5e' },
+    ]
+  }
+};
+
+const getParamScalePosition = (val, key) => {
+  const cfg = POLLUTANT_SCALE_CONFIG[key];
+  if (!cfg || val == null || isNaN(val)) return 0;
+  const num = Number(val);
+  const bands = cfg.bands;
+
+  if (num <= 0) return 0;
+
+  let prevLimit = 0;
+  for (let i = 0; i < bands.length; i++) {
+    const bandLimit = bands[i].limit;
+    if (num <= bandLimit) {
+      const segStart = (i / bands.length) * 100;
+      const segEnd = ((i + 1) / bands.length) * 100;
+      const range = bandLimit - prevLimit;
+      const fraction = range > 0 ? (num - prevLimit) / range : 0;
+      return Math.min(Math.max(segStart + fraction * (segEnd - segStart), 0), 100);
+    }
+    prevLimit = bandLimit;
+  }
+  return 100;
+};
+
+const ParameterScaleBar = ({ paramKey, value, compact = false }) => {
+  const cfg = POLLUTANT_SCALE_CONFIG[paramKey];
+  if (!cfg) return null;
+
+  const valNum = value != null && value !== 'N/A' && !isNaN(Number(value)) ? Number(value) : 0;
+  const pos = getParamScalePosition(valNum, paramKey);
+
+  let activeBand = cfg.bands[0];
+  for (let i = 0; i < cfg.bands.length; i++) {
+    if (valNum <= cfg.bands[i].limit) {
+      activeBand = cfg.bands[i];
+      break;
+    }
+    if (i === cfg.bands.length - 1) activeBand = cfg.bands[i];
+  }
+
+  return (
+    <div style={{ width: '100%', marginTop: compact ? 8 : 12, marginBottom: compact ? 4 : 12 }}>
+      {/* Category Labels */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px', marginBottom: compact ? 3 : 6 }}>
+        {cfg.bands.map((b, idx) => (
+          <span
+            key={idx}
+            style={{
+              fontSize: compact ? 8.5 : 10.5,
+              fontWeight: 700,
+              color: b.color,
+              lineHeight: 1.1,
+            }}
+          >
+            {b.label}
+          </span>
+        ))}
+      </div>
+
+      {/* Segmented Bar with Circle Indicator */}
+      <div style={{ position: 'relative', height: compact ? 8 : 12, borderRadius: 999, backgroundColor: '#e2e8f0', marginBottom: compact ? 3 : 6 }}>
+        <div style={{
+          width: '100%', height: '100%', borderRadius: 999,
+          background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 16.66%, #eab308 16.66%, #eab308 33.33%, #f97316 33.33%, #f97316 50%, #ef4444 50%, #ef4444 66.66%, #a855f7 66.66%, #a855f7 83.33%, #f43f5e 83.33%, #f43f5e 100%)',
+          boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)'
+        }} />
+
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: `${pos}%`,
+          transform: 'translate(-50%, -50%)',
+          width: compact ? 14 : 20,
+          height: compact ? 14 : 20,
+          borderRadius: '50%',
+          backgroundColor: '#ffffff',
+          border: `${compact ? 2.5 : 3}px solid ${activeBand.color}`,
+          boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+          zIndex: 3,
+          transition: 'left 0.35s ease, border-color 0.3s ease',
+        }} />
+      </div>
+
+      {/* Numeric Ticks */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
+        {cfg.ticks.map((t, idx) => (
+          <span key={idx} style={{ fontSize: compact ? 8 : 9.5, fontWeight: 600, color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+            {t}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const computeInitialDashboardData = (cloud) => {
   if (!cloud) return null;
   const fmt = (val, decimals = 2) => val != null ? Number(val).toFixed(decimals) : 'N/A';
@@ -166,8 +333,16 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
   const [loading, setLoading] = useState(() => selectedStation === 'station-1' && !cloudData);
   const [error, setError] = useState(null);
   const [activePollutantModal, setActivePollutantModal] = useState(null);
-  const [liveHistory, setLiveHistory] = useState([]);
-  const [liveHistoryLoading, setLiveHistoryLoading] = useState(true);
+  const [heroScaleTab, setHeroScaleTab] = useState('aqi');
+
+  const [liveHistory, setLiveHistory] = useState(() => {
+    if (selectedStation !== 'station-1') return [];
+    return getCachedData('CACHE_AQI_LIVE_HISTORY') || [];
+  });
+  const [liveHistoryLoading, setLiveHistoryLoading] = useState(() => {
+    if (selectedStation !== 'station-1') return false;
+    return (getCachedData('CACHE_AQI_LIVE_HISTORY') || []).length === 0;
+  });
   const [visiblePollutants, setVisiblePollutants] = useState({
     pm25: true,
     pm10: true,
@@ -179,6 +354,14 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
   const togglePollutant = (key) => {
     setVisiblePollutants(prev => ({ ...prev, [key]: !prev[key] }));
   };
+
+  const latestTableTime = useMemo(() => {
+    const rawTs = liveHistory?.[0]?.timestamp || data?.timestamp;
+    if (!rawTs) return 'N/A';
+    const dt = new Date(rawTs);
+    if (isNaN(dt.getTime())) return String(rawTs);
+    return dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
+  }, [liveHistory, data?.timestamp]);
 
   const liveHistoryChartData = useMemo(() => {
     if (!liveHistory || liveHistory.length === 0) return [];
@@ -470,7 +653,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           Real-time Air Quality Index
         </h1>
         <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
-          Last Updated: <span style={{ color: '#00bfa5', fontWeight: 600 }}>{data?.timestamp ? new Date(data.timestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'medium' }) : (selectedStation === 'station-1' ? new Date().toLocaleString() : 'N/A (Station Standby)')}</span>
+          Last Updated: <span style={{ color: '#00bfa5', fontWeight: 600 }}>{selectedStation === 'station-1' ? latestTableTime : 'N/A (Station Standby)'}</span>
         </div>
       </motion.div>
 
@@ -533,7 +716,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             </div>
           </div>
 
-          {/* Scale Bar */}
+          {/* Overall AQI Scale Bar */}
           <div style={{ maxWidth: 380 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px', marginBottom: 6 }}>
               {[
@@ -544,22 +727,23 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 { label: 'Severe', color: '#a855f7' },
                 { label: 'Hazardous', color: '#f43f5e' }
               ].map((item) => (
-                <span key={item.label} style={{ fontSize: 10, fontWeight: 700, color: item.color }}>{item.label}</span>
+                <span key={item.label} style={{ fontSize: 10.5, fontWeight: 700, color: item.color }}>{item.label}</span>
               ))}
             </div>
 
-            <div style={{ position: 'relative', height: 8, borderRadius: 4, background: '#e2e8f0', marginBottom: 8 }}>
+            <div style={{ position: 'relative', height: 12, borderRadius: 999, backgroundColor: '#e2e8f0', marginBottom: 6 }}>
               <div style={{
-                width: '100%', height: '100%', borderRadius: 4,
-                background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 10%, #eab308 10%, #eab308 20%, #f97316 20%, #f97316 40%, #ef4444 40%, #ef4444 60%, #a855f7 60%, #a855f7 80%, #f43f5e 80%, #f43f5e 100%)',
+                width: '100%', height: '100%', borderRadius: 999,
+                background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 16.66%, #eab308 16.66%, #eab308 33.33%, #f97316 33.33%, #f97316 50%, #ef4444 50%, #ef4444 66.66%, #a855f7 66.66%, #a855f7 83.33%, #f43f5e 83.33%, #f43f5e 100%)',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)'
               }} />
               <div style={{
                 position: 'absolute', top: '50%', left: `${scalePosition}%`,
                 transform: 'translate(-50%, -50%)',
-                width: 16, height: 16, borderRadius: '50%',
+                width: 20, height: 20, borderRadius: '50%',
                 backgroundColor: '#ffffff', border: `3px solid ${aqiColor}`,
-                boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-                zIndex: 2,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                zIndex: 3,
               }} />
             </div>
 
@@ -643,19 +827,22 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               <motion.div
                 key={key}
                 custom={i + 1} variants={cardVariants} initial="hidden" animate="visible"
-                onClick={() => setActivePollutantModal(key)}
+                onClick={() => {
+                  setHeroScaleTab(key);
+                  setActivePollutantModal(key);
+                }}
                 style={{
                   backgroundColor: '#ffffff',
-                  border: '1px solid #e2e8f0',
+                  border: `1px solid ${heroScaleTab === key ? '#00bfa5' : '#e2e8f0'}`,
                   borderRadius: 20,
-                  padding: '20px 20px',
+                  padding: '18px 18px',
                   color: '#0f172a',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  gap: 16,
+                  gap: 12,
                   cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02)',
+                  boxShadow: heroScaleTab === key ? '0 4px 20px rgba(0, 191, 165, 0.15)' : '0 4px 16px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02)',
                   transition: 'all 0.2s ease',
                   position: 'relative',
                   overflow: 'hidden',
@@ -696,8 +883,8 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                   </div>
                 </div>
 
-                {/* Bottom Row: Monospace Value + Status Tag */}
-                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%', marginTop: 4 }}>
+                {/* Middle Row: Monospace Value + Status Tag */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%', marginTop: 2 }}>
                   <div>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 800, color: st.accent, lineHeight: 1 }}>
                       {p.value}
@@ -739,9 +926,6 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             <TrendingUp style={{ width: 20, height: 20, color: '#00bfa5' }} />
             Air Quality Visualizations
           </h2>
-          <div style={{ fontSize: 12, color: '#64748b', fontFamily: 'var(--font-mono)' }}>
-            Live Stream Data Points: <strong style={{ color: '#00bfa5' }}>{liveHistoryChartData.length}</strong>
-          </div>
         </div>
 
         {/* Responsive Grid for both Line plots */}
@@ -983,7 +1167,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 borderBottom: '1px solid #e2e8f0',
               }}>
                 <tr>
-                  {['Records', 'Last Update', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5', 'PM10', 'CO', 'NO₂', 'O₃', 'Wind Speed', 'Wind Dir', 'Rain (mm)'].map((h) => (
+                  {['Records', 'Last Update', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5', 'PM10', 'CO', 'NO₂', 'O₃'].map((h) => (
                     <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -991,14 +1175,14 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               <tbody>
                 {liveHistoryLoading ? (
                   <tr>
-                    <td colSpan="13" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan="10" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
                       <RefreshCw style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: 8, color: '#00bfa5' }} />
                       Loading stream...
                     </td>
                   </tr>
                 ) : liveHistory.length === 0 ? (
                   <tr>
-                    <td colSpan="13" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan="10" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
                       No telemetry stream data.
                     </td>
                   </tr>
@@ -1033,15 +1217,6 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                         <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.co || 'N/A'}</td>
                         <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.no2 || 'N/A'}</td>
                         <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.o3 || 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>
-                          {row.wind_speed != null ? `${row.wind_speed} km/h` : (index === 0 && cloudData?.wind_speed != null ? `${cloudData.wind_speed} km/h` : 'N/A')}
-                        </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>
-                          {row.wind_direction != null ? `${row.wind_direction}°` : (index === 0 && cloudData?.wind_direction != null ? `${cloudData.wind_direction}°` : 'N/A')}
-                        </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>
-                          {row.rain_gauge != null ? row.rain_gauge : (index === 0 && cloudData?.rain_gauge != null ? cloudData.rain_gauge : 'N/A')}
-                        </td>
                       </tr>
                     );
                   })
@@ -1138,6 +1313,25 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* Parameter Concentration Scale Bar */}
+              <div style={{
+                backgroundColor: '#f8fafc',
+                borderRadius: 16,
+                padding: '16px 20px',
+                border: '1px solid #e2e8f0',
+                marginBottom: 22,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'var(--font-mono)' }}>
+                    {activeDetail.sub} Concentration Scale
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#00bfa5' }}>
+                    Real-time Level
+                  </span>
+                </div>
+                <ParameterScaleBar paramKey={activePollutantModal} value={activePollutantVal} />
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

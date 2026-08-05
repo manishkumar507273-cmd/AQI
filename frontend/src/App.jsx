@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import Layout from './components/Layout';
+import LiveData from './pages/LiveData';
 import Dashboard from './pages/Dashboard';
 import Weather from './pages/Weather';
 import Forecast from './pages/Forecast';
@@ -9,7 +10,7 @@ import { getCloudLatest } from './api';
 const CLOUD_POLL_MS = 5000;
 
 export default function App() {
-  const [activeNav, setActiveNav] = useState('home');
+  const [activeNav, setActiveNav] = useState('live');
   const [activeTab, setActiveTab] = useState('aqi');
   const [selectedStation, setSelectedStation] = useState('station-1');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -79,6 +80,19 @@ export default function App() {
       onStationChange={setSelectedStation}
       lastCloudId={lastCloudId}
     >
+      {activeNav === 'live' && (
+        <LiveData
+          cloudData={cloudData}
+          cloudLoading={cloudLoading}
+          cloudError={cloudError}
+          onDataLoad={handleDataLoad}
+          refreshKey={refreshKey}
+          selectedStation={selectedStation}
+          activeSubTab={activeTab}
+          onSubTabChange={setActiveTab}
+        />
+      )}
+
       {activeNav === 'home' && activeTab === 'aqi' && (
         <Dashboard
           cloudData={cloudData}
