@@ -1,61 +1,79 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getCloudLatest, getCloudWeatherLiveHistory, getCachedData, isSensorOnline, getTimeAgo } from '../api';
-import { Cpu, ExternalLink, X, Droplets, Wind, CloudRain, Compass, ChevronRight, Info, HeartPulse, ShieldAlert, Users, CheckCircle2, AlertTriangle, Thermometer, Table, RefreshCw } from 'lucide-react';
+import { getWeatherLatest, getCloudWeatherLiveHistory, getCachedData, isSensorOnline, getTimeAgo } from '../api';
+import { Cpu, ExternalLink, X, Droplets, Wind, CloudRain, Compass, ChevronRight, Info, HeartPulse, ShieldAlert, Users, CheckCircle2, AlertTriangle, Thermometer, Table, RefreshCw, Layers, TrendingUp } from 'lucide-react';
 import sht45SensorImg from '../assets/sht45_sensor.png';
 import windSpeedSensorImg from '../assets/wind_speed_sensor.png';
 import windDirSensorImg from '../assets/wind_dir_sensor.png';
 import rainGaugeSensorImg from '../assets/rain_gauge_sensor.png';
 
 const fmt = (val, d = 1) =>
-  val != null ? (Number(val) % 1 === 0 ? Number(val).toFixed(0) : Number(val).toFixed(d)) : null;
+  val != null && !isNaN(Number(val)) ? (Number(val) % 1 === 0 ? Number(val).toFixed(0) : Number(val).toFixed(d)) : null;
 
-const getCompassDir = (deg) => {
-  if (deg == null) return null;
+const getCompassDir = (val) => {
+  if (val == null) return null;
+  if (typeof val === 'string' && isNaN(Number(val))) return val;
+  const deg = Number(val);
+  if (isNaN(deg)) return String(val);
   const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-  return dirs[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+  return `${dirs[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]} (${deg.toFixed(0)}°)`;
 };
 
 const getHumidityLabel = (h) => {
   if (h == null) return '—';
-  if (h < 30)  return 'Very Dry';
-  if (h < 50)  return 'Comfortable';
-  if (h < 70)  return 'Moderate';
-  if (h < 85)  return 'Humid';
+  const val = Number(h);
+  if (val < 30)  return 'Very Dry';
+  if (val < 50)  return 'Comfortable';
+  if (val < 70)  return 'Moderate';
+  if (val < 85)  return 'Humid';
   return 'Very Humid';
 };
 
 const getTempLabel = (t) => {
   if (t == null) return '—';
-  if (t < 10)  return 'Cold';
-  if (t < 20)  return 'Cool';
-  if (t < 28)  return 'Pleasant';
-  if (t < 35)  return 'Warm';
+  const val = Number(t);
+  if (val < 10)  return 'Cold';
+  if (val < 20)  return 'Cool';
+  if (val < 28)  return 'Pleasant';
+  if (val < 35)  return 'Warm';
   return 'Hot';
+};
+
+const getTempBadge = (t) => {
+  if (t == null) return { bg: '#f1f5f9', color: '#64748b', label: '—' };
+  const val = Number(t);
+  if (val < 10)  return { bg: '#e0f2fe', color: '#0284c7', label: 'Cold' };
+  if (val < 20)  return { bg: '#e0f2fe', color: '#0369a1', label: 'Cool' };
+  if (val < 28)  return { bg: '#dcfce7', color: '#15803d', label: 'Pleasant' };
+  if (val < 35)  return { bg: '#ffedd5', color: '#c2410c', label: 'Warm' };
+  return { bg: '#fee2e2', color: '#b91c1c', label: 'Hot' };
 };
 
 const getTempIcon = (t) => {
   if (t == null) return '🌡️';
-  if (t < 10)  return '❄️';
-  if (t < 20)  return '🌥️';
-  if (t < 28)  return '☀️';
-  if (t < 35)  return '🌤️';
+  const val = Number(t);
+  if (val < 10)  return '❄️';
+  if (val < 20)  return '🌥️';
+  if (val < 28)  return '☀️';
+  if (val < 35)  return '🌤️';
   return '🔥';
 };
 
 const getRainLabel = (r) => {
-  if (r == null || r === 0) return 'No Rainfall';
-  if (r < 5)  return 'Light Rain';
-  if (r < 20) return 'Moderate Rain';
+  if (r == null || Number(r) === 0) return 'No Rainfall';
+  const val = Number(r);
+  if (val < 5)  return 'Light Rain';
+  if (val < 20) return 'Moderate Rain';
   return 'Heavy Rain';
 };
 
 const getWindLabel = (w) => {
   if (w == null) return '—';
-  if (w < 5)  return 'Calm';
-  if (w < 15) return 'Light Breeze';
-  if (w < 30) return 'Moderate';
-  if (w < 50) return 'Strong';
+  const val = Number(w);
+  if (val < 5)  return 'Calm';
+  if (val < 15) return 'Light Breeze';
+  if (val < 30) return 'Moderate';
+  if (val < 50) return 'Strong';
   return 'Very Strong';
 };
 
@@ -165,68 +183,68 @@ const cardVariants = {
 };
 
 export default function Weather({ cloudData, cloudLoading, cloudError, refreshKey, selectedStation = 'station-1' }) {
-  const [cloud, setCloud]   = useState(() => selectedStation === 'station-1' ? cloudData : null);
-  const [loading, setLoading] = useState(() => {
-    if (selectedStation !== 'station-1') return false;
-    const cachedHistory = getCachedData('CACHE_WEATHER_LIVE_HISTORY');
-    if (cachedHistory && cachedHistory.length > 0) return false;
-    return !cloudData;
+  const [weatherLive, setWeatherLive] = useState(() => {
+    if (selectedStation !== 'station-1') return null;
+    return getCachedData('CACHE_WEATHER_LATEST') || null;
   });
-  const [error, setError]   = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(() => cloudData ? new Date() : null);
-  const [activeWeatherModal, setActiveWeatherModal] = useState(null);
   const [liveHistory, setLiveHistory] = useState(() => {
     if (selectedStation !== 'station-1') return [];
     return getCachedData('CACHE_WEATHER_LIVE_HISTORY') || [];
+  });
+  const [loading, setLoading] = useState(() => {
+    if (selectedStation !== 'station-1') return false;
+    const cachedLive = getCachedData('CACHE_WEATHER_LATEST');
+    const cachedHistory = getCachedData('CACHE_WEATHER_LIVE_HISTORY');
+    return !cachedLive && (!cachedHistory || cachedHistory.length === 0);
   });
   const [liveHistoryLoading, setLiveHistoryLoading] = useState(() => {
     if (selectedStation !== 'station-1') return false;
     return (getCachedData('CACHE_WEATHER_LIVE_HISTORY') || []).length === 0;
   });
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(() => new Date());
+  const [activeWeatherModal, setActiveWeatherModal] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    const fetchHistory = () => {
-      getCloudWeatherLiveHistory(50)
-        .then((res) => {
-          if (!isMounted) return;
-          setLiveHistory(res.data?.history || []);
-          setLiveHistoryLoading(false);
-          setLoading(false);
-        })
-        .catch(() => {
-          if (!isMounted) return;
-          setLiveHistoryLoading(false);
-          setLoading(false);
-        });
-    };
+    const fetchWeatherData = async () => {
+      if (selectedStation !== 'station-1') {
+        setLoading(false);
+        setLiveHistoryLoading(false);
+        return;
+      }
 
-    fetchHistory();
-    const interval = setInterval(fetchHistory, 5000);
+      try {
+        const [latestRes, historyRes] = await Promise.allSettled([
+          getWeatherLatest(),
+          getCloudWeatherLiveHistory(50)
+        ]);
 
-    if (selectedStation !== 'station-1') {
-      setLoading(false);
-      return () => {
-        isMounted = false;
-        clearInterval(interval);
-      };
-    }
-
-    getCloudLatest()
-      .then((res) => {
         if (!isMounted) return;
-        if (res.data?.status === 'success' && res.data?.data) {
-          setCloud(res.data.data);
+
+        if (latestRes.status === 'fulfilled' && latestRes.value.data?.data) {
+          setWeatherLive(latestRes.value.data.data);
           setLastUpdated(new Date());
         }
+
+        if (historyRes.status === 'fulfilled' && historyRes.value.data?.history) {
+          setLiveHistory(historyRes.value.data.history);
+        }
+
         setLoading(false);
-      })
-      .catch((err) => {
+        setLiveHistoryLoading(false);
+      } catch (err) {
         if (!isMounted) return;
+        console.error('Failed to fetch live weather from WEATHER_LIVE_NODE1:', err);
         setError(err.message || 'Failed to fetch weather telemetry');
         setLoading(false);
-      });
+        setLiveHistoryLoading(false);
+      }
+    };
+
+    fetchWeatherData();
+    const interval = setInterval(fetchWeatherData, 5000);
 
     return () => {
       isMounted = false;
@@ -234,18 +252,21 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
     };
   }, [refreshKey, selectedStation]);
 
-  const latestTimestamp = liveHistory?.[0]?.timestamp || cloud?.timestamp;
+  // Strictly get latest telemetry from WEATHER_LIVE_NODE1
+  const latestRow = liveHistory?.[0];
+  const latestTimestamp = weatherLive?.timestamp || latestRow?.timestamp;
   const isOnline = selectedStation === 'station-1' && isSensorOnline(latestTimestamp, 5);
   const timeAgoStr = getTimeAgo(latestTimestamp);
 
-  const temperature = cloud?.temperature ?? liveHistory?.[0]?.temperature ?? null;
-  const humidity    = cloud?.humidity    ?? liveHistory?.[0]?.humidity    ?? null;
-  const windSpeed   = cloud?.wind_speed  ?? liveHistory?.[0]?.wind_speed  ?? null;
-  const windDir     = cloud?.wind_direction ?? liveHistory?.[0]?.wind_direction ?? null;
-  const rainGauge   = cloud?.rain_gauge  ?? liveHistory?.[0]?.rain_gauge  ?? null;
-  const aqi         = cloud?.cpcb_aqi    ?? null;
-  const aqiLabel    = cloud?.aqi_info?.label  ?? null;
-  const aqiColor    = cloud?.aqi_info?.color  ?? '#94a3b8';
+  const temperature = weatherLive?.temperature ?? latestRow?.temperature ?? null;
+  const humidity    = weatherLive?.humidity    ?? latestRow?.humidity    ?? null;
+  const windSpeed   = weatherLive?.wind_speed  ?? latestRow?.wind_speed  ?? null;
+  const windDir     = weatherLive?.wind_direction ?? latestRow?.wind_direction ?? null;
+  const rainGauge   = weatherLive?.rain_gauge  ?? latestRow?.rain_gauge  ?? null;
+
+  const aqi         = cloudData?.cpcb_aqi ?? null;
+  const aqiLabel    = cloudData?.aqi_info?.label ?? null;
+  const aqiColor    = cloudData?.aqi_info?.color ?? '#94a3b8';
 
   const compassDir = getCompassDir(windDir);
   const tempIcon   = getTempIcon(temperature);
@@ -256,10 +277,23 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
 
   const activeDetail = activeWeatherModal ? WEATHER_DETAILS[activeWeatherModal] : null;
 
-  if (loading && !cloud && liveHistory.length === 0) return (
+  // Temperature Statistics over live stream
+  const tempStats = useMemo(() => {
+    const temps = liveHistory
+      .map(r => r.temperature)
+      .filter(t => t != null && !isNaN(Number(t)))
+      .map(Number);
+    if (temps.length === 0) return null;
+    const min = Math.min(...temps);
+    const max = Math.max(...temps);
+    const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
+    return { min, max, avg };
+  }, [liveHistory]);
+
+  if (loading && !weatherLive && liveHistory.length === 0) return (
     <div style={{ minHeight: 450, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
       <div style={{ width: 44, height: 44, border: '3px solid #e2e8f0', borderTopColor: '#00bfa5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <p style={{ color: '#64748b', fontSize: 14, fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Reading weather telemetry...</p>
+      <p style={{ color: '#64748b', fontSize: 14, fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Reading live telemetry from WEATHER_LIVE_NODE1...</p>
     </div>
   );
 
@@ -385,13 +419,17 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
             border: '1px solid #e2e8f0',
             borderRadius: 20,
             padding: '20px 24px',
-            width: 220,
+            width: 240,
           }}>
-            <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: 10 }}>Sensors Online</div>
+            <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Live Sensor Feed</span>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isOnline ? '#10b981' : '#f59e0b', display: 'inline-block' }} />
+            </div>
             <div style={{ fontSize: 13, color: '#0f172a', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div>💧 Humidity: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0284c7' }}>{humidity != null ? `${humidity}%` : 'N/A'}</strong></div>
-              <div>💨 Wind: <strong style={{ fontFamily: 'var(--font-mono)', color: '#6366f1' }}>{windSpeed != null ? `${windSpeed} km/h` : 'N/A'}</strong></div>
-              <div>🌧️ Rain: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0891b2' }}>{rainGauge != null ? `${rainGauge} mm` : 'N/A'}</strong></div>
+              <div>🌡️ Temp: <strong style={{ fontFamily: 'var(--font-mono)', color: '#ea580c' }}>{temperature != null ? `${fmt(temperature, 1)}°C` : 'N/A'}</strong></div>
+              <div>💧 Humidity: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0284c7' }}>{humidity != null ? `${fmt(humidity, 1)}%` : 'N/A'}</strong></div>
+              <div>💨 Wind: <strong style={{ fontFamily: 'var(--font-mono)', color: '#6366f1' }}>{windSpeed != null ? `${fmt(windSpeed, 1)} km/h` : 'N/A'}</strong></div>
+              <div>🌧️ Rain: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0891b2' }}>{rainGauge != null ? `${fmt(rainGauge, 1)} mm` : 'N/A'}</strong></div>
             </div>
           </div>
         </motion.div>
@@ -401,9 +439,9 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
           {[
             { key: 'temperature', name: 'Temperature', val: temperature != null ? `${fmt(temperature, 1)}°C` : 'N/A', icon: '🌡️', badgeBg: '#ffedd5', badgeText: '#ea580c', accent: '#ea580c' },
             { key: 'humidity', name: 'Humidity', val: humidity != null ? `${fmt(humidity, 1)}%` : 'N/A', icon: '💧', badgeBg: '#e0f2fe', badgeText: '#0284c7', accent: '#0284c7' },
-            { key: 'wind_speed', name: 'Wind Speed', val: windSpeed != null ? `${fmt(windSpeed)} km/h` : 'N/A', icon: '💨', badgeBg: '#e0e7ff', badgeText: '#4f46e5', accent: '#4f46e5' },
-            { key: 'rain_gauge', name: 'Rainfall', val: rainGauge != null ? `${fmt(rainGauge)} mm` : 'N/A', icon: '🌧️', badgeBg: '#cff4fc', badgeText: '#0891b2', accent: '#0891b2' },
-            { key: 'wind_dir', name: 'Wind Direction', val: compassDir ? `${compassDir} (${fmt(windDir, 0)}°)` : 'N/A', icon: '🧭', badgeBg: '#f1f5f9', badgeText: '#475569', accent: '#64748b' },
+            { key: 'wind_speed', name: 'Wind Speed', val: windSpeed != null ? `${fmt(windSpeed, 1)} km/h` : 'N/A', icon: '💨', badgeBg: '#e0e7ff', badgeText: '#4f46e5', accent: '#4f46e5' },
+            { key: 'rain_gauge', name: 'Rainfall', val: rainGauge != null ? `${fmt(rainGauge, 1)} mm` : 'N/A', icon: '🌧️', badgeBg: '#cff4fc', badgeText: '#0891b2', accent: '#0891b2' },
+            { key: 'wind_dir', name: 'Wind Direction', val: compassDir || 'N/A', icon: '🧭', badgeBg: '#f1f5f9', badgeText: '#475569', accent: '#64748b' },
           ].map(({ key, name, val, icon, badgeBg, badgeText, accent }, i) => {
             const anim = ICON_ANIMATIONS[key];
 
@@ -481,58 +519,64 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
         </div>
       </div>
 
-      {/* ── Weather Telemetry Stream Table ── */}
+      {/* ── Temperature & Weather Telemetry Stream Table Section ── */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.2 }}
         style={{
           backgroundColor: '#ffffff',
-          borderRadius: 20,
-          padding: 24,
+          borderRadius: 24,
+          padding: '24px 28px',
           border: '1px solid #e2e8f0',
           boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
-          marginTop: 12,
+          marginTop: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 18,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        {/* Table Header & Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Table style={{ width: 18, height: 18, color: '#00bfa5' }} />
-              Weather Telemetry Stream Records
-            </h3>
-            <p style={{ fontSize: 12, color: '#64748b', marginTop: 2, margin: 0 }}>
-              Live historical telemetry feed for ambient temperature, humidity, wind velocity, direction, and precipitation
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(0, 191, 165, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00bfa5' }}>
+                <Table style={{ width: 18, height: 18 }} />
+              </div>
+              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: 0, fontFamily: 'var(--font-sans)' }}>
+                Live Temperature &amp; Weather Telemetry Stream
+              </h3>
+            </div>
           </div>
         </div>
 
-        <div style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto', maxHeight: 380 }}>
+        {/* Telemetry Stream Table */}
+        <div style={{ borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto', maxHeight: 420 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
               <thead style={{
-                position: 'sticky', top: 0, zIndex: 1,
+                position: 'sticky', top: 0, zIndex: 2,
                 backgroundColor: '#f8fafc',
                 borderBottom: '1px solid #e2e8f0',
               }}>
                 <tr>
-                  {['Records', 'Last Update', 'Wind Speed', 'Wind Dir', 'Rain (mm)'].map((h) => (
-                    <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                  {['# Record', 'Time / Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed', 'Wind Direction', 'Rain Gauge (mm)'].map((h) => (
+                    <th key={h} style={{ padding: '13px 18px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {liveHistoryLoading ? (
                   <tr>
-                    <td colSpan="5" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
                       <RefreshCw style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: 8, color: '#00bfa5' }} />
-                      Loading weather stream...
+                      Loading telemetry...
                     </td>
                   </tr>
                 ) : liveHistory.length === 0 ? (
                   <tr>
-                    <td colSpan="5" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
-                      No weather telemetry data.
+                    <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                      No live weather telemetry found.
                     </td>
                   </tr>
                 ) : (
@@ -550,20 +594,26 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                           backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc',
                         }}
                       >
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#00bfa5' }}>
+                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#00bfa5' }}>
                           #{index + 1}
                         </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
                           {formattedTime}
                         </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>
-                          {row.wind_speed != null ? `${Number(row.wind_speed).toFixed(1)} km/h` : 'N/A'}
+                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', fontSize: 13.5, fontWeight: 800, color: '#ea580c' }}>
+                          {row.temperature != null ? `${fmt(row.temperature, 2)}°C` : 'N/A'}
                         </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>
-                          {row.wind_direction != null ? `${row.wind_direction}°` : 'N/A'}
+                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 700 }}>
+                          {row.humidity != null ? `${fmt(row.humidity, 2)}%` : 'N/A'}
                         </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>
-                          {row.rain_gauge != null ? `${Number(row.rain_gauge).toFixed(1)} mm` : '0.0 mm'}
+                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>
+                          {row.wind_speed != null ? `${fmt(row.wind_speed, 2)} km/h` : 'N/A'}
+                        </td>
+                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>
+                          {getCompassDir(row.wind_direction) || 'N/A'}
+                        </td>
+                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#334155' }}>
+                          {row.rain_gauge != null ? `${fmt(row.rain_gauge, 2)} mm` : '0.00 mm'}
                         </td>
                       </tr>
                     );
@@ -691,3 +741,4 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
     </>
   );
 }
+

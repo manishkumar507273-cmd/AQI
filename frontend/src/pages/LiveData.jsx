@@ -122,7 +122,6 @@ export default function LiveData({
           onDataLoad={onDataLoad}
           refreshKey={refreshKey}
           selectedStation={selectedStation}
-          onNavigateToWeather={() => setSubTab('weather')}
         />
       ) : (
         <Weather

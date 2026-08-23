@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, ChevronRight, Table, RefreshCw, X, CheckCircle2, AlertTriangle, Users, ShieldAlert, Info, HeartPulse, Factory, Cpu, ExternalLink, TrendingUp, Activity, Layers } from 'lucide-react';
+import { AlertCircle, Table, RefreshCw, X, CheckCircle2, AlertTriangle, Users, ShieldAlert, Info, HeartPulse, Factory, Cpu, ExternalLink, TrendingUp, Activity, Layers } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { getCloudLatest, getCloudLiveHistory, getCachedData } from '../api';
+import { getCloudLatest, getCloudLiveHistory, getCachedData, isSensorOnline, getTimeAgo } from '../api';
 import sensirionSensorImg from '../assets/sensirion_sensor.png';
 import mq131SensorImg from '../assets/mq131_sensor.png';
 import no2SensorImg from '../assets/no2_sensor.png';
@@ -328,7 +328,7 @@ const computeInitialDashboardData = (cloud) => {
   };
 };
 
-export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataLoad, refreshKey, selectedStation = 'station-1', onNavigateToWeather }) {
+export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataLoad, refreshKey, selectedStation = 'station-1' }) {
   const [data, setData] = useState(() => selectedStation === 'station-1' ? computeInitialDashboardData(cloudData) : null);
   const [loading, setLoading] = useState(() => selectedStation === 'station-1' && !cloudData);
   const [error, setError] = useState(null);
@@ -355,13 +355,29 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
     setVisiblePollutants(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const latestRow = liveHistory?.[0];
+  const latestTimestamp = latestRow?.timestamp || data?.timestamp;
+  const isOnline = selectedStation === 'station-1' && isSensorOnline(latestTimestamp, 5);
+  const timeAgoStr = getTimeAgo(latestTimestamp);
+
   const latestTableTime = useMemo(() => {
-    const rawTs = liveHistory?.[0]?.timestamp || data?.timestamp;
-    if (!rawTs) return 'N/A';
-    const dt = new Date(rawTs);
-    if (isNaN(dt.getTime())) return String(rawTs);
-    return dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
-  }, [liveHistory, data?.timestamp]);
+    if (!latestTimestamp) return 'N/A';
+    const dt = new Date(latestTimestamp);
+    if (isNaN(dt.getTime())) return String(latestTimestamp);
+
+    const now = new Date();
+    const isToday = dt.getDate() === now.getDate() &&
+                    dt.getMonth() === now.getMonth() &&
+                    dt.getFullYear() === now.getFullYear();
+
+    const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
+    
+    if (isToday) {
+      return timeStr;
+    }
+    const dateStr = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    return `${dateStr}, ${timeStr}`;
+  }, [latestTimestamp]);
 
   const liveHistoryChartData = useMemo(() => {
     if (!liveHistory || liveHistory.length === 0) return [];
@@ -647,13 +663,61 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         </motion.div>
       )}
 
+      {/* ── Offline Hardware Notice Banner ── */}
+      {selectedStation === 'station-1' && !isOnline && latestTimestamp && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            backgroundColor: '#fff7ed',
+            border: '1px solid #ffedd5',
+            borderLeft: '4px solid #ea580c',
+            borderRadius: 16,
+            padding: '14px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            boxShadow: '0 2px 10px rgba(234, 88, 12, 0.05)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AlertTriangle style={{ width: 18, height: 18, color: '#ea580c', flexShrink: 0 }} />
+            <span style={{ fontSize: 13.5, color: '#475569', fontWeight: 600 }}>
+              <strong style={{ color: '#9a3412' }}>AQI Sensor Node Offline:</strong> No new live telemetry received in cloud for &gt;5 mins (Last update: <span style={{ color: '#ea580c', fontWeight: 700 }}>{latestTableTime} • {timeAgoStr}</span>). Showing last recorded cloud values below.
+            </span>
+          </div>
+          <span style={{ fontSize: 11.5, fontWeight: 700, padding: '4px 12px', borderRadius: 999, backgroundColor: '#ffedd5', color: '#c2410c', fontFamily: 'var(--font-mono)' }}>
+            OFFLINE ({timeAgoStr.toUpperCase()})
+          </span>
+        </motion.div>
+      )}
+
       {/* ── Page Header Titles ── */}
       <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
           Real-time Air Quality Index
         </h1>
-        <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
-          Last Updated: <span style={{ color: '#00bfa5', fontWeight: 600 }}>{selectedStation === 'station-1' ? latestTableTime : 'N/A (Station Standby)'}</span>
+        <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 6, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span>Last Updated: <span style={{ color: selectedStation === 'station-1' && !isOnline ? '#ea580c' : '#00bfa5', fontWeight: 600 }}>{selectedStation === 'station-1' ? latestTableTime : 'N/A (Station Standby)'}</span></span>
+          {selectedStation === 'station-1' && (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '2px 8px',
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 700,
+              backgroundColor: isOnline ? '#ecfdf5' : '#fff7ed',
+              color: isOnline ? '#059669' : '#ea580c',
+              border: `1px solid ${isOnline ? '#a7f3d0' : '#fed7aa'}`
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: isOnline ? '#10b981' : '#f97316' }} />
+              {isOnline ? 'LIVE' : `OFFLINE (${timeAgoStr})`}
+            </span>
+          )}
         </div>
       </motion.div>
 
@@ -686,8 +750,10 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         {/* Left Side */}
         <div style={{ flex: 1, minWidth: 280, zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#22c55e', display: 'inline-block' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status Panel</span>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isOnline ? '#22c55e' : '#f97316', display: 'inline-block' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {isOnline ? 'Status Panel • Live' : `Status Panel • Offline (${timeAgoStr})`}
+            </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20 }}>
@@ -696,7 +762,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 {aqiValue}
               </div>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-                LIVE AQI
+                {isOnline ? 'LIVE AQI' : 'LAST RECORDED AQI'}
               </div>
             </div>
 
@@ -758,7 +824,6 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         {/* Right Side Weather Widget */}
         {weather && (
           <div
-            onClick={onNavigateToWeather}
             style={{
               flex: '0 0 auto',
               width: 230,
@@ -766,11 +831,9 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               border: '1px solid #e2e8f0',
               borderRadius: 20,
               padding: '20px 22px',
-              cursor: 'pointer',
               position: 'relative',
               zIndex: 1,
               boxShadow: '0 4px 16px rgba(15, 23, 42, 0.04)',
-              transition: 'all 0.2s ease',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -790,7 +853,6 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 <span>💧</span>
                 <span>Humidity <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{weather?.humidity !== 'N/A' ? `${weather?.humidity}%` : 'N/A'}</strong></span>
               </div>
-              <ChevronRight style={{ width: 16, height: 16, color: '#64748b' }} />
             </div>
           </div>
         )}

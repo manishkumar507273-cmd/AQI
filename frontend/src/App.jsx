@@ -101,7 +101,6 @@ export default function App() {
           onDataLoad={handleDataLoad}
           refreshKey={refreshKey}
           selectedStation={selectedStation}
-          onNavigateToWeather={() => setActiveTab('weather')}
         />
       )}
 

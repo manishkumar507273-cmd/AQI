@@ -213,26 +213,38 @@ def generate_24h_15min_history(data: List[Dict[str, Any]], limit: int = 96) -> L
 
     return slots[-limit:]
 
-async def get_latest_cloud_reading() -> Optional[Dict[str, Any]]:
-    """Live Page Data: Combines 1st table (AQI_LIVE_NODE1) and 3rd table (WEATHER_LIVE_NODE1)"""
+async def get_latest_aqi_live_reading() -> Optional[Dict[str, Any]]:
+    """AQI Page Data: Fetches strictly from 1st table (AQI_LIVE_NODE1) including its own onboard temperature and humidity"""
     aqi_live_rows = await fetch_table_rows(TABLE_AQI_LIVE, limit=1)
-    weather_live_rows = await fetch_table_rows(TABLE_WEATHER_LIVE, limit=1)
-    
-    combined = {}
     if aqi_live_rows:
-        combined.update(aqi_live_rows[0])
-    if weather_live_rows:
-        # Override or add weather parameters from 3rd table (WEATHER_LIVE_NODE1)
-        for k, v in weather_live_rows[0].items():
-            if v is not None or k not in combined:
-                combined[k] = v
+        return format_supabase_reading(aqi_live_rows[0])
+    return None
 
-    if combined:
-        return format_supabase_reading(combined)
+async def get_latest_cloud_reading() -> Optional[Dict[str, Any]]:
+    """Fetches AQI Live reading from 1st table (AQI_LIVE_NODE1) with its temperature and humidity"""
+    aqi_reading = await get_latest_aqi_live_reading()
+    if aqi_reading:
+        return aqi_reading
     
     # Fallback if no cloud records found
     history = generate_24h_15min_history([], limit=1)
     return history[-1] if history else None
+
+async def get_latest_weather_live_reading() -> Optional[Dict[str, Any]]:
+    """Fetches latest live weather record directly from 3rd table (WEATHER_LIVE_NODE1)"""
+    weather_live_rows = await fetch_table_rows(TABLE_WEATHER_LIVE, limit=1)
+    if weather_live_rows:
+        raw = weather_live_rows[0]
+        return {
+            "id": raw.get("id"),
+            "timestamp": raw.get("created_at") or raw.get("timestamp_hour") or raw.get("timestamp"),
+            "temperature": raw.get("temperature"),
+            "humidity": raw.get("humidity"),
+            "wind_speed": raw.get("wind_speed"),
+            "wind_direction": raw.get("wind_direction"),
+            "rain_gauge": raw.get("rain_gauge") if "rain_gauge" in raw else raw.get("rain")
+        }
+    return None
 
 async def get_weather_live_history(limit: int = 50) -> List[Dict[str, Any]]:
     """Fetches past weather records directly from 3rd table (WEATHER_LIVE_NODE1)"""
@@ -253,27 +265,10 @@ async def get_weather_live_history(limit: int = 50) -> List[Dict[str, Any]]:
     return []
 
 async def get_cloud_live_history(limit: int = 50) -> List[Dict[str, Any]]:
-    """Fetches past records directly from 1st table (AQI_LIVE_NODE1) and 3rd table (WEATHER_LIVE_NODE1)"""
+    """Fetches past AQI live records directly from 1st table (AQI_LIVE_NODE1)"""
     aqi_live_rows = await fetch_table_rows(TABLE_AQI_LIVE, limit=limit)
-    weather_live_rows = await fetch_table_rows(TABLE_WEATHER_LIVE, limit=limit)
-    
-    merged_rows = []
-    max_len = max(len(aqi_live_rows), len(weather_live_rows))
-    
-    if max_len > 0:
-        for idx in range(max_len):
-            row = {}
-            if idx < len(aqi_live_rows):
-                row.update(aqi_live_rows[idx])
-            if idx < len(weather_live_rows):
-                for k, v in weather_live_rows[idx].items():
-                    if v is not None or k not in row:
-                        row[k] = v
-            merged_rows.append(row)
-
-        formatted_list = [format_supabase_reading(r) for r in merged_rows]
-        return formatted_list
-
+    if aqi_live_rows:
+        return [format_supabase_reading(r) for r in aqi_live_rows]
     return generate_24h_15min_history([], limit=limit)
 
 async def get_cloud_history(limit: int = 96) -> List[Dict[str, Any]]:

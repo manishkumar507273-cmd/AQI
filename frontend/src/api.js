@@ -106,32 +106,19 @@ export const getCloudLatest = async () => {
   try {
     const headers = getNoCacheHeaders();
 
-    // 1st Table (Live AQI) and 3rd Table (Live Weather) for Live Page
-    const [aqiRes, weatherRes] = await Promise.allSettled([
-      axios.get(`${getTableRestUrl(TABLE_AQI_LIVE)}?order=created_at.desc&limit=1`, { headers }),
-      axios.get(`${getTableRestUrl(TABLE_WEATHER_LIVE)}?order=created_at.desc&limit=1`, { headers })
-    ]);
+    // 1st Table (Live AQI): AQI_LIVE_NODE1 - strictly fetches telemetry & temperature from AQI_LIVE_NODE1
+    const res = await axios.get(`${getTableRestUrl(TABLE_AQI_LIVE)}?order=created_at.desc&limit=1`, { headers })
+      .catch(() => axios.get(`${getTableRestUrl(TABLE_AQI_LIVE)}?limit=1`, { headers }));
 
-    const combined = {};
-    if (aqiRes.status === 'fulfilled' && aqiRes.value.data?.[0]) {
-      Object.assign(combined, aqiRes.value.data[0]);
-    }
-    if (weatherRes.status === 'fulfilled' && weatherRes.value.data?.[0]) {
-      const wData = weatherRes.value.data[0];
-      for (const k in wData) {
-        if (wData[k] != null || combined[k] == null) {
-          combined[k] = wData[k];
-        }
+    if (res.data && res.data[0]) {
+      const formatted = formatRawReading(res.data[0]);
+      if (formatted) {
+        setCachedData('CACHE_CLOUD_LATEST', formatted);
+        return { data: { status: 'success', data: formatted } };
       }
     }
-
-    const formatted = formatRawReading(combined);
-    if (formatted) {
-      setCachedData('CACHE_CLOUD_LATEST', formatted);
-      return { data: { status: 'success', data: formatted } };
-    }
   } catch (err) {
-    console.warn('Direct Supabase fetch fallback to backend API:', err?.message || err);
+    console.warn('Direct Supabase AQI live fetch fallback to backend API:', err?.message || err);
   }
 
   if (cached) {
@@ -174,6 +161,40 @@ export const getCloudLiveHistory = async (limit = 50) => {
 
   return api.get(`/cloud/live-history?limit=${limit}`).catch(() => {
     return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
+  });
+};
+
+export const getWeatherLatest = async () => {
+  const cached = getCachedData('CACHE_WEATHER_LATEST');
+  try {
+    const headers = getNoCacheHeaders();
+    const res = await axios.get(`${getTableRestUrl(TABLE_WEATHER_LIVE)}?order=created_at.desc&limit=1`, { headers })
+      .catch(() => axios.get(`${getTableRestUrl(TABLE_WEATHER_LIVE)}?limit=1`, { headers }));
+
+    if (res.data && res.data[0]) {
+      const raw = res.data[0];
+      const data = {
+        id: raw.id,
+        timestamp: raw.created_at || raw.timestamp_hour || raw.timestamp,
+        temperature: raw.temperature,
+        humidity: raw.humidity,
+        wind_speed: raw.wind_speed,
+        wind_direction: raw.wind_direction,
+        rain_gauge: raw.rain_gauge ?? raw.rain
+      };
+      setCachedData('CACHE_WEATHER_LATEST', data);
+      return { data: { status: 'success', data } };
+    }
+  } catch (err) {
+    console.warn('Direct Supabase weather latest fetch fallback to backend API:', err?.message || err);
+  }
+
+  if (cached) {
+    return { data: { status: 'success', data: cached, isOffline: true } };
+  }
+
+  return api.get('/cloud/weather-latest').catch(() => {
+    return { data: { status: 'offline', data: cached } };
   });
 };
 

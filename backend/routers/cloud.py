@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from services.supabase_service import get_latest_cloud_reading, get_cloud_history, get_cloud_live_history, get_weather_live_history, get_weather_history
+from services.supabase_service import get_latest_cloud_reading, get_latest_weather_live_reading, get_cloud_history, get_cloud_live_history, get_weather_live_history, get_weather_history
 
 router = APIRouter(prefix="/api/cloud", tags=["Cloud Telemetry"])
 
@@ -9,6 +9,16 @@ async def latest_cloud_data():
         data = await get_latest_cloud_reading()
         if not data:
             raise HTTPException(status_code=444, detail="No cloud sensor data available")
+        return {"status": "success", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Supabase connection error: {str(e)}")
+
+@router.get("/weather-latest")
+async def latest_weather_data():
+    try:
+        data = await get_latest_weather_live_reading()
+        if not data:
+            raise HTTPException(status_code=444, detail="No cloud weather data available")
         return {"status": "success", "data": data}
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Supabase connection error: {str(e)}")
