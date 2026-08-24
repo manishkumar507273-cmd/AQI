@@ -67,11 +67,60 @@ const formatTimeString = (date) => {
   return `${hours}:${minStr}${ampm}`;
 };
 
-const formatLongDate = (dateStr) => {
-  if (!dateStr) return '';
+const formatHourLabel = (date) => {
+  if (!date || isNaN(date.getTime())) return '';
+  let hours = date.getHours();
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${hours}${ampm}`;
+};
+
+const formatLongDate = (date) => {
+  if (!date) return '';
+  const dt = typeof date === 'string' ? (() => {
+    const [y, m, d] = date.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  })() : date;
+  if (!dt || isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+// Returns the 8:00 AM cycle start date (YYYY-MM-DD) for weather timestamps
+const getWeatherCycleStartDate = (date) => {
+  if (!date || isNaN(date.getTime())) return '';
+  const dt = new Date(date.getTime());
+  if (dt.getHours() < 8) {
+    dt.setDate(dt.getDate() - 1);
+  }
+  return formatYYYYMMDD(dt);
+};
+
+// Returns start and end bounds based on active subTab
+// AQI: 12:00 AM (00:00) to 11:59:59 PM on selected day (24 hours: 12am to 11pm)
+// Weather: 8:00 AM on selected date to 8:00 AM next day (24 hours: 8am to 8am)
+const getCycleBounds = (dateStr, subTab = 'aqi') => {
+  if (!dateStr) return { start: null, end: null, startMs: 0, endMs: 0 };
   const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  if (subTab === 'aqi') {
+    const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+    return {
+      start,
+      end,
+      startMs: start.getTime(),
+      endMs: end.getTime()
+    };
+  } else {
+    const start = new Date(y, m - 1, d, 8, 0, 0, 0);
+    const end = new Date(y, m - 1, d + 1, 8, 0, 0, 0);
+    return {
+      start,
+      end,
+      startMs: start.getTime(),
+      endMs: end.getTime()
+    };
+  }
 };
 
 export default function Historical({ refreshKey, selectedStation = 'station-1' }) {
@@ -130,15 +179,22 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
             return data;
           });
 
-          // If no date selected or current date has no records in this tab's dataset, default to latest recorded day
+          // Default date selection when data loads
           if (data.length > 0) {
-            const hasMatch = selectedDate && data.some(r => r.timestamp && formatYYYYMMDD(new Date(r.timestamp)) === selectedDate);
+            const hasMatch = selectedDate && data.some(r => {
+              if (!r.timestamp) return false;
+              const dt = new Date(r.timestamp);
+              if (isNaN(dt.getTime())) return false;
+              return subTab === 'aqi' 
+                ? formatYYYYMMDD(dt) === selectedDate 
+                : getWeatherCycleStartDate(dt) === selectedDate;
+            });
             if (!selectedDate || !hasMatch) {
               for (const r of data) {
                 if (r.timestamp) {
                   const dt = new Date(r.timestamp);
                   if (!isNaN(dt.getTime())) {
-                    setSelectedDate(formatYYYYMMDD(dt));
+                    setSelectedDate(subTab === 'aqi' ? formatYYYYMMDD(dt) : getWeatherCycleStartDate(dt));
                     break;
                   }
                 }
@@ -178,28 +234,40 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
 
   const activeParamKey = activeParam.key;
 
-  // Filter rows strictly to the selected day
+  // Compute effective cycle date (YYYY-MM-DD)
   const effectiveSelectedDate = useMemo(() => {
     if (selectedDate) return selectedDate;
     if (rows.length > 0 && rows[0]?.timestamp) {
       const dt = new Date(rows[0].timestamp);
-      if (!isNaN(dt.getTime())) return formatYYYYMMDD(dt);
+      if (!isNaN(dt.getTime())) {
+        return subTab === 'aqi' ? formatYYYYMMDD(dt) : getWeatherCycleStartDate(dt);
+      }
     }
     return formatYYYYMMDD(new Date());
-  }, [selectedDate, rows]);
+  }, [selectedDate, rows, subTab]);
 
+  // Compute cycle bounds (AQI: 12 AM to 11:59 PM; Weather: 8 AM to next day 8 AM)
+  const cycleBounds = useMemo(() => {
+    return getCycleBounds(effectiveSelectedDate, subTab);
+  }, [effectiveSelectedDate, subTab]);
+
+  // Filter rows strictly to the active observation window
   const filteredRows = useMemo(() => {
-    if (!effectiveSelectedDate) return [];
+    if (!cycleBounds.startMs || !cycleBounds.endMs) return [];
     return rows.filter((r) => {
-      if (!r.timestamp) return false;
-      const dt = new Date(r.timestamp);
-      return formatYYYYMMDD(dt) === effectiveSelectedDate;
+      if (!r?.timestamp) return false;
+      const t = new Date(r.timestamp).getTime();
+      return !isNaN(t) && t >= cycleBounds.startMs && t <= cycleBounds.endMs;
+    }).sort((a, b) => {
+      const tA = new Date(a.timestamp).getTime();
+      const tB = new Date(b.timestamp).getTime();
+      return tA - tB;
     });
-  }, [rows, effectiveSelectedDate]);
+  }, [rows, cycleBounds]);
 
-  // Summary statistics for selected 24-hour day
+  // Summary statistics for selected 24-hour window
   const selectedDaySummary = useMemo(() => {
-    if (filteredRows.length === 0) return null;
+    if (!cycleBounds.start || !cycleBounds.end) return null;
     
     const values = filteredRows
       .map(r => r[activeParamKey])
@@ -220,7 +288,12 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
 
     return {
       dateStr: effectiveSelectedDate,
-      longDate: formatLongDate(effectiveSelectedDate),
+      cycleStartStr: subTab === 'aqi' 
+        ? formatLongDate(cycleBounds.start)
+        : `${formatLongDate(cycleBounds.start)}, 8:00 AM`,
+      cycleEndStr: subTab === 'aqi'
+        ? '12:00 AM – 11:00 PM'
+        : `${formatLongDate(cycleBounds.end)}, 8:00 AM`,
       hourCount: filteredRows.length,
       avgVal,
       minVal,
@@ -228,69 +301,91 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       avgAqi,
       maxAqi
     };
-  }, [effectiveSelectedDate, filteredRows, activeParamKey]);
+  }, [effectiveSelectedDate, cycleBounds, filteredRows, activeParamKey, subTab]);
 
-  // Chart data computation (chronological order from earliest to latest hour)
-  const chartData = useMemo(() => {
-    if (!filteredRows || filteredRows.length === 0) return [];
-    
-    // Sort chronologically for charting
-    const sorted = [...filteredRows].sort((a, b) => {
-      const tA = new Date(a.timestamp).getTime();
-      const tB = new Date(b.timestamp).getTime();
-      return tA - tB;
-    });
+  // Generate exactly 24 hourly data slots (Total 24 data per day):
+  // For AQI: 12 AM (00:00) to 11 PM (23:00) -> 24 hours
+  // For Weather: 8 AM to next day 8 AM -> 24 hours
+  const day24HourData = useMemo(() => {
+    if (!cycleBounds.startMs) return [];
 
-    return sorted.map((r, idx) => {
-      const dt = r.timestamp ? new Date(r.timestamp) : new Date();
-      const val = r[activeParamKey] != null && !isNaN(Number(r[activeParamKey])) ? Number(r[activeParamKey]) : 0;
-      return {
-        id: r.id || idx,
-        uniqueKey: dt && !isNaN(dt) ? `${dt.getTime()}_${idx}` : `p_${idx}`,
-        time: formatTimeString(dt),
-        date: formatDDMMYYYY(dt),
-        rawHour: dt.getHours(),
-        value: val,
-      };
-    });
-  }, [filteredRows, activeParamKey]);
+    const slots = [];
+    for (let i = 0; i < 24; i++) {
+      const slotDt = new Date(cycleBounds.startMs + i * 3600 * 1000);
+      const timeLabel = formatHourLabel(slotDt);
+      const fullTimeStr = formatTimeString(slotDt);
+      const isNextDay = subTab === 'weather' ? i >= 16 : false;
 
-  // CSV Export for filtered 24h table data
+      // Match record with same year, month, date, and hour
+      const matchingRecord = filteredRows.find((r) => {
+        if (!r?.timestamp) return false;
+        const dt = new Date(r.timestamp);
+        return (
+          dt.getFullYear() === slotDt.getFullYear() &&
+          dt.getMonth() === slotDt.getMonth() &&
+          dt.getDate() === slotDt.getDate() &&
+          dt.getHours() === slotDt.getHours()
+        );
+      });
+
+      const hasData = !!matchingRecord;
+      const paramVal = hasData && matchingRecord[activeParamKey] != null && !isNaN(Number(matchingRecord[activeParamKey]))
+        ? Number(matchingRecord[activeParamKey])
+        : 0;
+
+      slots.push({
+        id: matchingRecord?.id || `slot_${i}`,
+        uniqueKey: `slot_${i}`,
+        slotIndex: i,
+        time: timeLabel,
+        fullTime: fullTimeStr,
+        date: formatDDMMYYYY(slotDt),
+        isNextDay,
+        hasData,
+        value: paramVal,
+        record: matchingRecord || null,
+      });
+    }
+
+    return slots;
+  }, [cycleBounds, filteredRows, activeParamKey, subTab]);
+
+  // CSV Export for 24h telemetry table data
   const handleExportCSV = () => {
-    if (filteredRows.length === 0) return;
+    if (day24HourData.length === 0) return;
     
     let headers = [];
     let rowsData = [];
 
     if (subTab === 'aqi') {
       headers = ['Date', 'Time', 'AQI', 'Temperature (°C)', 'Humidity (%)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO2 (µg/m³)', 'O3 (µg/m³)'];
-      rowsData = filteredRows.map(r => {
-        const dt = new Date(r.timestamp);
+      rowsData = day24HourData.map((slot) => {
+        const r = slot.record;
         return [
-          formatDDMMYYYY(dt),
-          formatTimeString(dt),
-          r.cpcb_aqi ?? '',
-          r.temperature ?? '',
-          r.humidity ?? '',
-          r.pm25 ?? '',
-          r.pm10 ?? '',
-          r.co ?? '',
-          r.no2 ?? '',
-          r.o3 ?? ''
+          slot.date,
+          slot.fullTime,
+          r?.cpcb_aqi ?? '',
+          r?.temperature ?? '',
+          r?.humidity ?? '',
+          r?.pm25 ?? '',
+          r?.pm10 ?? '',
+          r?.co ?? '',
+          r?.no2 ?? '',
+          r?.o3 ?? ''
         ];
       });
     } else {
       headers = ['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Direction (°)', 'Rain Gauge (mm)'];
-      rowsData = filteredRows.map(r => {
-        const dt = new Date(r.timestamp);
+      rowsData = day24HourData.map((slot) => {
+        const r = slot.record;
         return [
-          formatDDMMYYYY(dt),
-          formatTimeString(dt),
-          r.temperature ?? '',
-          r.humidity ?? '',
-          r.wind_speed ?? '',
-          r.wind_direction ?? '',
-          r.rain_gauge ?? ''
+          slot.date,
+          slot.fullTime,
+          r?.temperature ?? '',
+          r?.humidity ?? '',
+          r?.wind_speed ?? '',
+          r?.wind_direction ?? '',
+          r?.rain_gauge ?? ''
         ];
       });
     }
@@ -300,7 +395,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `${subTab}_telemetry_${effectiveSelectedDate}.csv`);
+    link.setAttribute('download', `${subTab}_24h_telemetry_${effectiveSelectedDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -315,9 +410,6 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
           <Database style={{ width: 22, height: 22, color: '#00bfa5' }} />
           Analytics Archive
         </h1>
-        <p style={{ fontSize: 13, color: '#64748b', marginTop: 4, margin: 0 }}>
-          Longitudinal Sensor Trends &amp; 24-Hour Daily Telemetry Explorer
-        </p>
       </motion.div>
 
       {/* ── Sub-Navigation Selector: AQI Historical vs Weather Historical ── */}
@@ -447,12 +539,20 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>Select Date (24-Hour Telemetry)</span>
+                <span>
+                  {subTab === 'aqi' 
+                    ? 'Select Date (24-Hour Telemetry: 12:00 AM – 11:00 PM)'
+                    : 'Select Date (24-Hour Cycle: 8:00 AM – Next Day 8:00 AM)'}
+                </span>
               </div>
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                {effectiveSelectedDate 
-                  ? `Showing 24-hour log records for ${formatLongDate(effectiveSelectedDate)}`
-                  : 'Select any date to view its 24-hour hourly records'
+                {subTab === 'aqi' 
+                  ? (cycleBounds.start 
+                      ? `Showing 24 hourly data points for ${formatLongDate(cycleBounds.start)} (12:00 AM – 11:00 PM)`
+                      : 'Select any date to view its 24-hour hourly records')
+                  : (cycleBounds.start && cycleBounds.end 
+                      ? `24-Hour observation window (24 Data): 8:00 AM (${formatDDMMYYYY(cycleBounds.start)}) to 8:00 AM (${formatDDMMYYYY(cycleBounds.end)})`
+                      : 'Select any date to view its 24-hour cycle records (8 AM – 8 AM)')
                 }
               </div>
             </div>
@@ -515,32 +615,19 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
               </div>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
-                  {selectedDaySummary.longDate}
+                  {subTab === 'aqi'
+                    ? selectedDaySummary.cycleStartStr
+                    : `${selectedDaySummary.cycleStartStr} → ${selectedDaySummary.cycleEndStr}`}
                 </div>
                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontWeight: 700, color: '#00bfa5' }}>{selectedDaySummary.hourCount} Hourly Log Records</span>
+                  <span style={{ fontWeight: 700, color: '#00bfa5' }}>24 Hourly Points ({selectedDaySummary.hourCount} Logged)</span>
                   <span>•</span>
-                  <span>Full 24-Hour Day Progression</span>
+                  <span>{subTab === 'aqi' ? '24 Data Per Day (12 AM – 11 PM)' : '24 Data Per Day (8:00 AM – Next Day 8:00 AM)'}</span>
                 </div>
               </div>
             </div>
 
-            {/* Quick Metrics */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ padding: '6px 14px', borderRadius: 12, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>24h Avg {activeParam.label}</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: activeParam.color, fontFamily: 'var(--font-mono)' }}>
-                  {selectedDaySummary.avgVal} {activeParam.unit}
-                </div>
-              </div>
 
-              <div style={{ padding: '6px 14px', borderRadius: 12, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>24h Min / Max</div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', fontFamily: 'var(--font-mono)' }}>
-                  {selectedDaySummary.minVal} / {selectedDaySummary.maxVal} {activeParam.unit}
-                </div>
-              </div>
-            </div>
           </div>
         ) : (
           <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #f1f5f9', color: '#64748b', fontSize: 12.5 }}>
@@ -549,16 +636,22 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
         )}
       </div>
 
-      {/* ── CHART SECTION ── */}
+      {/* ── CHART SECTION: 24 HOURLY DATA POINTS (TOTAL 24 DATA PER DAY) ── */}
       <div style={{ backgroundColor: '#ffffff', borderRadius: 24, padding: 24, border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Layers style={{ width: 16, height: 16, color: activeParam.color }} />
-              {subTab === 'aqi' ? 'Air Quality Hourly Trend Analysis' : 'Weather Atmospheric Trend Analysis'}
+              {subTab === 'aqi' ? 'Air Quality Hourly Trend Analysis (12 AM – 11 PM)' : 'Weather Atmospheric 24-Hour Cycle Analysis (8 AM – 8 AM)'}
             </h2>
             <p style={{ fontSize: 12, color: '#64748b', marginTop: 2, margin: 0 }}>
-              24-Hour hourly progression for {formatLongDate(effectiveSelectedDate)}
+              {subTab === 'aqi'
+                ? `24 Hourly data points progression for ${formatLongDate(cycleBounds.start)} (12:00 AM to 11:00 PM)`
+                : (cycleBounds.start && cycleBounds.end
+                    ? `24 Hourly data points progression from 8:00 AM on ${formatDDMMYYYY(cycleBounds.start)} to 8:00 AM on ${formatDDMMYYYY(cycleBounds.end)}`
+                    : `24 Hourly data points progression (8:00 AM to next day 8:00 AM)`
+                  )
+              }
             </p>
           </div>
 
@@ -591,21 +684,17 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
               <RefreshCw style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', marginRight: 8, color: '#00bfa5' }} />
               Loading chart...
             </div>
-          ) : chartData.length === 0 ? (
+          ) : day24HourData.length === 0 ? (
             <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#64748b' }}>
               <Info style={{ width: 24, height: 24, color: '#94a3b8' }} />
               <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600 }}>No records found for {formatLongDate(effectiveSelectedDate)}.</p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 15, right: 20, left: 10, bottom: 30 }}>
+              <BarChart data={day24HourData} margin={{ top: 15, right: 20, left: 10, bottom: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis
-                  dataKey="uniqueKey"
-                  tickFormatter={(val) => {
-                    const item = chartData.find(d => d.uniqueKey === val);
-                    return item ? item.time : val;
-                  }}
+                  dataKey="time"
                   stroke="#94a3b8"
                   fontSize={11}
                   tick={{ fill: '#64748b' }}
@@ -616,9 +705,22 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                   if (active && payload && payload.length) {
                     const d = payload[0].payload;
                     return (
-                      <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 10px 25px rgba(15,23,42,0.12)' }}>
-                        <div style={{ color: '#64748b', fontSize: 11 }}>{d.date} • {d.time}</div>
-                        <div style={{ fontWeight: 800, fontSize: 16, color: activeParam.color, marginTop: 2 }}>{d.value} {activeParam.unit}</div>
+                      <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', borderRadius: 8, padding: '10px 14px', fontSize: 12, boxShadow: '0 10px 25px rgba(15,23,42,0.12)', minWidth: 150 }}>
+                        <div style={{ color: '#64748b', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                          <span>{d.date} • {d.fullTime}</span>
+                          {d.isNextDay && (
+                            <span style={{ fontSize: 10, backgroundColor: '#e0f2fe', color: '#0369a1', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>+1 Day</span>
+                          )}
+                        </div>
+                        {d.hasData ? (
+                          <div style={{ fontWeight: 800, fontSize: 16, color: activeParam.color, marginTop: 4 }}>
+                            {d.value} {activeParam.unit}
+                          </div>
+                        ) : (
+                          <div style={{ fontWeight: 600, fontSize: 12.5, color: '#94a3b8', marginTop: 4 }}>
+                            No Data Logged
+                          </div>
+                        )}
                       </div>
                     );
                   }
@@ -631,16 +733,22 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
         </div>
       </div>
 
-      {/* ── TABLE SECTION: RENDER SPECIFIC COLUMNS FOR AQI OR WEATHER ── */}
+      {/* ── TABLE SECTION: 24 HOURLY ROWS (TOTAL 24 DATA PER DAY) ── */}
       <div style={{ backgroundColor: '#ffffff', borderRadius: 24, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
         <div style={{ padding: '20px 24px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #f1f5f9' }}>
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Table style={{ width: 18, height: 18, color: '#00bfa5' }} />
-              {subTab === 'aqi' ? 'AQI Historical Telemetry Table' : 'Weather Historical Telemetry Table'}
+              {subTab === 'aqi' ? 'AQI Historical Telemetry Table (12 AM – 11 PM)' : 'Weather Historical Telemetry Table (8 AM – 8 AM)'}
             </h2>
             <p style={{ fontSize: 12, color: '#64748b', marginTop: 2, margin: 0 }}>
-              Calculated 1-Hour Aggregated Averages for {formatLongDate(effectiveSelectedDate)} ({filteredRows.length} Hourly Records)
+              {subTab === 'aqi'
+                ? `24 Hourly Telemetry Rows for ${formatLongDate(cycleBounds.start)} (${filteredRows.length} Logged Readings)`
+                : (cycleBounds.start && cycleBounds.end 
+                    ? `24 Hourly Telemetry Rows from 8:00 AM (${formatDDMMYYYY(cycleBounds.start)}) to 8:00 AM (${formatDDMMYYYY(cycleBounds.end)}) (${filteredRows.length} Logged Readings)`
+                    : `24 Hourly Telemetry Rows for 24-Hour Cycle (${filteredRows.length} Logged Readings)`
+                  )
+              }
             </p>
           </div>
 
@@ -648,7 +756,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
             {/* Export CSV Button */}
             <button
               onClick={handleExportCSV}
-              disabled={filteredRows.length === 0}
+              disabled={day24HourData.length === 0}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -660,12 +768,12 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                 color: '#334155',
                 fontSize: 12,
                 fontWeight: 700,
-                cursor: filteredRows.length === 0 ? 'not-allowed' : 'pointer',
+                cursor: day24HourData.length === 0 ? 'not-allowed' : 'pointer',
                 transition: 'all 0.15s ease'
               }}
             >
               <Download style={{ width: 14, height: 14, color: '#00bfa5' }} />
-              <span>Export CSV</span>
+              <span>Export CSV (24 Rows)</span>
             </button>
           </div>
         </div>
@@ -685,43 +793,57 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
               </tr>
             </thead>
             <tbody>
-              {filteredRows.length === 0 ? (
+              {day24HourData.length === 0 ? (
                 <tr>
                   <td colSpan={subTab === 'aqi' ? 10 : 7} style={{ textAlign: 'center', padding: '36px 20px', color: '#64748b' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <CalendarIcon style={{ width: 24, height: 24, color: '#94a3b8' }} />
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>No telemetry records available for {formatLongDate(effectiveSelectedDate)}.</span>
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>
+                        {subTab === 'aqi'
+                          ? `No telemetry records available for ${formatLongDate(cycleBounds.start)}.`
+                          : (cycleBounds.start && cycleBounds.end 
+                              ? `No telemetry records available between 8:00 AM (${formatDDMMYYYY(cycleBounds.start)}) and 8:00 AM (${formatDDMMYYYY(cycleBounds.end)}).`
+                              : 'No telemetry records available for this cycle.')
+                        }
+                      </span>
                     </div>
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((row, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                    <td style={{ padding: '10px 16px', color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>{row.timestamp ? formatDDMMYYYY(new Date(row.timestamp)) : '-'}</td>
-                    <td style={{ padding: '10px 16px', color: '#00bfa5', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>{row.timestamp ? formatTimeString(new Date(row.timestamp)) : '-'}</td>
-                    
-                    {subTab === 'aqi' ? (
-                      <>
-                        <td style={{ padding: '10px 16px', fontWeight: 800, color: '#0f172a', fontFamily: 'var(--font-mono)' }}>{row.cpcb_aqi || '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.temperature != null ? `${Number(row.temperature).toFixed(1)}°C` : '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.humidity != null ? `${Number(row.humidity).toFixed(1)}%` : '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm25 || '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm10 || '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.co || '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.no2 || '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.o3 || '-'}</td>
-                      </>
-                    ) : (
-                      <>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#ea580c', fontWeight: 600 }}>{row.temperature != null ? `${Number(row.temperature).toFixed(1)}°C` : '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>{row.humidity != null ? `${Number(row.humidity).toFixed(1)}%` : '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>{row.wind_speed != null ? `${Number(row.wind_speed).toFixed(1)} km/h` : '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>{row.wind_direction != null ? `${getCompassDir(row.wind_direction)} ${row.wind_direction}°`.trim() : '-'}</td>
-                        <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.rain_gauge != null ? `${Number(row.rain_gauge).toFixed(1)} mm` : '0.0 mm'}</td>
-                      </>
-                    )}
-                  </tr>
-                ))
+                day24HourData.map((slot, idx) => {
+                  const r = slot.record;
+                  const hasData = slot.hasData;
+                  return (
+                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc', opacity: hasData ? 1 : 0.65 }}>
+                      <td style={{ padding: '10px 16px', color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>{slot.date}</td>
+                      <td style={{ padding: '10px 16px', color: '#00bfa5', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
+                        {slot.fullTime}
+                        {slot.isNextDay && <span style={{ marginLeft: 6, fontSize: 10, backgroundColor: '#e0f2fe', color: '#0369a1', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>+1d</span>}
+                      </td>
+                      
+                      {subTab === 'aqi' ? (
+                        <>
+                          <td style={{ padding: '10px 16px', fontWeight: 800, color: hasData ? '#0f172a' : '#94a3b8', fontFamily: 'var(--font-mono)' }}>{r?.cpcb_aqi ?? '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.temperature != null ? `${Number(r.temperature).toFixed(1)}°C` : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.humidity != null ? `${Number(r.humidity).toFixed(1)}%` : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm25 ?? '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm10 ?? '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.co ?? '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.no2 ?? '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.o3 ?? '-'}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#ea580c' : '#94a3b8', fontWeight: 600 }}>{r?.temperature != null ? `${Number(r.temperature).toFixed(1)}°C` : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.humidity != null ? `${Number(r.humidity).toFixed(1)}%` : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#4f46e5' : '#94a3b8', fontWeight: 600 }}>{r?.wind_speed != null ? `${Number(r.wind_speed).toFixed(1)} km/h` : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.wind_direction != null ? `${getCompassDir(r.wind_direction)} ${r.wind_direction}°`.trim() : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.rain_gauge != null ? `${Number(r.rain_gauge).toFixed(1)} mm` : '-'}</td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
