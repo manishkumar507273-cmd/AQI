@@ -51,6 +51,7 @@ const formatRawReading = (raw) => {
     dominant_pollutant: raw.dominant_pollutant || 'N/A',
     aqi_info: { value: cpcb_aqi, label, color, standard: 'CPCB (India)' },
     wind_speed: raw.wind_speed,
+    wind_gust: raw.wind_gust ?? raw.gust,
     wind_direction: raw.wind_direction,
     rain_gauge: raw.rain_gauge
   };

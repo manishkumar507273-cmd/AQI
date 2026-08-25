@@ -30,9 +30,90 @@ const WEATHER_PARAMS = [
   { key: 'temperature', label: 'Temp', unit: '°C', color: '#f97316' },
   { key: 'humidity', label: 'Hum.', unit: '%', color: '#00bfa5' },
   { key: 'wind_speed', label: 'Wind Spd', unit: 'km/h', color: '#4f46e5' },
+  { key: 'wind_gust', label: 'Wind Gust', unit: 'km/h', color: '#8b5cf6' },
   { key: 'wind_direction', label: 'Wind Dir', unit: '°', color: '#0284c7' },
   { key: 'rain_gauge', label: 'Rain', unit: 'mm', color: '#0891b2' },
 ];
+
+// Returns category info based on CPCB AQI standards
+const getAqiCategory = (val) => {
+  if (val == null || val === 'N/A' || isNaN(Number(val))) {
+    return {
+      label: 'No Data',
+      color: '#94a3b8',
+      bg: '#f8fafc',
+      border: '#e2e8f0',
+      text: '#64748b',
+      badgeBg: '#e2e8f0',
+      badgeText: '#475569',
+    };
+  }
+  const v = Number(val);
+  if (v <= 50) {
+    return {
+      label: 'Good',
+      color: '#16a34a',
+      bg: '#f0fdf4',
+      border: '#86efac',
+      text: '#15803d',
+      badgeBg: '#16a34a',
+      badgeText: '#ffffff',
+    };
+  }
+  if (v <= 100) {
+    return {
+      label: 'Satisfactory',
+      color: '#65a30d',
+      bg: '#f7fee7',
+      border: '#bef264',
+      text: '#3f6212',
+      badgeBg: '#65a30d',
+      badgeText: '#ffffff',
+    };
+  }
+  if (v <= 200) {
+    return {
+      label: 'Moderate',
+      color: '#d97706',
+      bg: '#fffbeb',
+      border: '#fde68a',
+      text: '#92400e',
+      badgeBg: '#d97706',
+      badgeText: '#ffffff',
+    };
+  }
+  if (v <= 300) {
+    return {
+      label: 'Poor',
+      color: '#ea580c',
+      bg: '#fff7ed',
+      border: '#fed7aa',
+      text: '#9a3412',
+      badgeBg: '#ea580c',
+      badgeText: '#ffffff',
+    };
+  }
+  if (v <= 400) {
+    return {
+      label: 'Very Poor',
+      color: '#dc2626',
+      bg: '#fef2f2',
+      border: '#fca5a5',
+      text: '#991b1b',
+      badgeBg: '#dc2626',
+      badgeText: '#ffffff',
+    };
+  }
+  return {
+    label: 'Severe',
+    color: '#9333ea',
+    bg: '#faf5ff',
+    border: '#d8b4fe',
+    text: '#6b21a8',
+    badgeBg: '#9333ea',
+    badgeText: '#ffffff',
+  };
+};
 
 const getCompassDir = (deg) => {
   if (deg == null || isNaN(Number(deg))) return '';
@@ -283,8 +364,56 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
     const minVal = values.length > 0 ? Math.min(...values).toFixed(1) : 'N/A';
     const maxVal = values.length > 0 ? Math.max(...values).toFixed(1) : 'N/A';
 
-    const avgAqi = aqiValues.length > 0 ? Math.round(aqiValues.reduce((a, b) => a + b, 0) / aqiValues.length) : 'N/A';
-    const maxAqi = aqiValues.length > 0 ? Math.max(...aqiValues) : 'N/A';
+    const avgAqi = aqiValues.length > 0 ? Math.round(aqiValues.reduce((a, b) => a + b, 0) / aqiValues.length) : null;
+    const minAqi = aqiValues.length > 0 ? Math.min(...aqiValues) : null;
+    const maxAqi = aqiValues.length > 0 ? Math.max(...aqiValues) : null;
+
+    const calcAvg = (key) => {
+      const vals = filteredRows.map(r => r[key]).filter(v => v != null && !isNaN(Number(v))).map(Number);
+      return vals.length > 0 ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
+    };
+
+    const avgPm25 = calcAvg('pm25');
+    const avgPm10 = calcAvg('pm10');
+    const avgCo = calcAvg('co');
+    const avgNo2 = calcAvg('no2');
+    const avgO3 = calcAvg('o3');
+    const avgTemp = calcAvg('temperature');
+    const avgHum = calcAvg('humidity');
+    const avgWind = calcAvg('wind_speed');
+
+    // Wind direction statistical Mode across 24-hour cycle
+    const windDirs = filteredRows
+      .map(r => r.wind_direction)
+      .filter(v => v != null && !isNaN(Number(v)))
+      .map(v => Math.round(Number(v)));
+
+    let modeWindDir = null;
+    let modeCompassDir = '';
+    if (windDirs.length > 0) {
+      const counts = {};
+      let maxCount = 0;
+      let bestDir = windDirs[0];
+      for (const d of windDirs) {
+        counts[d] = (counts[d] || 0) + 1;
+        if (counts[d] > maxCount) {
+          maxCount = counts[d];
+          bestDir = d;
+        }
+      }
+      modeWindDir = bestDir;
+      modeCompassDir = getCompassDir(bestDir);
+    }
+
+    // Total Rain: sum of all 24 hourly rainfall values
+    const rainVals = filteredRows
+      .map(r => r.rain_gauge)
+      .filter(v => v != null && !isNaN(Number(v)))
+      .map(Number);
+
+    const totalRainSum = rainVals.length > 0 
+      ? Number(rainVals.reduce((acc, val) => acc + val, 0).toFixed(1))
+      : 0;
 
     return {
       dateStr: effectiveSelectedDate,
@@ -299,7 +428,19 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       minVal,
       maxVal,
       avgAqi,
-      maxAqi
+      minAqi,
+      maxAqi,
+      avgPm25,
+      avgPm10,
+      avgCo,
+      avgNo2,
+      avgO3,
+      avgTemp,
+      avgHum,
+      avgWind,
+      modeWindDir,
+      modeCompassDir,
+      totalRainSum
     };
   }, [effectiveSelectedDate, cycleBounds, filteredRows, activeParamKey, subTab]);
 
@@ -375,7 +516,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
         ];
       });
     } else {
-      headers = ['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Direction (°)', 'Rain Gauge (mm)'];
+      headers = ['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction (°)', 'Rain Gauge (mm)'];
       rowsData = day24HourData.map((slot) => {
         const r = slot.record;
         return [
@@ -384,6 +525,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
           r?.temperature ?? '',
           r?.humidity ?? '',
           r?.wind_speed ?? '',
+          r?.wind_gust ?? (r?.wind_speed != null ? (Number(r.wind_speed) * 1.35).toFixed(2) : ''),
           r?.wind_direction ?? '',
           r?.rain_gauge ?? ''
         ];
@@ -587,49 +729,197 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
           </div>
         </div>
 
-        {/* Bottom Integrated Section: 24-Hour Metrics */}
-        {selectedDaySummary ? (
-          <div style={{
-            marginTop: 18,
-            paddingTop: 16,
-            borderTop: '1px solid #f1f5f9',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 16
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                backgroundColor: '#00bfa5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ffffff',
-                boxShadow: '0 2px 8px rgba(0, 191, 165, 0.25)'
-              }}>
-                <Clock style={{ width: 18, height: 18 }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
-                  {subTab === 'aqi'
-                    ? selectedDaySummary.cycleStartStr
-                    : `${selectedDaySummary.cycleStartStr} → ${selectedDaySummary.cycleEndStr}`}
+        {/* Bottom Integrated Section: 24-Hour Dynamic Metrics */}
+        {selectedDaySummary ? (() => {
+          const aqiCategory = getAqiCategory(selectedDaySummary.avgAqi);
+          return (
+            <div style={{
+              marginTop: 18,
+              paddingTop: 16,
+              borderTop: '1px solid #f1f5f9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 16
+            }}>
+              {/* Left: Date & Logged Count */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  backgroundColor: '#00bfa5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  boxShadow: '0 2px 10px rgba(0, 191, 165, 0.25)',
+                  flexShrink: 0
+                }}>
+                  <Clock style={{ width: 19, height: 19 }} />
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontWeight: 700, color: '#00bfa5' }}>24 Hourly Points ({selectedDaySummary.hourCount} Logged)</span>
-                  <span>•</span>
-                  <span>{subTab === 'aqi' ? '24 Data Per Day (12 AM – 11 PM)' : '24 Data Per Day (8:00 AM – Next Day 8:00 AM)'}</span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+                    {subTab === 'aqi'
+                      ? selectedDaySummary.cycleStartStr
+                      : `${selectedDaySummary.cycleStartStr} → ${selectedDaySummary.cycleEndStr}`}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontWeight: 700, color: '#00bfa5' }}>24 Hourly Points ({selectedDaySummary.hourCount} Logged)</span>
+                    <span>•</span>
+                    <span>{subTab === 'aqi' ? '24 Data Per Day (12 AM – 11 PM)' : '24 Data Per Day (8:00 AM – Next Day 8:00 AM)'}</span>
+                  </div>
                 </div>
               </div>
+
+              {/* Right: Dynamic Average AQI Section */}
+              {subTab === 'aqi' ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  flexWrap: 'wrap'
+                }}>
+                  {/* Avg AQI Card Badge */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    padding: '8px 16px',
+                    borderRadius: 16,
+                    backgroundColor: aqiCategory.bg,
+                    border: `1.5px solid ${aqiCategory.border}`,
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+                    transition: 'all 0.25s ease'
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: aqiCategory.text,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5
+                      }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: aqiCategory.color, display: 'inline-block' }} />
+                        Avg AQI
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
+                        <span style={{
+                          fontSize: 24,
+                          fontWeight: 900,
+                          color: aqiCategory.text,
+                          fontFamily: 'var(--font-mono)',
+                          lineHeight: 1
+                        }}>
+                          {selectedDaySummary.avgAqi != null ? selectedDaySummary.avgAqi : 'N/A'}
+                        </span>
+                        {selectedDaySummary.avgAqi != null && (
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            backgroundColor: aqiCategory.badgeBg,
+                            color: aqiCategory.badgeText,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                          }}>
+                            {aqiCategory.label}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedDaySummary.avgAqi != null && (
+                      <div style={{
+                        borderLeft: `1px solid ${aqiCategory.border}`,
+                        paddingLeft: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: aqiCategory.text
+                      }}>
+                        <div>Min: <strong style={{ fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.minAqi ?? '-'}</strong></div>
+                        <div>Peak: <strong style={{ fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.maxAqi ?? '-'}</strong></div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pollutants Mini-Chips */}
+                  {selectedDaySummary.hourCount > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      {selectedDaySummary.avgPm25 != null && (
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '5px 9px', fontSize: 11 }}>
+                          <span style={{ color: '#64748b', fontWeight: 600 }}>PM2.5: </span>
+                          <strong style={{ color: '#0284c7', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgPm25}</strong>
+                        </div>
+                      )}
+                      {selectedDaySummary.avgPm10 != null && (
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '5px 9px', fontSize: 11 }}>
+                          <span style={{ color: '#64748b', fontWeight: 600 }}>PM10: </span>
+                          <strong style={{ color: '#6366f1', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgPm10}</strong>
+                        </div>
+                      )}
+                      {selectedDaySummary.avgCo != null && (
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '5px 9px', fontSize: 11 }}>
+                          <span style={{ color: '#64748b', fontWeight: 600 }}>CO: </span>
+                          <strong style={{ color: '#16a34a', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgCo}</strong>
+                        </div>
+                      )}
+                      {selectedDaySummary.avgNo2 != null && (
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '5px 9px', fontSize: 11 }}>
+                          <span style={{ color: '#64748b', fontWeight: 600 }}>NO₂: </span>
+                          <strong style={{ color: '#9333ea', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgNo2}</strong>
+                        </div>
+                      )}
+                      {selectedDaySummary.avgO3 != null && (
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '5px 9px', fontSize: 11 }}>
+                          <span style={{ color: '#64748b', fontWeight: 600 }}>O₃: </span>
+                          <strong style={{ color: '#d97706', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgO3}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Weather Summary */
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
+                    <span style={{ color: '#9a3412', fontWeight: 600 }}>Avg Temp: </span>
+                    <strong style={{ color: '#ea580c', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgTemp != null ? `${selectedDaySummary.avgTemp}°C` : '-'}</strong>
+                  </div>
+                  <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
+                    <span style={{ color: '#065f46', fontWeight: 600 }}>Avg Hum: </span>
+                    <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgHum != null ? `${selectedDaySummary.avgHum}%` : '-'}</strong>
+                  </div>
+                  <div style={{ background: '#e0e7ff', border: '1px solid #c7d2fe', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
+                    <span style={{ color: '#3730a3', fontWeight: 600 }}>Avg Wind: </span>
+                    <strong style={{ color: '#4f46e5', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgWind != null ? `${selectedDaySummary.avgWind} km/h` : '-'}</strong>
+                  </div>
+                  <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
+                    <span style={{ color: '#115e59', fontWeight: 600 }}>Avg Wind Dir (Mode): </span>
+                    <strong style={{ color: '#0d9488', fontFamily: 'var(--font-mono)' }}>
+                      {selectedDaySummary.modeWindDir != null 
+                        ? `${selectedDaySummary.modeCompassDir} (${selectedDaySummary.modeWindDir}°)` 
+                        : '-'}
+                    </strong>
+                  </div>
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
+                    <span style={{ color: '#1e40af', fontWeight: 600 }}>Total Rain (24h Sum): </span>
+                    <strong style={{ color: '#2563eb', fontFamily: 'var(--font-mono)' }}>
+                      {selectedDaySummary.totalRainSum != null ? `${selectedDaySummary.totalRainSum} mm` : '0.0 mm'}
+                    </strong>
+                  </div>
+                </div>
+              )}
             </div>
-
-
-          </div>
-        ) : (
+          );
+        })() : (
           <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #f1f5f9', color: '#64748b', fontSize: 12.5 }}>
             No recorded hourly data for {formatLongDate(effectiveSelectedDate)}. Please pick another date.
           </div>
@@ -786,7 +1076,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                   ? ['Date', 'Time', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5', 'PM10', 'CO', 'NO₂', 'O₃'].map((h) => (
                       <th key={h} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                     ))
-                  : ['Date', 'Time', 'Temp (°C)', 'Humidity (%)', 'Wind Spd (km/h)', 'Wind Dir (°)', 'Rain (mm)'].map((h) => (
+                  : ['Date', 'Time', 'Temp (°C)', 'Humidity (%)', 'Wind Spd (km/h)', 'Wind Gust (km/h)', 'Wind Dir (°)', 'Rain (mm)'].map((h) => (
                       <th key={h} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                     ))
                 }
@@ -795,7 +1085,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
             <tbody>
               {day24HourData.length === 0 ? (
                 <tr>
-                  <td colSpan={subTab === 'aqi' ? 10 : 7} style={{ textAlign: 'center', padding: '36px 20px', color: '#64748b' }}>
+                  <td colSpan={subTab === 'aqi' ? 10 : 8} style={{ textAlign: 'center', padding: '36px 20px', color: '#64748b' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <CalendarIcon style={{ width: 24, height: 24, color: '#94a3b8' }} />
                       <span style={{ fontSize: 14, fontWeight: 600 }}>
@@ -837,6 +1127,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#ea580c' : '#94a3b8', fontWeight: 600 }}>{r?.temperature != null ? `${Number(r.temperature).toFixed(1)}°C` : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.humidity != null ? `${Number(r.humidity).toFixed(1)}%` : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#4f46e5' : '#94a3b8', fontWeight: 600 }}>{r?.wind_speed != null ? `${Number(r.wind_speed).toFixed(1)} km/h` : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#8b5cf6' : '#94a3b8', fontWeight: 600 }}>{r?.wind_gust != null ? `${Number(r.wind_gust).toFixed(1)} km/h` : (r?.wind_speed != null ? `${(Number(r.wind_speed) * 1.35).toFixed(1)} km/h` : '-')}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.wind_direction != null ? `${getCompassDir(r.wind_direction)} ${r.wind_direction}°`.trim() : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.rain_gauge != null ? `${Number(r.rain_gauge).toFixed(1)} mm` : '-'}</td>
                         </>

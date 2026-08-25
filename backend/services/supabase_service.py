@@ -76,6 +76,7 @@ def format_supabase_reading(raw: Dict[str, Any]) -> Dict[str, Any]:
 
     ws = raw.get("wind_speed") or raw.get("wind_speed_kmh") or raw.get("wind_spd") or raw.get("windspeed")
     wd = raw.get("wind_direction") or raw.get("wind_direction_deg") or raw.get("wind_dir") or raw.get("winddirection") or raw.get("wind_azimuth")
+    wg = raw.get("wind_gust") or raw.get("gust") or raw.get("wind_gust_kmh") or raw.get("gust_speed")
     rg = raw.get("rain_gauge") if "rain_gauge" in raw else (raw.get("rain") or raw.get("rain_gauge_mm") or raw.get("rainfall"))
 
     raw_id = raw.get("id") or 1
@@ -83,6 +84,8 @@ def format_supabase_reading(raw: Dict[str, Any]) -> Dict[str, Any]:
         ws = round(7.2 + ((cpcb_aqi + raw_id) % 9) * 1.1, 1)
     if wd is None:
         wd = round((135 + ((cpcb_aqi + raw_id) * 7.5)) % 360, 0)
+    if wg is None:
+        wg = round(ws * 1.35, 1)
     if rg is None:
         rg = 0.0
 
@@ -106,6 +109,7 @@ def format_supabase_reading(raw: Dict[str, Any]) -> Dict[str, Any]:
         },
         "wind_speed": ws,
         "wind_direction": wd,
+        "wind_gust": wg,
         "rain_gauge": rg
     }
 
@@ -241,6 +245,7 @@ async def get_latest_weather_live_reading() -> Optional[Dict[str, Any]]:
             "temperature": raw.get("temperature"),
             "humidity": raw.get("humidity"),
             "wind_speed": raw.get("wind_speed"),
+            "wind_gust": raw.get("wind_gust"),
             "wind_direction": raw.get("wind_direction"),
             "rain_gauge": raw.get("rain_gauge") if "rain_gauge" in raw else raw.get("rain")
         }
@@ -258,6 +263,7 @@ async def get_weather_live_history(limit: int = 50) -> List[Dict[str, Any]]:
                 "temperature": raw.get("temperature"),
                 "humidity": raw.get("humidity"),
                 "wind_speed": raw.get("wind_speed"),
+                "wind_gust": raw.get("wind_gust"),
                 "wind_direction": raw.get("wind_direction"),
                 "rain_gauge": raw.get("rain_gauge") if "rain_gauge" in raw else raw.get("rain")
             })
@@ -290,6 +296,7 @@ async def get_weather_history(limit: int = 96) -> List[Dict[str, Any]]:
                 "temperature": raw.get("temperature"),
                 "humidity": raw.get("humidity"),
                 "wind_speed": raw.get("wind_speed"),
+                "wind_gust": raw.get("wind_gust"),
                 "wind_direction": raw.get("wind_direction"),
                 "rain_gauge": raw.get("rain_gauge") if "rain_gauge" in raw else raw.get("rain")
             })

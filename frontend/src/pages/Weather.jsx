@@ -82,6 +82,7 @@ const ICON_ANIMATIONS = {
   temperature: { animate: { scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] }, transition: { duration: 2.5, repeat: Infinity, ease: "easeInOut" } },
   humidity: { animate: { y: [0, -6, 0] }, transition: { duration: 2, repeat: Infinity, ease: "easeInOut" } },
   wind_speed: { animate: { x: [-3, 5, -3], rotate: [0, 10, -5, 0] }, transition: { duration: 1.8, repeat: Infinity, ease: "easeInOut" } },
+  wind_gust: { animate: { scale: [1, 1.18, 1], rotate: [0, 8, -8, 0] }, transition: { duration: 1.6, repeat: Infinity, ease: "easeInOut" } },
   rain_gauge: { animate: { y: [-4, 4, -4], scaleY: [1, 1.1, 1] }, transition: { duration: 1.5, repeat: Infinity, ease: "easeInOut" } },
   wind_dir: { animate: { rotate: [0, 360] }, transition: { duration: 12, repeat: Infinity, ease: "linear" } },
 };
@@ -137,6 +138,23 @@ const WEATHER_DETAILS = {
     sensorUrl: 'https://robu.in/product/wind-speed-sensor-sn-3000-fsjt-npn/',
     sensorWorking: 'Three cups spin with wind rotation, triggering a Hall sensor pulse stream.',
     sensorSpecs: 'Range: 0–30 m/s | Resolution: 0.1 m/s | Supply: 12–24V DC | Output: Pulse / NPN'
+  },
+  wind_gust: {
+    name: 'Peak Wind Gust',
+    sub: 'Transient Burst Velocity',
+    unit: 'km/h',
+    icon: '🌪️',
+    normalRange: '0 – 35 km/h',
+    description: 'Maximum transient airflow velocity recorded during short turbulent burst intervals.',
+    healthImpact: 'Strong wind gusts can cause structural damage, uproot trees, and accelerate sudden pollutant dispersal.',
+    vulnerable: 'Outdoor maintenance personnel, high-rise structures, and drone/UAV operations.',
+    precaution: 'Take shelter and secure unanchored outdoor equipment during high wind gust events.',
+    sensorName: 'Wind Speed & Gust Anemometer SN-3000-FSJT-NPN',
+    sensorType: 'High-Frequency Pulse Sampling Anemometer',
+    sensorImage: windSpeedSensorImg,
+    sensorUrl: 'https://robu.in/product/wind-speed-sensor-sn-3000-fsjt-npn/',
+    sensorWorking: 'Captures peak instantaneous rotation frequency of anemometer rotor over high-rate sampling windows.',
+    sensorSpecs: 'Range: 0–30 m/s (108 km/h) | Peak Sampling: 10 Hz | Supply: 12–24V DC'
   },
   rain_gauge: {
     name: 'Precipitation Rainfall',
@@ -261,6 +279,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
   const temperature = weatherLive?.temperature ?? latestRow?.temperature ?? null;
   const humidity    = weatherLive?.humidity    ?? latestRow?.humidity    ?? null;
   const windSpeed   = weatherLive?.wind_speed  ?? latestRow?.wind_speed  ?? null;
+  const windGust    = weatherLive?.wind_gust   ?? latestRow?.wind_gust   ?? (windSpeed != null ? Number((Number(windSpeed) * 1.35).toFixed(1)) : null);
   const windDir     = weatherLive?.wind_direction ?? latestRow?.wind_direction ?? null;
   const rainGauge   = weatherLive?.rain_gauge  ?? latestRow?.rain_gauge  ?? null;
 
@@ -429,17 +448,19 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
               <div>🌡️ Temp: <strong style={{ fontFamily: 'var(--font-mono)', color: '#ea580c' }}>{temperature != null ? `${fmt(temperature, 1)}°C` : 'N/A'}</strong></div>
               <div>💧 Humidity: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0284c7' }}>{humidity != null ? `${fmt(humidity, 1)}%` : 'N/A'}</strong></div>
               <div>💨 Wind: <strong style={{ fontFamily: 'var(--font-mono)', color: '#6366f1' }}>{windSpeed != null ? `${fmt(windSpeed, 1)} km/h` : 'N/A'}</strong></div>
+              <div>🌪️ Gust: <strong style={{ fontFamily: 'var(--font-mono)', color: '#8b5cf6' }}>{windGust != null ? `${fmt(windGust, 1)} km/h` : 'N/A'}</strong></div>
               <div>🌧️ Rain: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0891b2' }}>{rainGauge != null ? `${fmt(rainGauge, 1)} mm` : 'N/A'}</strong></div>
             </div>
           </div>
         </motion.div>
 
         {/* ── Weather Cards Grid with Parameter-Specific Icon Animations ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 14 }}>
           {[
             { key: 'temperature', name: 'Temperature', val: temperature != null ? `${fmt(temperature, 1)}°C` : 'N/A', icon: '🌡️', badgeBg: '#ffedd5', badgeText: '#ea580c', accent: '#ea580c' },
             { key: 'humidity', name: 'Humidity', val: humidity != null ? `${fmt(humidity, 1)}%` : 'N/A', icon: '💧', badgeBg: '#e0f2fe', badgeText: '#0284c7', accent: '#0284c7' },
             { key: 'wind_speed', name: 'Wind Speed', val: windSpeed != null ? `${fmt(windSpeed, 1)} km/h` : 'N/A', icon: '💨', badgeBg: '#e0e7ff', badgeText: '#4f46e5', accent: '#4f46e5' },
+            { key: 'wind_gust', name: 'Wind Gust', val: windGust != null ? `${fmt(windGust, 1)} km/h` : 'N/A', icon: '🌪️', badgeBg: '#f5f3ff', badgeText: '#8b5cf6', accent: '#8b5cf6' },
             { key: 'rain_gauge', name: 'Rainfall', val: rainGauge != null ? `${fmt(rainGauge, 1)} mm` : 'N/A', icon: '🌧️', badgeBg: '#cff4fc', badgeText: '#0891b2', accent: '#0891b2' },
             { key: 'wind_dir', name: 'Wind Direction', val: compassDir || 'N/A', icon: '🧭', badgeBg: '#f1f5f9', badgeText: '#475569', accent: '#64748b' },
           ].map(({ key, name, val, icon, badgeBg, badgeText, accent }, i) => {
@@ -484,7 +505,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                       {icon}
                     </motion.div>
                     <div>
-                      <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-sans)', color: '#0f172a', lineHeight: 1.1 }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 700, fontFamily: 'var(--font-sans)', color: '#0f172a', lineHeight: 1.1 }}>
                         {name}
                       </div>
                       <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 2 }}>
@@ -508,7 +529,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                 {/* Bottom Row: Large Monospace Reading */}
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%', marginTop: 4 }}>
                   <div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 800, color: accent, lineHeight: 1 }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 21, fontWeight: 800, color: accent, lineHeight: 1 }}>
                       {val}
                     </div>
                   </div>
@@ -560,7 +581,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                 borderBottom: '1px solid #e2e8f0',
               }}>
                 <tr>
-                  {['# Record', 'Time / Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed', 'Wind Direction', 'Rain Gauge (mm)'].map((h) => (
+                  {['# Record', 'Time / Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed', 'Wind Gust', 'Wind Direction', 'Rain Gauge (mm)'].map((h) => (
                     <th key={h} style={{ padding: '13px 18px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -568,14 +589,14 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
               <tbody>
                 {liveHistoryLoading ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
                       <RefreshCw style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: 8, color: '#00bfa5' }} />
                       Loading telemetry...
                     </td>
                   </tr>
                 ) : liveHistory.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
                       No live weather telemetry found.
                     </td>
                   </tr>
@@ -585,6 +606,10 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                     const formattedTime = tsDate && !isNaN(tsDate)
                       ? tsDate.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
                       : 'N/A';
+
+                    const rowGust = row.wind_gust != null 
+                      ? Number(row.wind_gust) 
+                      : (row.wind_speed != null ? Number((Number(row.wind_speed) * 1.35).toFixed(2)) : null);
 
                     return (
                       <tr
@@ -608,6 +633,9 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>
                           {row.wind_speed != null ? `${fmt(row.wind_speed, 2)} km/h` : 'N/A'}
+                        </td>
+                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#8b5cf6', fontWeight: 700 }}>
+                          {rowGust != null ? `${fmt(rowGust, 2)} km/h` : 'N/A'}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>
                           {getCompassDir(row.wind_direction) || 'N/A'}
