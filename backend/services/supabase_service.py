@@ -47,13 +47,78 @@ def get_http_client() -> httpx.AsyncClient:
         _CLIENT = httpx.AsyncClient(timeout=10.0, follow_redirects=True)
     return _CLIENT
 
+import joblib
+
+CALIBRATORS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "aqi_model_and_calibrators", "sensor_calibrators.pkl")
+_CALIBRATORS: Optional[Dict[str, Any]] = None
+if os.path.exists(CALIBRATORS_PATH):
+    try:
+        _CALIBRATORS = joblib.load(CALIBRATORS_PATH)
+    except Exception as e:
+        print(f"Warning loading sensor calibrators in supabase_service: {e}")
+
+CPCB_BREAKPOINTS = {
+    "pm25": [(0.0, 30.0, 0, 50), (30.0, 60.0, 51, 100), (60.0, 90.0, 101, 200), (90.0, 120.0, 201, 300), (120.0, 250.0, 301, 400), (250.0, 500.0, 401, 500)],
+    "pm10": [(0.0, 50.0, 0, 50), (50.0, 100.0, 51, 100), (100.0, 250.0, 101, 200), (250.0, 350.0, 201, 300), (350.0, 430.0, 301, 400), (430.0, 600.0, 401, 500)],
+    "co":   [(0.0, 1.0, 0, 50), (1.0, 2.0, 51, 100), (2.0, 10.0, 101, 200), (10.0, 17.0, 201, 300), (17.0, 34.0, 301, 400), (34.0, 50.0, 401, 500)],
+    "no2":  [(0.0, 40.0, 0, 50), (40.0, 80.0, 51, 100), (80.0, 180.0, 101, 200), (180.0, 280.0, 201, 300), (280.0, 400.0, 301, 400), (400.0, 500.0, 401, 500)],
+    "o3":   [(0.0, 50.0, 0, 50), (50.0, 100.0, 51, 100), (100.0, 168.0, 101, 200), (168.0, 208.0, 201, 300), (208.0, 748.0, 301, 400), (748.0, 1000.0, 401, 500)],
+}
+
+def _calc_subindex(k: str, val: Optional[float]) -> float:
+    if val is None or k not in CPCB_BREAKPOINTS:
+        return 0.0
+    cp = max(0.0, float(val))
+    tiers = CPCB_BREAKPOINTS[k]
+    for c_lo, c_hi, i_lo, i_hi in tiers:
+        if cp <= c_hi:
+            return round(max(0.0, ((i_hi - i_lo) / (c_hi - c_lo)) * (cp - c_lo) + i_lo), 1)
+    c_lo, c_hi, i_lo, i_hi = tiers[-1]
+    return round(min(500.0, max(0.0, ((i_hi - i_lo) / (c_hi - c_lo)) * (cp - c_lo) + i_lo)), 1)
+
 def get_table_url(table_name: str) -> str:
     return f"{BASE_URL}/rest/v1/{table_name}"
 
 def format_supabase_reading(raw: Dict[str, Any]) -> Dict[str, Any]:
     if not raw:
         return {}
-    cpcb_aqi = raw.get("cpcb_aqi") or 0
+
+    raw_temp = raw.get("temperature")
+    raw_hum = raw.get("humidity")
+    temp_val = float(raw_temp) if raw_temp is not None else 27.0
+    hum_val = float(raw_hum) if raw_hum is not None else 60.0
+
+    raw_pm25 = raw.get("pm25") if "pm25" in raw else raw.get("pm2.5")
+    raw_pm10 = raw.get("pm10")
+    raw_co = raw.get("co")
+    raw_o3 = raw.get("o3")
+    raw_no2 = raw.get("no2")
+
+    def _cal(key: str, val: Any) -> Any:
+        if val is None or not _CALIBRATORS or key not in _CALIBRATORS:
+            return val
+        try:
+            res = float(_CALIBRATORS[key].predict([[float(val), temp_val, hum_val]])[0])
+            return round(max(0.0, res), 3 if key == "co_mg_m3" else 2)
+        except Exception:
+            return val
+
+    pm25 = _cal("pm2_5", raw_pm25)
+    pm10 = _cal("pm10", raw_pm10)
+    co = _cal("co_mg_m3", raw_co)
+    no2 = _cal("no2_ug_m3", raw_no2)
+    o3 = _cal("ozone_ug_m3", raw_o3)
+
+    sub_indices = {
+        "pm25": _calc_subindex("pm25", pm25),
+        "pm10": _calc_subindex("pm10", pm10),
+        "co": _calc_subindex("co", co),
+        "no2": _calc_subindex("no2", no2),
+        "o3": _calc_subindex("o3", o3),
+    }
+    dominant_key = max(sub_indices, key=lambda k: sub_indices[k])
+    dom_names = {"pm25": "PM2.5", "pm10": "PM10", "co": "CO", "no2": "NO₂", "o3": "O₃"}
+    cpcb_aqi = int(round(sub_indices[dominant_key]))
     
     if cpcb_aqi <= 50:
         label = "Good"
@@ -92,15 +157,23 @@ def format_supabase_reading(raw: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "id": raw.get("id"),
         "timestamp": raw.get("created_at") or raw.get("timestamp_hour") or raw.get("timestamp"),
-        "temperature": raw.get("temperature"),
-        "humidity": raw.get("humidity"),
-        "pm25": raw.get("pm25") if "pm25" in raw else raw.get("pm2.5"),
-        "pm10": raw.get("pm10"),
-        "co": raw.get("co"),
-        "o3": raw.get("o3"),
-        "no2": raw.get("no2"),
+        "temperature": raw_temp,
+        "humidity": raw_hum,
+        "pm25": pm25,
+        "pm10": pm10,
+        "co": co,
+        "o3": o3,
+        "no2": no2,
+        "raw_pm25": raw_pm25,
+        "raw_pm10": raw_pm10,
+        "raw_co": raw_co,
+        "raw_o3": raw_o3,
+        "raw_no2": raw_no2,
+        "is_calibrated": True,
         "cpcb_aqi": cpcb_aqi,
-        "dominant_pollutant": raw.get("dominant_pollutant", "N/A"),
+        "dominant_pollutant": dom_names.get(dominant_key, "N/A"),
+        "dominant_pollutant_key": dominant_key,
+        "sub_indices": sub_indices,
         "aqi_info": {
             "value": cpcb_aqi,
             "label": label,

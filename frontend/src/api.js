@@ -27,9 +27,123 @@ const api = axios.create({
   timeout: 15000,
 });
 
+// ==============================================================================
+// ENHANCED MODEL & SENSOR CALIBRATOR WEIGHTS (from aqi_model_and_calibrators)
+// ==============================================================================
+const CPCB_BREAKPOINTS = {
+  pm25: [
+    [0.0, 30.0, 0, 50],
+    [30.0, 60.0, 51, 100],
+    [60.0, 90.0, 101, 200],
+    [90.0, 120.0, 201, 300],
+    [120.0, 250.0, 301, 400],
+    [250.0, 500.0, 401, 500],
+  ],
+  pm10: [
+    [0.0, 50.0, 0, 50],
+    [50.0, 100.0, 51, 100],
+    [100.0, 250.0, 101, 200],
+    [250.0, 350.0, 201, 300],
+    [350.0, 430.0, 301, 400],
+    [430.0, 600.0, 401, 500],
+  ],
+  co: [
+    [0.0, 1.0, 0, 50],
+    [1.0, 2.0, 51, 100],
+    [2.0, 10.0, 101, 200],
+    [10.0, 17.0, 201, 300],
+    [17.0, 34.0, 301, 400],
+    [34.0, 50.0, 401, 500],
+  ],
+  no2: [
+    [0.0, 40.0, 0, 50],
+    [40.0, 80.0, 51, 100],
+    [80.0, 180.0, 101, 200],
+    [180.0, 280.0, 201, 300],
+    [280.0, 400.0, 301, 400],
+    [400.0, 500.0, 401, 500],
+  ],
+  o3: [
+    [0.0, 50.0, 0, 50],
+    [50.0, 100.0, 51, 100],
+    [100.0, 168.0, 101, 200],
+    [168.0, 208.0, 201, 300],
+    [208.0, 748.0, 301, 400],
+    [748.0, 1000.0, 401, 500],
+  ],
+};
+
+const calcSubindex = (paramKey, cp) => {
+  if (cp == null || !CPCB_BREAKPOINTS[paramKey]) return 0.0;
+  const val = Math.max(0.0, Number(cp));
+  const tiers = CPCB_BREAKPOINTS[paramKey];
+  for (const [c_lo, c_hi, i_lo, i_hi] of tiers) {
+    if (val <= c_hi) {
+      return Number((((i_hi - i_lo) / (c_hi - c_lo)) * (val - c_lo) + i_lo).toFixed(1));
+    }
+  }
+  const [c_lo, c_hi, i_lo, i_hi] = tiers[tiers.length - 1];
+  return Math.min(500.0, Number((((i_hi - i_lo) / (c_hi - c_lo)) * (val - c_lo) + i_lo).toFixed(1)));
+};
+
+// Invalidate stale local caches completely so only new model predictions render
+try {
+  const v = localStorage.getItem('CALIBRATOR_CACHE_VERSION');
+  if (v !== '3.0.0') {
+    localStorage.removeItem('CACHE_AQI_LSTM_FORECAST_24H');
+    localStorage.removeItem('CACHE_CLOUD_LATEST');
+    localStorage.removeItem('CACHE_AQI_LIVE_HISTORY');
+    localStorage.removeItem('CACHE_AQI_HISTORICAL');
+    localStorage.removeItem('CACHE_AQI_COMPARISON');
+    localStorage.removeItem('CACHE_AQI_FORECAST_REGISTRY');
+    localStorage.removeItem('FORECAST_PREDICTIONS_REGISTRY');
+    localStorage.setItem('CALIBRATOR_CACHE_VERSION', '3.0.0');
+  }
+} catch (e) {}
+
 const formatRawReading = (raw) => {
   if (!raw) return null;
-  const cpcb_aqi = raw.cpcb_aqi || 0;
+
+  const rawTemp = raw.temperature;
+  const rawHum = raw.humidity;
+  const tempVal = rawTemp != null ? Number(rawTemp) : 27.0;
+  const humVal = rawHum != null ? Number(rawHum) : 60.0;
+
+  const rawPm25 = raw.pm25 != null ? Number(raw.pm25) : (raw['pm2.5'] != null ? Number(raw['pm2.5']) : null);
+  const rawPm10 = raw.pm10 != null ? Number(raw.pm10) : null;
+  const rawCo = raw.co != null ? Number(raw.co) : null;
+  const rawO3 = raw.o3 != null ? Number(raw.o3) : null;
+  const rawNo2 = raw.no2 != null ? Number(raw.no2) : null;
+
+  // Multi-parameter Ridge calibration from aqi_model_and_calibrators
+  const calPm25 = rawPm25 != null
+    ? Math.max(0.0, Number((0.12532894 * rawPm25 - 0.7801631 * tempVal - 0.15188749 * humVal + 41.495258).toFixed(2)))
+    : null;
+  const calPm10 = rawPm10 != null
+    ? Math.max(0.0, Number((0.10855827 * rawPm10 - 0.6390711 * tempVal - 0.11117823 * humVal + 34.034309).toFixed(2)))
+    : null;
+  const calCo = rawCo != null
+    ? Math.max(0.0, Number((0.24370718 * rawCo + 0.02763672 * tempVal + 0.00444147 * humVal - 0.96570843).toFixed(3)))
+    : null;
+  const calNo2 = rawNo2 != null
+    ? Math.max(0.0, Number((0.00920961 * rawNo2 + 0.06749354 * tempVal + 0.00777269 * humVal + 2.903467).toFixed(2)))
+    : null;
+  const calO3 = rawO3 != null
+    ? Math.max(0.0, Number((0.05187092 * rawO3 - 1.4830095 * tempVal - 0.23912878 * humVal + 91.72351).toFixed(2)))
+    : null;
+
+  const subIndices = {
+    pm25: calcSubindex('pm25', calPm25 ?? rawPm25),
+    pm10: calcSubindex('pm10', calPm10 ?? rawPm10),
+    co: calcSubindex('co', calCo ?? rawCo),
+    no2: calcSubindex('no2', calNo2 ?? rawNo2),
+    o3: calcSubindex('o3', calO3 ?? rawO3),
+  };
+
+  const domKey = Object.keys(subIndices).reduce((a, b) => subIndices[a] >= subIndices[b] ? a : b);
+  const domNames = { pm25: 'PM2.5', pm10: 'PM10', co: 'CO', no2: 'NO₂', o3: 'O₃' };
+  const cpcb_aqi = Math.round(subIndices[domKey] || 0);
+
   let label = "Good", color = "#65ff50";
   if (cpcb_aqi > 50 && cpcb_aqi <= 100) { label = "Satisfactory"; color = "#a3e635"; }
   else if (cpcb_aqi > 100 && cpcb_aqi <= 200) { label = "Moderate"; color = "#facc15"; }
@@ -40,15 +154,23 @@ const formatRawReading = (raw) => {
   return {
     id: raw.id,
     timestamp: raw.created_at || raw.timestamp_hour || raw.timestamp,
-    temperature: raw.temperature,
-    humidity: raw.humidity,
-    pm25: raw.pm25 ?? raw['pm2.5'],
-    pm10: raw.pm10,
-    co: raw.co,
-    o3: raw.o3,
-    no2: raw.no2,
+    temperature: rawTemp,
+    humidity: rawHum,
+    pm25: calPm25 ?? rawPm25,
+    pm10: calPm10 ?? rawPm10,
+    co: calCo ?? rawCo,
+    o3: calO3 ?? rawO3,
+    no2: calNo2 ?? rawNo2,
+    raw_pm25: rawPm25,
+    raw_pm10: rawPm10,
+    raw_co: rawCo,
+    raw_o3: rawO3,
+    raw_no2: rawNo2,
+    is_calibrated: true,
     cpcb_aqi,
-    dominant_pollutant: raw.dominant_pollutant || 'N/A',
+    dominant_pollutant: domNames[domKey] || 'N/A',
+    dominant_pollutant_key: domKey,
+    sub_indices: subIndices,
     aqi_info: { value: cpcb_aqi, label, color, standard: 'CPCB (India)' },
     wind_speed: raw.wind_speed,
     wind_gust: raw.wind_gust ?? raw.gust,
@@ -324,5 +446,109 @@ export const getCloudWeatherHistory = async (limit = 96) => {
 };
 
 
+export const getForecastRegistry = () => {
+  try {
+    const raw = localStorage.getItem('CACHE_AQI_FORECAST_REGISTRY');
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+};
+
+export const saveToForecastRegistry = (forecastList) => {
+  if (!Array.isArray(forecastList) || forecastList.length === 0) return;
+  try {
+    const registry = getForecastRegistry();
+    forecastList.forEach((item) => {
+      const ts = item.timestamp || item.hour_iso;
+      if (ts) {
+        const key = String(ts).slice(0, 19);
+        registry[key] = { ...item, recordedAt: Date.now() };
+      }
+    });
+    const keys = Object.keys(registry).sort();
+    if (keys.length > 168) {
+      const trimmed = {};
+      keys.slice(-168).forEach((k) => { trimmed[k] = registry[k]; });
+      localStorage.setItem('CACHE_AQI_FORECAST_REGISTRY', JSON.stringify(trimmed));
+    } else {
+      localStorage.setItem('CACHE_AQI_FORECAST_REGISTRY', JSON.stringify(registry));
+    }
+  } catch (e) {
+    console.warn('Failed to save to forecast registry:', e);
+  }
+};
+
+export const getAqiForecast = async (force = false) => {
+  const cached = getCachedData('CACHE_AQI_LSTM_FORECAST_24H');
+  try {
+    const res = await api.get(`/aqi/forecast${force ? '?force=true' : ''}`);
+    if (res.data && res.data.forecast) {
+      setCachedData('CACHE_AQI_LSTM_FORECAST_24H', res.data);
+      saveToForecastRegistry(res.data.forecast);
+      return { data: res.data };
+    }
+  } catch (err) {
+    console.warn('Backend LSTM forecast fetch error:', err?.message || err);
+  }
+
+  if (cached) {
+    return { data: { ...cached, isOffline: true } };
+  }
+
+  return {
+    data: {
+      status: 'error',
+      message: 'Failed to retrieve 24-hour LSTM forecast.'
+    }
+  };
+};
+
+export const getAqiComparison = async (historyLimit = 48, force = false) => {
+  const cached = getCachedData('CACHE_AQI_COMPARISON');
+  try {
+    const res = await api.get(`/aqi/comparison?history_limit=${historyLimit}`);
+    if (res.data && (res.data.aligned_schedule || res.data.forecast)) {
+      setCachedData('CACHE_AQI_COMPARISON', res.data);
+      if (res.data.forecast) {
+        saveToForecastRegistry(res.data.forecast);
+      }
+      return { data: res.data };
+    }
+  } catch (err) {
+    console.warn('Backend AQI comparison fetch error, falling back to dual fetch:', err?.message || err);
+  }
+
+  if (cached && !force) {
+    return { data: { ...cached, isOffline: true } };
+  }
+
+  // Fallback: fetch forecast and historical in parallel
+  try {
+    const [fcRes, histRes] = await Promise.all([
+      getAqiForecast(force),
+      getCloudHistory(historyLimit)
+    ]);
+    const fcData = fcRes.data?.forecast || [];
+    const histData = histRes.data?.history || [];
+    return {
+      data: {
+        status: 'success',
+        forecast: fcData,
+        historical: histData,
+        isDualFetched: true
+      }
+    };
+  } catch (e) {
+    return {
+      data: {
+        status: 'error',
+        message: 'Failed to load comparison data.'
+      }
+    };
+  }
+};
+
 export default api;
+
 
