@@ -395,6 +395,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
         {/* ── Clean Hero Container ── */}
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+          className="hero-card-responsive"
           style={{
             backgroundColor: '#ffffff',
             borderRadius: 24,
@@ -402,19 +403,16 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
             color: '#0f172a',
             border: '1px solid #e2e8f0',
             boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)',
-            display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 24,
-            flexWrap: 'wrap',
           }}
         >
-          <div style={{ zIndex: 1 }}>
+          <div className="hero-left-col" style={{ zIndex: 1 }}>
             <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>{dateStr}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 14, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 64, lineHeight: 1 }}>{tempIcon}</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 76, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#0f172a' }}>
+                <span className="hero-metric-val" style={{ fontFamily: 'var(--font-mono)', fontSize: 76, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#0f172a' }}>
                   {fmt(temperature, 1) ?? '--'}
                 </span>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 32, fontWeight: 700, color: '#64748b' }}>°C</span>
@@ -433,13 +431,15 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
             </div>
           </div>
 
-          <div style={{
-            backgroundColor: '#f8fafc',
-            border: '1px solid #e2e8f0',
-            borderRadius: 20,
-            padding: '20px 24px',
-            width: 240,
-          }}>
+          <div
+            className="hero-right-col"
+            style={{
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 20,
+              padding: '20px 24px',
+            }}
+          >
             <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Live Sensor Feed</span>
               <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isOnline ? '#10b981' : '#f59e0b', display: 'inline-block' }} />
@@ -455,7 +455,8 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
         </motion.div>
 
         {/* ── Weather Cards Grid with Parameter-Specific Icon Animations ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 14 }}>
+        <div className="grid-weather">
+
           {[
             { key: 'temperature', name: 'Temperature', val: temperature != null ? `${fmt(temperature, 1)}°C` : 'N/A', icon: '🌡️', badgeBg: '#ffedd5', badgeText: '#ea580c', accent: '#ea580c' },
             { key: 'humidity', name: 'Humidity', val: humidity != null ? `${fmt(humidity, 1)}%` : 'N/A', icon: '💧', badgeBg: '#e0f2fe', badgeText: '#0284c7', accent: '#0284c7' },

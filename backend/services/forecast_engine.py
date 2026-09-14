@@ -18,15 +18,15 @@ import keras
 logger = logging.getLogger("forecast_engine")
 logging.basicConfig(level=logging.INFO)
 
-# Base Paths
+# Base Paths & Artifacts Config
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ARTIFACTS_DIR = os.path.join(BASE_DIR, "AQI-Prediction")
+ARTIFACTS_DIR_NAME = os.getenv("ARTIFACTS_DIR", "AQI-prediction-new")
+ARTIFACTS_DIR = os.path.join(BASE_DIR, ARTIFACTS_DIR_NAME)
 
-MODEL_PATH = os.path.join(ARTIFACTS_DIR, "finetuned_aqi_node_model.keras")
 SCALER_X_PATH = os.path.join(ARTIFACTS_DIR, "scaler_X.save")
 SCALER_Y_PATH = os.path.join(ARTIFACTS_DIR, "scaler_y.save")
 
-# Environment & Supabase Config
+# Supabase Config
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://sgkdpliqlhgiqsabxzxe.supabase.co").rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 SOURCE_AQI_TABLE = os.getenv("SOURCE_AQI_TABLE", "AQI_NODE1")
@@ -34,57 +34,47 @@ DEST_FORECAST_TABLE = os.getenv("DEST_FORECAST_TABLE", "aqi_forecasts_24h")
 NODE_ID = os.getenv("NODE_ID", "node_1")
 WIND_SPEED_BASELINE = float(os.getenv("WIND_SPEED_BASELINE", "7.86"))
 
-# Expected Feature Alignments
-INPUT_FEATURES = [
-    "pm2_5_ug_m3",
-    "pm10_ug_m3",
-    "no2_ug_m3",
-    "co_mg_m3",
-    "ozone_ug_m3",
-    "temperature_c",
-    "humidity_pct",
-    "wind_speed_kmh",
-    "hour_sin",
-    "hour_cos",
-    "month_sin",
-    "month_cos"
-]
+# Available Model Tiers (Lookback in hours)
+TIER_WINDOWS = [168, 144, 120, 96, 72, 48, 24]
 
-TARGET_OUTPUTS = [
-    "pm2_5_ug_m3",
-    "pm10_ug_m3",
-    "no2_ug_m3",
-    "co_mg_m3",
-    "ozone_ug_m3",
-    "temperature_c",
-    "humidity_pct"
-]
-
-# Global Cached Artifacts
-_MODEL: Optional[Any] = None
+# Runtime Caches
+_MODEL_CACHE: Dict[int, Any] = {}
 _SCALER_X: Optional[Any] = None
 _SCALER_Y: Optional[Any] = None
 
 
-def load_artifacts():
-    """Loads and caches the Keras model and feature/target scalers."""
-    global _MODEL, _SCALER_X, _SCALER_Y
-    if _MODEL is not None and _SCALER_X is not None and _SCALER_Y is not None:
-        return _MODEL, _SCALER_X, _SCALER_Y
+def load_scalers():
+    """Loads and caches scaler_X and scaler_y."""
+    global _SCALER_X, _SCALER_Y
+    if _SCALER_X is not None and _SCALER_Y is not None:
+        return _SCALER_X, _SCALER_Y
 
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(f"Model file not found at: {MODEL_PATH}")
     if not os.path.exists(SCALER_X_PATH):
         raise FileNotFoundError(f"Feature scaler not found at: {SCALER_X_PATH}")
     if not os.path.exists(SCALER_Y_PATH):
         raise FileNotFoundError(f"Target scaler not found at: {SCALER_Y_PATH}")
 
-    logger.info("Loading finetuned Keras model and scalers from %s...", ARTIFACTS_DIR)
-    _MODEL = keras.saving.load_model(MODEL_PATH)
     _SCALER_X = joblib.load(SCALER_X_PATH)
     _SCALER_Y = joblib.load(SCALER_Y_PATH)
-    logger.info("Artifacts successfully loaded.")
-    return _MODEL, _SCALER_X, _SCALER_Y
+    logger.info("Loaded scalers from %s", ARTIFACTS_DIR)
+    return _SCALER_X, _SCALER_Y
+
+
+def load_model_for_tier(lookback_hours: int):
+    """Lazy-loads and caches the Keras Seq2Seq model for the chosen lookback tier."""
+    global _MODEL_CACHE
+    if lookback_hours in _MODEL_CACHE:
+        return _MODEL_CACHE[lookback_hours]
+
+    model_filename = f"model_tier_{lookback_hours}h.keras"
+    model_path = os.path.join(ARTIFACTS_DIR, model_filename)
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model tier file not found: {model_path}")
+
+    logger.info("Loading model tier %dh from %s...", lookback_hours, model_path)
+    model = keras.saving.load_model(model_path)
+    _MODEL_CACHE[lookback_hours] = model
+    return model
 
 
 # CPCB India Standard Breakpoints: [C_lo, C_hi, I_lo, I_hi]
@@ -98,10 +88,7 @@ CPCB_BREAKPOINTS = {
 
 
 def sub_index(pollutant_key: str, cp: Optional[float]) -> float:
-    """
-    Computes pollutant sub-index Ip using linear interpolation formula:
-    Ip = ((I_HI - I_LO) / (C_HI - C_LO)) * (Cp - C_LO) + I_LO
-    """
+    """Computes CPCB linear sub-index."""
     if cp is None or pollutant_key not in CPCB_BREAKPOINTS:
         return 0.0
     val = max(0.0, float(cp))
@@ -114,7 +101,7 @@ def sub_index(pollutant_key: str, cp: Optional[float]) -> float:
 
 
 def get_cpcb_category(aqi_val: int) -> Tuple[str, str]:
-    """Returns the CPCB qualitative category and associated color."""
+    """Returns qualitative label and color code."""
     if aqi_val <= 50:
         return "Good", "#10b981"
     elif aqi_val <= 100:
@@ -130,33 +117,28 @@ def get_cpcb_category(aqi_val: int) -> Tuple[str, str]:
 
 
 def compute_cyclical_features(dt: datetime) -> Tuple[float, float, float, float]:
-    """Computes hour_sin, hour_cos, month_sin, month_cos for a given datetime."""
+    """Computes hour_sin, hour_cos, month_sin, month_cos."""
     hour = dt.hour
     month = dt.month
-
     hour_sin = math.sin(2.0 * math.pi * hour / 24.0)
     hour_cos = math.cos(2.0 * math.pi * hour / 24.0)
     month_sin = math.sin(2.0 * math.pi * month / 12.0)
     month_cos = math.cos(2.0 * math.pi * month / 12.0)
-
     return hour_sin, hour_cos, month_sin, month_cos
 
 
-
 def parse_iso_datetime(ts_str: str) -> datetime:
-    """Parses various ISO timestamp formats safely into a datetime object."""
+    """Safely parses timestamp string to datetime object."""
     clean_str = ts_str.replace("Z", "+00:00")
     try:
         return datetime.fromisoformat(clean_str)
     except Exception:
-        # Fallback format parser
         return datetime.strptime(ts_str[:19], "%Y-%m-%dT%H:%M:%S")
 
 
-async def fetch_source_rows(limit: int = 24) -> List[Dict[str, Any]]:
+async def fetch_source_rows(limit: int = 168) -> List[Dict[str, Any]]:
     """
-    Fetches the latest 24 continuous hourly rows from the source sensor table (AQI_NODE1)
-    and returns them ordered chronologically (t-23 -> t).
+    Queries up to 168 records ordered descending by timestamp_hour from AQI_NODE1.
     """
     url = f"{SUPABASE_URL}/rest/v1/{SOURCE_AQI_TABLE}?order=timestamp_hour.desc&limit={limit}"
     headers = {
@@ -165,7 +147,7 @@ async def fetch_source_rows(limit: int = 24) -> List[Dict[str, Any]]:
         "Content-Type": "application/json"
     }
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=20.0) as client:
         res = await client.get(url, headers=headers)
         if res.status_code != 200:
             raise RuntimeError(f"Failed to fetch data from Supabase table {SOURCE_AQI_TABLE}: {res.status_code} - {res.text}")
@@ -174,36 +156,79 @@ async def fetch_source_rows(limit: int = 24) -> List[Dict[str, Any]]:
     if not rows:
         raise ValueError(f"No records found in source table {SOURCE_AQI_TABLE}")
 
-    # Reverse to chronological order (t-23 -> t)
-    rows_chronological = list(reversed(rows))
-    return rows_chronological
+    return rows
 
 
-def prepare_input_matrix(rows: List[Dict[str, Any]]) -> Tuple[np.ndarray, datetime]:
+def verify_continuity_and_select_tier(rows_desc: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
     """
-    Extracts raw pollutant and meteorological features, applies wind speed baseline,
-    computes cyclical time encodings, and builds a (N, 12) matrix.
-    Also returns the timestamp of the latest input row (t).
+    Walks backward from the newest record to verify that adjacent timestamps have an exact 1-hour delta.
+    Counts unbroken consecutive hours N:
+      - N < 24: Halt (insufficient data).
+      - 24 <= N < 48: 24h tier
+      - 48 <= N < 72: 48h tier
+      - 72 <= N < 96: 72h tier
+      - 96 <= N < 120: 96h tier
+      - 120 <= N < 144: 120h tier
+      - 144 <= N < 168: 144h tier
+      - N >= 168: 168h tier
+    Returns the chronological slice of rows matching the selected tier and the lookback hours.
     """
-    if len(rows) < 24:
-        raise ValueError(f"Insufficient historical data: required 24 rows, got {len(rows)}")
+    if not rows_desc:
+        raise ValueError("Cannot verify continuity on empty dataset.")
 
-    # Use the last 24 rows
-    window_rows = rows[-24:]
+    # Walk backward from the newest record
+    continuous_rows_desc = [rows_desc[0]]
+    prev_dt = parse_iso_datetime(rows_desc[0].get("timestamp_hour") or rows_desc[0].get("created_at") or rows_desc[0].get("timestamp"))
+
+    for r in rows_desc[1:]:
+        curr_dt = parse_iso_datetime(r.get("timestamp_hour") or r.get("created_at") or r.get("timestamp"))
+        delta = prev_dt - curr_dt
+        # Verify delta is approximately 1 hour (allow small 60s tolerance for clock drift)
+        if abs(delta.total_seconds() - 3600.0) <= 60.0:
+            continuous_rows_desc.append(r)
+            prev_dt = curr_dt
+        else:
+            logger.info("Continuity broken between %s and %s (delta=%.1fs)", prev_dt.isoformat(), curr_dt.isoformat(), delta.total_seconds())
+            break
+
+    N = len(continuous_rows_desc)
+    logger.info("Detected %d unbroken consecutive hourly records in %s.", N, SOURCE_AQI_TABLE)
+
+    if N < 24:
+        raise ValueError(f"Insufficient continuous historical data: required at least 24 hours, found {N} hours.")
+
+    # Select highest viable tier
+    selected_tier = 24
+    for tier in TIER_WINDOWS:
+        if N >= tier:
+            selected_tier = tier
+            break
+
+    logger.info("Selected model tier: %dh (continuous hours available: %d)", selected_tier, N)
+
+    # Slice the newest `selected_tier` records and reverse to chronological order (t - lookback + 1 -> t)
+    tier_rows_desc = continuous_rows_desc[:selected_tier]
+    tier_rows_chrono = list(reversed(tier_rows_desc))
+
+    return tier_rows_chrono, selected_tier
+
+
+def prepare_tiered_input_matrix(rows_chrono: List[Dict[str, Any]]) -> Tuple[np.ndarray, datetime]:
+    """
+    Prepares (lookback, 12) matrix from chronological rows:
+    Features: pm2_5_ug_m3, pm10_ug_m3, no2_ug_m3, co_mg_m3, ozone_ug_m3, temperature_c, humidity_pct,
+              wind_speed_kmh (imputed with 7.86), hour_sin, hour_cos, month_sin, month_cos.
+    """
     data_rows = []
     latest_dt = None
 
-    for r in window_rows:
+    for r in rows_chrono:
         ts_str = r.get("timestamp_hour") or r.get("created_at") or r.get("timestamp")
-        if not ts_str:
-            dt = datetime.now(timezone.utc)
-        else:
-            dt = parse_iso_datetime(ts_str)
+        dt = parse_iso_datetime(ts_str) if ts_str else datetime.now(timezone.utc)
         latest_dt = dt
 
         h_sin, h_cos, m_sin, m_cos = compute_cyclical_features(dt)
 
-        # Mapping source sensor columns to target feature names
         pm25_val = float(r.get("pm2.5") if "pm2.5" in r else r.get("pm25", 0.0) or 0.0)
         pm10_val = float(r.get("pm10", 0.0) or 0.0)
         no2_val = float(r.get("no2", 0.0) or 0.0)
@@ -212,7 +237,6 @@ def prepare_input_matrix(rows: List[Dict[str, Any]]) -> Tuple[np.ndarray, dateti
         temp_val = float(r.get("temperature", 25.0) or 25.0)
         hum_val = float(r.get("humidity", 50.0) or 50.0)
 
-        # Impute wind speed with baseline
         raw_wind = r.get("wind_speed")
         wind_val = float(raw_wind) if raw_wind is not None else WIND_SPEED_BASELINE
 
@@ -236,27 +260,26 @@ def prepare_input_matrix(rows: List[Dict[str, Any]]) -> Tuple[np.ndarray, dateti
     return input_matrix, (latest_dt or datetime.now(timezone.utc))
 
 
-def run_inference_pipeline(input_matrix: np.ndarray, latest_dt: datetime) -> List[Dict[str, Any]]:
+def run_tiered_inference(input_matrix: np.ndarray, selected_tier: int, latest_dt: datetime) -> List[Dict[str, Any]]:
     """
-    Scales input matrix (24, 12) -> reshapes to (1, 24, 12) -> predicts (1, 24, 7)
-    -> inverse transforms to original physical units -> constructs 24 hourly forecast items (t+1 -> t+24).
+    Scales input using scaler_X, reshapes to (1, selected_tier, 12), runs prediction on model_tier_{tier}h.keras,
+    inverse transforms outputs using scaler_y, and calculates CPCB sub-indices for t+1 to t+24.
     """
-    model, scaler_x, scaler_y = load_artifacts()
+    scaler_x, scaler_y = load_scalers()
+    model = load_model_for_tier(selected_tier)
 
-    # Scale inputs using scaler_X
+    # Scale inputs
     scaled_x = scaler_x.transform(input_matrix)
-    reshaped_x = scaled_x.reshape(1, 24, 12)
+    reshaped_x = scaled_x.reshape(1, selected_tier, 12)
 
-    # Model inference
-    raw_pred = model.predict(reshaped_x)  # shape: (1, 24, 7)
+    # Predict (1, 24, 7)
+    raw_pred = model.predict(reshaped_x, verbose=0)
     pred_2d = raw_pred.reshape(24, 7)
 
-    # Inverse transform to recover physical units
+    # Inverse transform targets to physical units
     unscaled_pred = scaler_y.inverse_transform(pred_2d)
 
-    # Generate 24 future hourly timestamps (t+1 to t+24)
     forecast_results = []
-    # Ensure aligned to full hour
     base_time = latest_dt.replace(minute=0, second=0, microsecond=0)
 
     for step in range(1, 25):
@@ -272,8 +295,6 @@ def run_inference_pipeline(input_matrix: np.ndarray, latest_dt: datetime) -> Lis
         temp_val = round(float(row_vals[5]), 2)
         hum_val = round(min(100.0, max(0.0, float(row_vals[6]))), 2)
 
-        # Compute sub-indices using the linear interpolation formula
-        # Ip = ((I_HI - I_LO) / (C_HI - C_LO)) * (Cp - C_LO) + I_LO
         sub_pm25 = sub_index("pm25", pm25_val)
         sub_pm10 = sub_index("pm10", pm10_val)
         sub_no2 = sub_index("no2", no2_val)
@@ -288,7 +309,6 @@ def run_inference_pipeline(input_matrix: np.ndarray, latest_dt: datetime) -> Lis
             "o3": sub_o3
         }
 
-        # The composite AQI is the maximum of the sub-indices (CPCB Standard)
         dominant_key = max(sub_indices, key=lambda k: sub_indices[k])
         dominant_label_map = {
             "pm25": "PM2.5",
@@ -305,6 +325,7 @@ def run_inference_pipeline(input_matrix: np.ndarray, latest_dt: datetime) -> Lis
             "forecast_for_time": iso_str,
             "aqi": cpcb_aqi,
             "cpcb_aqi": cpcb_aqi,
+            "tier_used": f"{selected_tier}h",
             "aqi_category": category_label,
             "aqi_color": category_color,
             "dominant_pollutant": dominant_label_map[dominant_key],
@@ -322,17 +343,16 @@ def run_inference_pipeline(input_matrix: np.ndarray, latest_dt: datetime) -> Lis
     return forecast_results
 
 
-
-async def upsert_forecasts_to_supabase(forecast_records: List[Dict[str, Any]], generated_at: str) -> Dict[str, Any]:
+async def upsert_forecasts_to_supabase(forecast_records: List[Dict[str, Any]], generated_at: str, tier_used: str) -> Dict[str, Any]:
     """
-    Attempts to upsert the 24 forecast items into the destination table (aqi_forecasts_24h).
-    Handles potential table non-existence or permissions gracefully.
+    Upserts the 24 forecast items into the destination table (aqi_forecasts_24h).
     """
     payload = [
         {
             "node_id": NODE_ID,
             "forecast_for_time": item["forecast_for_time"],
             "forecast_generated_at": generated_at,
+            "tier_used": tier_used,
             "pm2_5_ug_m3": item["pm2_5_ug_m3"],
             "pm10_ug_m3": item["pm10_ug_m3"],
             "no2_ug_m3": item["no2_ug_m3"],
@@ -344,7 +364,7 @@ async def upsert_forecasts_to_supabase(forecast_records: List[Dict[str, Any]], g
         for item in forecast_records
     ]
 
-    url = f"{SUPABASE_URL}/rest/v1/{DEST_FORECAST_TABLE}"
+    url = f"{SUPABASE_URL}/rest/v1/{DEST_FORECAST_TABLE}?on_conflict=node_id,forecast_for_time"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -356,34 +376,32 @@ async def upsert_forecasts_to_supabase(forecast_records: List[Dict[str, Any]], g
         async with httpx.AsyncClient(timeout=10.0) as client:
             res = await client.post(url, json=payload, headers=headers)
             if res.status_code in (200, 201):
-                logger.info("Successfully synced %d forecast records to %s", len(payload), DEST_FORECAST_TABLE)
-                return {"synced": True, "count": len(payload), "status": res.status_code}
+                logger.info("Successfully synced %d forecast records (%s) to %s", len(payload), tier_used, DEST_FORECAST_TABLE)
+                return {"synced": True, "count": len(payload), "tier_used": tier_used, "status": res.status_code}
             else:
-                logger.warning(
-                    "Supabase forecast upsert response status %d: %s. Continuing with API response.",
-                    res.status_code,
-                    res.text
-                )
+                logger.warning("Supabase upsert status %d: %s", res.status_code, res.text)
                 return {"synced": False, "status": res.status_code, "detail": res.text}
     except Exception as e:
-        logger.warning("Error during Supabase destination sync: %s. Returning forecast data.", str(e))
+        logger.warning("Error during Supabase destination sync: %s", str(e))
         return {"synced": False, "error": str(e)}
 
 
 async def run_24h_forecast() -> Dict[str, Any]:
-    """Full execution pipeline: Fetch 24h data -> Encode & Scale -> Infer -> Sync -> Format response."""
-    # 1. Fetch latest 24 continuous hourly rows
-    rows = await fetch_source_rows(limit=24)
+    """
+    Full execution pipeline:
+    1. Ingest up to 168 rows from AQI_NODE1.
+    2. Check 1-hour continuity backward and pick highest viable model tier (24h -> 168h).
+    3. Prepare input matrix and run inference on selected Seq2Seq LSTM tier.
+    4. Upsert forecast records (t+1 -> t+24) to aqi_forecasts_24h in Supabase.
+    """
+    rows_desc = await fetch_source_rows(limit=168)
+    rows_chrono, selected_tier = verify_continuity_and_select_tier(rows_desc)
+    input_matrix, latest_dt = prepare_tiered_input_matrix(rows_chrono)
+    forecast_records = run_tiered_inference(input_matrix, selected_tier, latest_dt)
 
-    # 2. Prepare input matrix and retrieve latest timestamp
-    input_matrix, latest_dt = prepare_input_matrix(rows)
-
-    # 3. Model inference and unit recovery
-    forecast_records = run_inference_pipeline(input_matrix, latest_dt)
-
-    # 4. Generate timestamp and upsert to Supabase
     generated_at = datetime.now(timezone.utc).isoformat()
-    sync_result = await upsert_forecasts_to_supabase(forecast_records, generated_at)
+    tier_label = f"{selected_tier}h"
+    sync_result = await upsert_forecasts_to_supabase(forecast_records, generated_at, tier_label)
 
     return {
         "status": "success",
@@ -391,7 +409,26 @@ async def run_24h_forecast() -> Dict[str, Any]:
         "source_table": SOURCE_AQI_TABLE,
         "latest_input_timestamp": latest_dt.isoformat(),
         "generated_at": generated_at,
+        "detected_continuous_hours": len(rows_chrono),
+        "selected_tier": tier_label,
         "count": len(forecast_records),
         "sync_status": sync_result,
         "forecast": forecast_records
     }
+
+
+if __name__ == "__main__":
+    import asyncio
+    print("Executing standalone test run of Tiered Seq2Seq 24-Hour Forecasting Engine...")
+    result = asyncio.run(run_24h_forecast())
+    print("\n================ PIPELINE EXECUTION SUMMARY ================")
+    print("Status:", result["status"])
+    print("Detected Continuous Hours:", result["detected_continuous_hours"])
+    print("Selected Model Tier:", result["selected_tier"])
+    print("Latest Input Timestamp:", result["latest_input_timestamp"])
+    print("Supabase Sync Status:", result["sync_status"])
+    print("\n--- FIRST 5 FORECASTED HOURLY ROWS (t+1 to t+5) ---")
+    for item in result["forecast"][:5]:
+        dom_clean = str(item['dominant_pollutant']).encode('ascii', 'ignore').decode('ascii')
+        print(f"Step +{item['step']}h ({item['forecast_for_time']}): AQI={item['aqi']} ({item['aqi_category']}) | Dominant={dom_clean} | Tier={item['tier_used']} | PM2.5={item['pm2_5_ug_m3']} | PM10={item['pm10_ug_m3']} | Temp={item['temperature_c']}C | Hum={item['humidity_pct']}%")
+

@@ -106,3 +106,190 @@ body {
 
 .loading-spinner { animation: spin 1s linear infinite; }
 .pulse-glow { animation: pulseGlow 3s infinite ease-in-out; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Universal Cross-Screen Responsive System
+   Mobile (phones) ── Tablet ── Desktop (PC) ── Smartboard (4K/TV)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Responsive App Shell & Main Content */
+.app-header {
+  padding: 12px 28px;
+}
+
+.app-main {
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  box-sizing: border-box;
+}
+
+.page-container {
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* Fluid Hero Containers */
+.hero-card-responsive {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.hero-left-col {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.hero-right-col {
+  flex: 0 1 auto;
+  width: 250px;
+}
+
+/* Fluid Grids */
+.grid-pollutants {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+.grid-weather {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+/* Touch-Friendly Smooth Table Wrappers */
+.table-responsive-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 16px;
+}
+
+.table-responsive-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+/* ── Mobile Devices (≤ 640px) ── */
+@media (max-width: 640px) {
+  .app-header {
+    padding: 10px 14px !important;
+    gap: 10px !important;
+  }
+
+  .app-header-brand {
+    font-size: 18px !important;
+  }
+
+  .app-header-brand-logo {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .app-main {
+    padding: 16px 12px 48px !important;
+  }
+
+  .app-nav-pills {
+    width: 100% !important;
+    justify-content: space-between !important;
+    overflow-x: auto !important;
+    padding: 3px !important;
+  }
+
+  .app-nav-pills button {
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    gap: 5px !important;
+  }
+
+  .app-station-controls {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+
+  .hero-card-responsive {
+    padding: 20px 18px !important;
+    gap: 18px !important;
+  }
+
+  .hero-right-col {
+    width: 100% !important;
+  }
+
+  .hero-metric-val {
+    font-size: 52px !important;
+  }
+
+  .grid-pollutants,
+  .grid-weather {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .filter-chips-container {
+    width: 100% !important;
+    overflow-x: auto !important;
+    padding: 4px !important;
+    scrollbar-width: none;
+  }
+
+  .filter-chips-container::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── Tablets & Laptops (641px – 1024px) ── */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .app-header {
+    padding: 12px 20px !important;
+  }
+
+  .app-main {
+    padding: 20px 16px 52px !important;
+  }
+
+  .grid-pollutants {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+  }
+
+  .grid-weather {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+  }
+}
+
+/* ── Smartboards & Large Ultra-Wide / 4K Displays (≥ 1920px) ── */
+@media (min-width: 1920px) {
+  .app-main {
+    max-width: 1840px !important;
+    padding: 36px 40px 80px !important;
+  }
+
+  .page-container {
+    max-width: 1840px !important;
+  }
+
+  .hero-metric-val {
+    font-size: 96px !important;
+  }
+
+  .grid-pollutants {
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 20px !important;
+  }
+
+  .grid-weather {
+    grid-template-columns: repeat(6, 1fr) !important;
+    gap: 20px !important;
+  }
+}
+

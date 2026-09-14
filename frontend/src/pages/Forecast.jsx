@@ -332,7 +332,7 @@ export default function Forecast({ refreshKey }) {
   };
 
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 20px', minHeight: '85vh' }}>
+    <div className="page-container" style={{ minHeight: '85vh' }}>
       {/* ── Page Header ── */}
       <div style={{
         display: 'flex',
@@ -357,7 +357,7 @@ export default function Forecast({ refreshKey }) {
             Predictive Forecast (24h)
           </h1>
           <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13.5 }}>
-            Node 1 24-hour horizon (t+1 → t+24) with CPCB Indian standard calculation and real-time telemetry comparison.
+            Node 1 24-hour horizon (t+1 → t+24) with expanding-lookback Seq2Seq LSTM and real-time telemetry sync.
           </p>
         </div>
 
@@ -802,8 +802,8 @@ export default function Forecast({ refreshKey }) {
           </div>
         ) : (
           /* Comprehensive 24h Comparison Table */
-          <div style={{ overflowX: 'auto', maxHeight: 540 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+          <div className="table-responsive-wrapper" style={{ maxHeight: 540 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left', minWidth: 800 }}>
               <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', zIndex: 2 }}>
                 <tr style={{ color: '#475569', fontSize: 12 }}>
                   <th style={{ padding: '12px 14px', fontWeight: 700 }}>Step</th>

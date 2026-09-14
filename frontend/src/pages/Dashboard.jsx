@@ -724,6 +724,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
       {/* ── HERO AQI CARD ── */}
       <motion.div
         custom={0} variants={cardVariants} initial="hidden" animate="visible"
+        className="hero-card-responsive"
         style={{
           backgroundColor: aqiColor === '#22c55e' ? '#f0fdf4' :
                            aqiColor === '#eab308' ? '#fefce8' :
@@ -737,18 +738,13 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           boxShadow: `0 8px 30px ${aqiColor}15, 0 1px 3px rgba(15,23,42,0.04)`,
           position: 'relative',
           overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 24,
-          flexWrap: 'wrap',
           transition: 'background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease',
         }}
       >
         <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 6, backgroundColor: aqiColor }} />
 
         {/* Left Side */}
-        <div style={{ flex: 1, minWidth: 280, zIndex: 1 }}>
+        <div className="hero-left-col" style={{ zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isOnline ? '#22c55e' : '#f97316', display: 'inline-block' }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -756,9 +752,9 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20, flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 72, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#0f172a' }}>
+              <div className="hero-metric-val" style={{ fontFamily: 'var(--font-mono)', fontSize: 72, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#0f172a' }}>
                 {aqiValue}
               </div>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
@@ -783,7 +779,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           </div>
 
           {/* Overall AQI Scale Bar */}
-          <div style={{ maxWidth: 380 }}>
+          <div style={{ maxWidth: 380, width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px', marginBottom: 6 }}>
               {[
                 { label: 'Good', color: '#22c55e' },
@@ -824,9 +820,8 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         {/* Right Side Weather Widget */}
         {weather && (
           <div
+            className="hero-right-col"
             style={{
-              flex: '0 0 auto',
-              width: 230,
               backgroundColor: '#ffffff',
               border: '1px solid #e2e8f0',
               borderRadius: 20,
@@ -871,7 +866,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: 14 }}>
+        <div className="grid-pollutants">
           {[
             { key: 'pm25', name: 'PM2.5', sub: 'Particulate Matter 2.5', unit: 'µg/m³', icon: '🌫️' },
             { key: 'pm10', name: 'PM10', sub: 'Particulate Matter 10', unit: 'µg/m³', icon: '☁️' },
