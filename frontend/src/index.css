@@ -1,7 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
 
 /* ═══════════════════════════════════════════════════════════════
-   Smart AirNet — State-of-the-Art Modern Light Theme Palette
+   Smart AirNet — Desktop-First Layout (Viewport fixed at 1100px)
+   Mobile phones will render this at desktop width and scale/scroll.
    Space Grotesk + JetBrains Mono | Emerald/Teal Accent (#00BFA5)
  ═══════════════════════════════════════════════════════════════ */
 
@@ -9,7 +10,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design Tokens (Cool Modern Light Theme) ── */
+/* ── Design Tokens ── */
 :root {
   --bg-main:        #f1f5f9;
   --bg-surface:     #ffffff;
@@ -62,7 +63,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
-  overflow-x: hidden;
+  /* Fixed minimum so layout never collapses below desktop widths */
+  min-width: 1100px;
+  overflow-x: auto;
 }
 
 /* ── Scrollbar ── */
@@ -108,20 +111,29 @@ body {
 .pulse-glow { animation: pulseGlow 3s infinite ease-in-out; }
 
 /* ═══════════════════════════════════════════════════════════════
-   Universal Cross-Screen Responsive System
-   Mobile (phones) ── Tablet ── Desktop (PC) ── Smartboard (4K/TV)
+   Desktop Layout System (identical on all screen sizes)
    ═══════════════════════════════════════════════════════════════ */
 
-/* Responsive App Shell & Main Content */
+/* Header */
 .app-header {
   padding: 12px 28px;
 }
 
+.app-header-brand {
+  font-size: 20px;
+}
+
+.app-header-brand-logo {
+  width: 38px;
+  height: 38px;
+}
+
+/* Main container */
 .app-main {
   width: 100%;
   max-width: 1360px;
   margin: 0 auto;
-  padding: 24px 20px 60px;
+  padding: 24px 28px 60px;
   box-sizing: border-box;
 }
 
@@ -132,14 +144,14 @@ body {
   box-sizing: border-box;
 }
 
-/* Fluid Hero Containers */
+/* Hero layout — always side-by-side */
 .hero-card-responsive {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  flex-wrap: wrap;
   width: 100%;
+  padding: 28px 32px !important;
 }
 
 .hero-left-col {
@@ -152,22 +164,28 @@ body {
   width: 250px;
 }
 
-/* Fluid Grids */
+/* AQI number */
+.hero-metric-val {
+  font-size: 72px !important;
+  line-height: 1 !important;
+}
+
+/* Pollutant & Weather Grids — always multi-column */
 .grid-pollutants {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 14px;
   width: 100%;
 }
 
 .grid-weather {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
   width: 100%;
 }
 
-/* Touch-Friendly Smooth Table Wrappers */
+/* Table wrappers */
 .table-responsive-wrapper {
   width: 100%;
   overflow-x: auto;
@@ -179,95 +197,54 @@ body {
   height: 6px;
 }
 
-/* ── Mobile Devices (≤ 640px) ── */
-@media (max-width: 640px) {
-  .app-header {
-    padding: 10px 14px !important;
-    gap: 10px !important;
-  }
-
-  .app-header-brand {
-    font-size: 18px !important;
-  }
-
-  .app-header-brand-logo {
-    width: 32px !important;
-    height: 32px !important;
-  }
-
-  .app-main {
-    padding: 16px 12px 48px !important;
-  }
-
-  .app-nav-pills {
-    width: 100% !important;
-    justify-content: space-between !important;
-    overflow-x: auto !important;
-    padding: 3px !important;
-  }
-
-  .app-nav-pills button {
-    padding: 6px 12px !important;
-    font-size: 12px !important;
-    gap: 5px !important;
-  }
-
-  .app-station-controls {
-    width: 100% !important;
-    justify-content: space-between !important;
-  }
-
-  .hero-card-responsive {
-    padding: 20px 18px !important;
-    gap: 18px !important;
-  }
-
-  .hero-right-col {
-    width: 100% !important;
-  }
-
-  .hero-metric-val {
-    font-size: 52px !important;
-  }
-
-  .grid-pollutants,
-  .grid-weather {
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-  }
-
-  .filter-chips-container {
-    width: 100% !important;
-    overflow-x: auto !important;
-    padding: 4px !important;
-    scrollbar-width: none;
-  }
-
-  .filter-chips-container::-webkit-scrollbar {
-    display: none;
-  }
+/* Charts — fixed desktop height */
+.chart-responsive {
+  height: 280px;
 }
 
-/* ── Tablets & Laptops (641px – 1024px) ── */
-@media (min-width: 641px) and (max-width: 1024px) {
-  .app-header {
-    padding: 12px 20px !important;
-  }
+/* Filter chips */
+.filter-chips-container {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.filter-chips-container::-webkit-scrollbar { display: none; }
 
-  .app-main {
-    padding: 20px 16px 52px !important;
-  }
+/* Nav */
+.app-nav-pills {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.app-nav-pills::-webkit-scrollbar { display: none; }
 
-  .grid-pollutants {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
-  }
-
-  .grid-weather {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
-  }
+.app-station-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* ── Smartboards & Large Ultra-Wide / 4K Displays (≥ 1920px) ── */
+/* Section gap */
+.section-gap {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Page headings */
+.page-heading {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.page-subheading {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* ── Smartboards & 4K (≥ 1920px) ── */
 @media (min-width: 1920px) {
   .app-main {
     max-width: 1840px !important;
@@ -291,5 +268,8 @@ body {
     grid-template-columns: repeat(6, 1fr) !important;
     gap: 20px !important;
   }
-}
 
+  .chart-responsive {
+    height: 320px;
+  }
+}

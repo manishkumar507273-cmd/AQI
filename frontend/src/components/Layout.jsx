@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Wind, Activity, CloudSun, LineChart, Database, Radio, ChevronDown } from 'lucide-react';
+import { Wind, LineChart, Database, Radio, ChevronDown } from 'lucide-react';
 import WindCanvas from './WindCanvas';
 
 export const STATIONS = [
@@ -54,18 +54,16 @@ export default function Layout({
       color: '#0f172a',
       fontFamily: 'var(--font-sans)',
       position: 'relative',
-      overflowX: 'hidden',
     }}>
       <WindCanvas active={isWeather} />
 
-      {/* ─── Top Header Navigation Bar ─── */}
+      {/* ─── Sticky Header — single row desktop layout ─── */}
       <header className="app-header" style={{
         minHeight: 64,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: 12,
+        gap: 16,
         position: 'sticky',
         top: 0,
         zIndex: 50,
@@ -75,12 +73,13 @@ export default function Layout({
         borderBottom: '1px solid #e2e8f0',
         boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)',
       }}>
-        {/* Left Side: Brand Logo */}
-        <div 
+
+        {/* Left: Brand */}
+        <div
           onClick={() => handleTopTabClick('aqi')}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none', flexShrink: 0 }}
         >
-          <div className="app-header-brand-logo" style={{
+          <div style={{
             width: 38, height: 38, borderRadius: 12,
             backgroundColor: '#00bfa5',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -91,17 +90,17 @@ export default function Layout({
             <Wind style={{ width: 22, height: 22 }} />
           </div>
           <div>
-            <span className="app-header-brand" style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
               Smart <span style={{ fontWeight: 500, color: '#00bfa5' }}>AirNet</span>
-            </span>
-            <div style={{ fontSize: 10.5, fontWeight: 600, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: -2 }}>
+            </div>
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: -1 }}>
               Real-time AQI &amp; Weather
             </div>
           </div>
         </div>
 
-        {/* Center: Smooth Segmented Floating Pill Navigation Bar */}
-        <nav className="app-nav-pills" style={{
+        {/* Center: Nav pills */}
+        <nav style={{
           display: 'inline-flex',
           alignItems: 'center',
           backgroundColor: '#f8fafc',
@@ -109,10 +108,9 @@ export default function Layout({
           borderRadius: 999,
           border: '1px solid #e2e8f0',
           boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
-          gap: 4,
-          maxWidth: '100%',
-          overflowX: 'auto',
+          gap: 2,
           position: 'relative',
+          flex: '0 0 auto',
         }}>
           {NAV_ITEMS.map((tab) => {
             const isActive = currentTab === tab.id;
@@ -161,8 +159,8 @@ export default function Layout({
           })}
         </nav>
 
-        {/* Right Side: Station Selector Dropdown */}
-        <div className="app-station-controls" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        {/* Right: Station selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div style={{
             position: 'relative',
             display: 'inline-flex',
@@ -172,11 +170,8 @@ export default function Layout({
             borderRadius: 14,
             padding: '6px 12px',
             boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
-            transition: 'border-color 0.2s ease',
-            flex: '1 1 auto'
           }}>
             <Radio style={{ width: 15, height: 15, color: currentStationObj.isLive ? '#00bfa5' : '#94a3b8', marginRight: 6, flexShrink: 0 }} />
-            
             <select
               value={selectedStation}
               onChange={(e) => onStationChange && onStationChange(e.target.value)}
@@ -193,7 +188,7 @@ export default function Layout({
                 appearance: 'none',
                 WebkitAppearance: 'none',
                 MozAppearance: 'none',
-                width: '100%'
+                minWidth: 160,
               }}
             >
               {STATIONS.map((st) => (
@@ -202,7 +197,6 @@ export default function Layout({
                 </option>
               ))}
             </select>
-
             <ChevronDown style={{ width: 14, height: 14, color: '#64748b', position: 'absolute', right: 8, pointerEvents: 'none' }} />
           </div>
 
@@ -219,7 +213,6 @@ export default function Layout({
             border: `1px solid ${currentStationObj.isLive ? '#bbf7d0' : '#e2e8f0'}`,
             fontFamily: 'var(--font-mono)',
             whiteSpace: 'nowrap',
-            flexShrink: 0
           }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: currentStationObj.isLive ? '#16a34a' : '#94a3b8' }} />
             <span>{currentStationObj.isLive ? 'LIVE' : 'STANDBY'}</span>

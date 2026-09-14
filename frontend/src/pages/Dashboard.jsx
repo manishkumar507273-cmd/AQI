@@ -789,7 +789,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 { label: 'Severe', color: '#a855f7' },
                 { label: 'Hazardous', color: '#f43f5e' }
               ].map((item) => (
-                <span key={item.label} style={{ fontSize: 10.5, fontWeight: 700, color: item.color }}>{item.label}</span>
+                <span key={item.label} style={{ fontSize: 9, fontWeight: 700, color: item.color, lineHeight: 1 }}>{item.label}</span>
               ))}
             </div>
 
@@ -1023,7 +1023,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               </div>
             </div>
 
-            <div style={{ width: '100%', height: 280, minWidth: 0 }}>
+            <div className="chart-responsive" style={{ width: '100%', minWidth: 0 }}>
               {liveHistoryLoading ? (
                 <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
                   <RefreshCw style={{ width: 16, height: 16, animation: 'spin 1s linear infinite', marginRight: 8, color: '#00bfa5' }} />
@@ -1138,7 +1138,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               })}
             </div>
 
-            <div style={{ width: '100%', height: 280, minWidth: 0 }}>
+            <div className="chart-responsive" style={{ width: '100%', minWidth: 0 }}>
               {liveHistoryLoading ? (
                 <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
                   <RefreshCw style={{ width: 16, height: 16, animation: 'spin 1s linear infinite', marginRight: 8, color: '#00bfa5' }} />
