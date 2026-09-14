@@ -429,9 +429,6 @@ export default function Forecast({ refreshKey }) {
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Clock size={18} color="#0ea5e9" /> 24-Hour Timeline Overview
               </h3>
-              <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                Click any hourly slot to view its detailed pollutant profile and telemetry comparison below.
-              </p>
             </div>
 
             {/* Quick Time Horizon Filter */}
