@@ -1,6 +1,6 @@
-# Smart AirNet — Real-Time AQI, Weather & Predictive AI Monitor
+# Smart AirNet — Real-Time AQI & Weather Telemetry Monitor
 
-A modern, full-stack intelligence platform for real-time air quality index (AQI) telemetry, meteorological monitoring, and 24-hour predictive machine learning forecasting, powered by **FastAPI**, **PyTorch/Keras 3**, **React 19**, **Vite**, and **Supabase Cloud**.
+A modern, full-stack intelligence platform for real-time air quality index (AQI) telemetry and meteorological monitoring, powered by **FastAPI**, **React 19**, **Vite**, and **Supabase Cloud**.
 
 ---
 
@@ -10,7 +10,7 @@ A modern, full-stack intelligence platform for real-time air quality index (AQI)
 |---|---|
 | **Frontend** | React 19, Vite, Recharts, Framer Motion, Lucide Icons, Vanilla CSS & TailwindCSS |
 | **Backend** | Python 3.12, FastAPI, Uvicorn, HTTPX, Pydantic, python-dotenv |
-| **AI / Machine Learning** | Bidirectional Seq2Seq LSTM (`keras` 3 + PyTorch backend), Scikit-Learn (`Ridge` multi-parameter sensor calibrators, `MinMaxScaler`), Joblib, NumPy |
+| **Sensor Calibration** | Scikit-Learn (`Ridge` multi-parameter sensor calibrators), Joblib |
 | **Data Source** | Supabase Cloud REST API (`AQI_LIVE_NODE1`, `AQI_NODE1`, `WEATHER_LIVE_NODE1`, `WEATHER_NODE1`) |
 | **Design System** | Dark Slate Theme (`#0f172a`), Space Grotesk & JetBrains Mono typography, Glassmorphism, Micro-animations |
 
@@ -21,14 +21,11 @@ A modern, full-stack intelligence platform for real-time air quality index (AQI)
 - **Real-Time Air Quality Index (CPCB India Standard)**:
   - Dynamic calculation of CPCB AQI values across 6 risk bands (*Good*, *Satisfactory*, *Moderate*, *Poor*, *Very Poor*, *Severe*).
   - Sub-index computation for individual pollutants: $\text{PM}_{2.5}$, $\text{PM}_{10}$, $\text{CO}$, $\text{NO}_2$, and $\text{O}_3$.
-- **AI Multi-Parameter Predictive Forecaster**:
-  - **Enhanced Seq2Seq Bidirectional LSTM**: Takes past 48 hours of 14 engineered features (pollutants, weather, cyclical time encodings, wind vectors) and forecasts the next 24 hours of 7 parameters ($\text{PM}_{2.5}$, $\text{PM}_{10}$, $\text{CO}$, $\text{NO}_2$, $\text{O}_3$, Temperature, Humidity).
-  - **Ridge Cross-Sensitivity Sensor Calibrators**: Calibrates low-cost electrochemical and optical sensor readings against temperature and humidity drift using pre-trained Ridge regression models before passing into the model.
-  - **Same-Hour Telemetry Alignment**: Compares forecast against actual sensor telemetry recorded at identical time points with real-time error delta and percentage variance.
+- **Sensor Cross-Sensitivity Calibration**:
+  - Calibrates low-cost electrochemical and optical sensor readings against temperature and humidity drift using pre-trained Ridge regression models.
 - **Air Quality Visualizations**:
   - **AQI Line Plot**: Area line plot tracking overall Air Quality Index progression over 15-minute intervals.
   - **All Pollutants Comparison**: Multi-line chart tracking calibrated $\text{PM}_{2.5}$, $\text{PM}_{10}$, $\text{CO}$, $\text{NO}_2$, and $\text{O}_3$ with toggleable chip selectors.
-  - **Compact Comparison Hover Tooltips**: Responsive, sleek dark-mode tooltips highlighting sensor vs forecast values.
 - **Hardware Sensor Intelligence**:
   - Interactive specifications, WHO thresholds, health guidance, and technical datasheets for physical sensors:
     - **Sensirion SPS30** ($\text{PM}_{2.5} / \text{PM}_{10}$)
@@ -47,21 +44,20 @@ A modern, full-stack intelligence platform for real-time air quality index (AQI)
 ## 📁 Project Structure
 
 ```text
-├── aqi_model_and_calibrators/     # AI / ML Model Artifacts
-│   ├── best_aqi_lstm_model.keras  # Enhanced Bidirectional Seq2Seq LSTM Model
-│   ├── feature_scaler.pkl         # 14-feature MinMaxScaler
-│   ├── target_scaler.pkl          # 7-target MinMaxScaler
-│   └── sensor_calibrators.pkl     # Ridge cross-sensitivity calibrator models
+├── AQI-Prediction/                # Node 1 Forecasting Artifacts
+│   ├── finetuned_aqi_node_model.keras # 24-Hour continuous multi-parameter neural model
+│   ├── scaler_X.save              # 12-feature input scaler
+│   └── scaler_y.save              # 7-parameter target scaler
 ├── backend/
 │   ├── main.py                    # FastAPI server entry point & CORS configuration
 │   ├── requirements.txt           # Backend Python dependencies
 │   ├── routers/                   # API endpoint routers
-│   │   ├── aqi.py                 # AQI & LSTM forecast endpoints
+│   │   ├── aqi.py                 # AQI telemetry endpoints
 │   │   ├── cloud.py               # Supabase cloud telemetry endpoints
 │   │   └── weather.py             # Weather telemetry endpoints
 │   ├── services/
-│   │   ├── lstm_forecast_service.py # LSTM inference pipeline & telemetry alignment
-│   │   └── supabase_service.py    # Supabase Cloud data integration & Ridge calibration
+│   │   ├── forecast_engine.py     # 24-hour multi-parameter inference engine
+│   │   └── supabase_service.py    # Supabase Cloud data integration & calibration
 │   ├── .env.example               # Backend environment template
 │   └── .gitignore
 ├── frontend/
@@ -137,10 +133,10 @@ npm run dev
 | `GET` | `/api/cloud/live-history?limit=50` | Real-time live telemetry stream history |
 | `GET` | `/api/cloud/history?limit=500` | Historical telemetry archive data |
 | `GET` | `/api/aqi/current` | Current calibrated AQI telemetry reading |
-| `GET` | `/api/aqi/forecast` | 24-hour predictive forecast generated by Seq2Seq LSTM |
-| `GET` | `/api/aqi/predict-24h` | Dedicated alias for 24-hour predictive forecast |
-| `GET` | `/api/aqi/comparison?history_limit=48` | Aligned forecast vs actual telemetry on identical time points |
+| `GET` | `/api/aqi/historical?limit=50` | Calibrated historical AQI records |
+| `GET` | `/api/forecast/24h` | 24-Hour continuous multi-parameter AQI forecast for Node 1 |
 | `GET` | `/api/weather/current` | Current weather telemetry reading |
 | `GET` | `/api/weather/hourly?limit=24` | Hourly weather trend history |
+
 
 
