@@ -136,7 +136,6 @@ export default function Forecast({ refreshKey }) {
   const [activeView, setActiveView] = useState('timeline'); // 'timeline' | 'chart' | 'table'
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(0);
   const [showComparison, setShowComparison] = useState(true);
-  const [filterPeriod, setFilterPeriod] = useState('all'); // 'all' | 'next6' | 'next12' | 'recorded'
 
   const isFetchingRef = useRef(false);
 
@@ -300,17 +299,6 @@ export default function Forecast({ refreshKey }) {
     });
   }, [forecastData, historicalRecords]);
 
-  // Filtered subset for users who want quick views (e.g. Next 6h, Next 12h, or Matched records)
-  const filteredItems = useMemo(() => {
-    if (filterPeriod === 'next6') return processedItems.slice(0, 6);
-    if (filterPeriod === 'next12') return processedItems.slice(0, 12);
-    if (filterPeriod === 'recorded') {
-      const rec = processedItems.filter(p => p.hasActual);
-      return rec.length > 0 ? rec : processedItems;
-    }
-    return processedItems;
-  }, [processedItems, filterPeriod]);
-
   // Overall Statistics across 24h
   const stats = useMemo(() => {
     if (processedItems.length === 0) return null;
@@ -467,35 +455,6 @@ export default function Forecast({ refreshKey }) {
                 <Clock size={18} color="#0ea5e9" /> 24-Hour Timeline Overview
               </h3>
             </div>
-
-            {/* Quick Time Horizon Filter */}
-            <div style={{ display: 'flex', gap: 6, background: '#f1f5f9', padding: 3, borderRadius: 10 }}>
-              {[
-                { id: 'all', label: 'All 24h' },
-                { id: 'next6', label: 'Next 6h' },
-                { id: 'next12', label: 'Next 12h' },
-                { id: 'recorded', label: 'Matched Only' }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setFilterPeriod(tab.id)}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: 7,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    border: 'none',
-                    background: filterPeriod === tab.id ? '#ffffff' : 'transparent',
-                    color: filterPeriod === tab.id ? '#0f172a' : '#64748b',
-                    boxShadow: filterPeriod === tab.id ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Horizontal Scroller Cards */}
@@ -506,7 +465,7 @@ export default function Forecast({ refreshKey }) {
             paddingBottom: 8,
             scrollbarWidth: 'thin'
           }}>
-            {filteredItems.map((item) => {
+            {processedItems.map((item) => {
               const isSelected = selectedSlotIndex === item.index;
               return (
                 <div
