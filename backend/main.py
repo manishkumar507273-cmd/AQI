@@ -41,14 +41,15 @@ app.include_router(cloud.router)
 @app.get("/api/forecast/24h", tags=["Forecast"])
 @app.get("/api/forecast", tags=["Forecast"])
 @app.get("/api/aqi/forecast", tags=["Forecast"])
-async def get_24h_forecast():
+async def get_24h_forecast(force: bool = False):
     """
     Returns 24-hour predictive forecast using dynamic Seq2Seq LSTM tiered models
-    based on continuous hourly rows from AQI_NODE1.
+    based on continuous hourly rows from AQI_NODE1. Serves instantly from cache
+    unless force=true or cache is expired.
     """
     try:
-        from services.forecast_engine import run_24h_forecast
-        return await run_24h_forecast()
+        from services.forecast_engine import get_or_generate_forecast
+        return await get_or_generate_forecast(force=force)
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"Forecast Engine error: {str(e)}")

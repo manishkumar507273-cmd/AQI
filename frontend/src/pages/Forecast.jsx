@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -39,7 +39,7 @@ import {
   Legend,
   ReferenceLine
 } from 'recharts';
-import { getAqiForecast, getCloudHistory, getTimeAgo } from '../api';
+import { getAqiForecast, getCloudHistory, getTimeAgo, getCachedData } from '../api';
 
 const PARAM_CONFIG = {
   aqi: { name: 'Composite AQI', fullName: 'CPCB Composite AQI', key: 'aqi', histKey: 'cpcb_aqi', unit: 'Index', color: '#10b981', desc: 'CPCB India composite standard index derived from dominant pollutant sub-index.' },
@@ -127,9 +127,9 @@ const getAqiCategory = (val) => {
 };
 
 export default function Forecast({ refreshKey }) {
-  const [forecastData, setForecastData] = useState(null);
+  const [forecastData, setForecastData] = useState(() => getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
   const [historicalRecords, setHistoricalRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [activeParam, setActiveParam] = useState('aqi');
@@ -138,8 +138,14 @@ export default function Forecast({ refreshKey }) {
   const [showComparison, setShowComparison] = useState(true);
   const [filterPeriod, setFilterPeriod] = useState('all'); // 'all' | 'next6' | 'next12' | 'recorded'
 
+  const isFetchingRef = useRef(false);
+
   const fetchForecastAndHistory = async (force = false) => {
-    setLoading(true);
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    if (force || !forecastData) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const [fcRes, histRes] = await Promise.allSettled([
@@ -148,9 +154,21 @@ export default function Forecast({ refreshKey }) {
       ]);
 
       if (fcRes.status === 'fulfilled' && fcRes.value?.data?.status === 'success' && Array.isArray(fcRes.value.data.forecast)) {
-        setForecastData(fcRes.value.data);
+        const incoming = fcRes.value.data;
+        setForecastData((prev) => {
+          if (!prev || !prev.generated_at || !incoming.generated_at) {
+            return incoming;
+          }
+          const prevTime = new Date(prev.generated_at).getTime();
+          const incomingTime = new Date(incoming.generated_at).getTime();
+          // Never overwrite a newer forecast with an older one
+          if (!isNaN(incomingTime) && !isNaN(prevTime) && incomingTime < prevTime) {
+            return prev;
+          }
+          return incoming;
+        });
         setLastUpdated(new Date());
-      } else {
+      } else if (!forecastData) {
         setError(fcRes.value?.data?.message || 'Failed to retrieve Node 1 24h forecast.');
       }
 
@@ -158,16 +176,31 @@ export default function Forecast({ refreshKey }) {
         setHistoricalRecords(histRes.value.data.history);
       }
     } catch (err) {
-      setError(err?.message || 'Network error fetching forecast or historical telemetry.');
+      if (!forecastData) {
+        setError(err?.message || 'Network error fetching forecast or historical telemetry.');
+      }
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchForecastAndHistory(false);
-    const timer = setInterval(() => fetchForecastAndHistory(false), 30000);
+    // Poll forecast periodically every 60 seconds (hourly forecasts do not change every 5 seconds)
+    const timer = setInterval(() => fetchForecastAndHistory(false), 60000);
     return () => clearInterval(timer);
+  }, []);
+
+  // When live sensor telemetry refreshes (every ~5s), update historical actuals without disturbing 24h forecast
+  useEffect(() => {
+    if (refreshKey > 0) {
+      getCloudHistory(100).then(res => {
+        if (Array.isArray(res.data?.history)) {
+          setHistoricalRecords(res.data.history);
+        }
+      }).catch(() => {});
+    }
   }, [refreshKey]);
 
   // Process forecast items with dynamic CPCB calculation and match with historical readings
@@ -195,15 +228,19 @@ export default function Forecast({ refreshKey }) {
       const dt = new Date(item.forecast_for_time);
       const hourStr = isNaN(dt.getTime())
         ? `+${item.step}h`
-        : dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        : dt.toLocaleTimeString([], { hour: 'numeric', hour12: true });
       const dayStr = isNaN(dt.getTime())
         ? ''
         : dt.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 
-      // Match actual historical record at identical year, month, date, hour
+      // Match actual historical record at identical LOCAL (IST) hour.
+      // AQI_NODE1 stores timestamp_hour as IST naive strings (e.g. "2026-09-15T10:00:00"),
+      // which JS parses as local IST. Forecast UTC times (e.g. "...T04:30:00+00:00") are
+      // also converted to local IST by JS. So .getHours() gives the same IST hour for both.
       const matchingActual = historicalRecords.find((h) => {
         if (!h?.timestamp) return false;
         const hDt = new Date(h.timestamp);
+        if (isNaN(hDt.getTime())) return false;
         return (
           hDt.getFullYear() === dt.getFullYear() &&
           hDt.getMonth() === dt.getMonth() &&

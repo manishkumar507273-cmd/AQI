@@ -1,5 +1,6 @@
 import os
 import math
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional, Tuple
@@ -280,11 +281,17 @@ def run_tiered_inference(input_matrix: np.ndarray, selected_tier: int, latest_dt
     unscaled_pred = scaler_y.inverse_transform(pred_2d)
 
     forecast_results = []
-    base_time = latest_dt.replace(minute=0, second=0, microsecond=0)
+    # Pin forecasts to today's calendar day in IST (UTC+5:30).
+    # base_time = today midnight IST → steps 1-24 = 1 AM IST … midnight IST,
+    # covering the full 24 hours of today so past hours show actual data.
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(IST)
+    today_midnight_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    base_time = today_midnight_ist  # Keep in IST so forecast_for_time is stored as IST
 
     for step in range(1, 25):
         future_time = base_time + timedelta(hours=step)
-        iso_str = future_time.isoformat()
+        iso_str = future_time.isoformat()  # e.g. 2026-09-15T01:00:00+05:30
 
         row_vals = unscaled_pred[step - 1]
         pm25_val = round(max(0.0, float(row_vals[0])), 2)
@@ -377,6 +384,12 @@ async def upsert_forecasts_to_supabase(forecast_records: List[Dict[str, Any]], g
             res = await client.post(url, json=payload, headers=headers)
             if res.status_code in (200, 201):
                 logger.info("Successfully synced %d forecast records (%s) to %s", len(payload), tier_used, DEST_FORECAST_TABLE)
+                # Automatically prune older batches from Supabase so only the latest 24 predictions exist
+                try:
+                    del_url = f"{SUPABASE_URL}/rest/v1/{DEST_FORECAST_TABLE}?node_id=eq.{NODE_ID}&forecast_generated_at=lt.{generated_at}"
+                    await client.delete(del_url, headers=headers)
+                except Exception as del_err:
+                    logger.debug("Prune of older forecast batches notice: %s", del_err)
                 return {"synced": True, "count": len(payload), "tier_used": tier_used, "status": res.status_code}
             else:
                 logger.warning("Supabase upsert status %d: %s", res.status_code, res.text)
@@ -386,35 +399,156 @@ async def upsert_forecasts_to_supabase(forecast_records: List[Dict[str, Any]], g
         return {"synced": False, "error": str(e)}
 
 
+_LATEST_FORECAST_CACHE: Optional[Dict[str, Any]] = None
+_CACHE_TIMESTAMP: Optional[datetime] = None
+_INFERENCE_LOCK: Optional[asyncio.Lock] = None
+
+
+def _get_inference_lock() -> asyncio.Lock:
+    global _INFERENCE_LOCK
+    if _INFERENCE_LOCK is None:
+        _INFERENCE_LOCK = asyncio.Lock()
+    return _INFERENCE_LOCK
+
+
 async def run_24h_forecast() -> Dict[str, Any]:
     """
-    Full execution pipeline:
+    Full execution pipeline with concurrency lock:
     1. Ingest up to 168 rows from AQI_NODE1.
     2. Check 1-hour continuity backward and pick highest viable model tier (24h -> 168h).
-    3. Prepare input matrix and run inference on selected Seq2Seq LSTM tier.
+    3. Prepare input matrix and run inference on selected Seq2Seq LSTM tier in threadpool.
     4. Upsert forecast records (t+1 -> t+24) to aqi_forecasts_24h in Supabase.
     """
-    rows_desc = await fetch_source_rows(limit=168)
-    rows_chrono, selected_tier = verify_continuity_and_select_tier(rows_desc)
-    input_matrix, latest_dt = prepare_tiered_input_matrix(rows_chrono)
-    forecast_records = run_tiered_inference(input_matrix, selected_tier, latest_dt)
+    global _LATEST_FORECAST_CACHE, _CACHE_TIMESTAMP
+    lock = _get_inference_lock()
 
-    generated_at = datetime.now(timezone.utc).isoformat()
-    tier_label = f"{selected_tier}h"
-    sync_result = await upsert_forecasts_to_supabase(forecast_records, generated_at, tier_label)
+    async with lock:
+        # Check if another caller just finished computing while we were waiting on the lock
+        now = datetime.now(timezone.utc)
+        if _LATEST_FORECAST_CACHE is not None and _CACHE_TIMESTAMP is not None:
+            if (now - _CACHE_TIMESTAMP).total_seconds() < 60:
+                logger.info("Serving freshly computed forecast from parallel caller")
+                return _LATEST_FORECAST_CACHE
 
-    return {
-        "status": "success",
-        "node_id": NODE_ID,
-        "source_table": SOURCE_AQI_TABLE,
-        "latest_input_timestamp": latest_dt.isoformat(),
-        "generated_at": generated_at,
-        "detected_continuous_hours": len(rows_chrono),
-        "selected_tier": tier_label,
-        "count": len(forecast_records),
-        "sync_status": sync_result,
-        "forecast": forecast_records
-    }
+        rows_desc = await fetch_source_rows(limit=168)
+        rows_chrono, selected_tier = verify_continuity_and_select_tier(rows_desc)
+        input_matrix, latest_dt = prepare_tiered_input_matrix(rows_chrono)
+        # Offload CPU-bound ML prediction to thread to keep FastAPI responsive
+        forecast_records = await asyncio.to_thread(run_tiered_inference, input_matrix, selected_tier, latest_dt)
+
+        generated_at = datetime.now(timezone.utc).isoformat()
+        tier_label = f"{selected_tier}h"
+        sync_result = await upsert_forecasts_to_supabase(forecast_records, generated_at, tier_label)
+
+        result = {
+            "status": "success",
+            "node_id": NODE_ID,
+            "source_table": SOURCE_AQI_TABLE,
+            "latest_input_timestamp": latest_dt.isoformat(),
+            "generated_at": generated_at,
+            "detected_continuous_hours": len(rows_chrono),
+            "selected_tier": tier_label,
+            "count": len(forecast_records),
+            "sync_status": sync_result,
+            "forecast": forecast_records
+        }
+        _LATEST_FORECAST_CACHE = result
+        _CACHE_TIMESTAMP = datetime.now(timezone.utc)
+        return result
+
+
+async def get_or_generate_forecast(force: bool = False, max_age_seconds: int = 1800) -> Dict[str, Any]:
+    """
+    Fast, reliable endpoint handler:
+    Returns cached forecast immediately if fresh (< 30 min) and not forced.
+    If cache is empty, attempts to fetch latest 24 records from Supabase table.
+    Falls back to running a fresh 24h forecast pipeline if needed.
+    """
+    global _LATEST_FORECAST_CACHE, _CACHE_TIMESTAMP
+    now = datetime.now(timezone.utc)
+
+    # 1. Return fresh in-memory cache if available
+    if not force and _LATEST_FORECAST_CACHE is not None and _CACHE_TIMESTAMP is not None:
+        age = (now - _CACHE_TIMESTAMP).total_seconds()
+        if age < max_age_seconds:
+            logger.info("Serving forecast from memory cache (age: %.1fs)", age)
+            return _LATEST_FORECAST_CACHE
+
+    # 2. Try fetching latest 24-hour batch from Supabase destination table if not forced
+    if not force and _LATEST_FORECAST_CACHE is None:
+        try:
+            # Query strictly ordered by latest generation batch and ascending forecast times
+            url = f"{SUPABASE_URL}/rest/v1/{DEST_FORECAST_TABLE}?order=forecast_generated_at.desc,forecast_for_time.asc&limit=24"
+            headers = {
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}"
+            }
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                res = await client.get(url, headers=headers)
+                if res.status_code == 200:
+                    rows = res.json()
+                    if len(rows) >= 12:
+                        latest_gen = rows[0].get("forecast_generated_at")
+                        # Ensure all rows belong to the same newest generation batch
+                        batch_rows = [r for r in rows if r.get("forecast_generated_at") == latest_gen]
+                        if len(batch_rows) >= 12:
+                            formatted_items = []
+                            for idx, r in enumerate(batch_rows):
+                                pm25 = float(r.get("pm2_5_ug_m3") or 0.0)
+                                pm10 = float(r.get("pm10_ug_m3") or 0.0)
+                                no2 = float(r.get("no2_ug_m3") or 0.0)
+                                co = float(r.get("co_mg_m3") or 0.0)
+                                o3 = float(r.get("ozone_ug_m3") or 0.0)
+                                sub_pm25 = sub_index("pm25", pm25)
+                                sub_pm10 = sub_index("pm10", pm10)
+                                sub_no2 = sub_index("no2", no2)
+                                sub_co = sub_index("co", co)
+                                sub_o3 = sub_index("o3", o3)
+                                sub_dict = {"pm25": sub_pm25, "pm10": sub_pm10, "no2": sub_no2, "co": sub_co, "o3": sub_o3}
+                                dom_key = max(sub_dict, key=lambda k: sub_dict[k])
+                                dom_label_map = {"pm25": "PM2.5", "pm10": "PM10", "no2": "NO₂", "co": "CO", "o3": "O₃"}
+                                cpcb_aqi = int(round(sub_dict[dom_key]))
+                                cat_label, cat_color = get_cpcb_category(cpcb_aqi)
+                                formatted_items.append({
+                                    "step": idx + 1,
+                                    "forecast_for_time": r.get("forecast_for_time"),
+                                    "aqi": cpcb_aqi,
+                                    "cpcb_aqi": cpcb_aqi,
+                                    "tier_used": r.get("tier_used", "48h"),
+                                    "aqi_category": cat_label,
+                                    "aqi_color": cat_color,
+                                    "dominant_pollutant": dom_label_map[dom_key],
+                                    "dominant_pollutant_key": dom_key,
+                                    "sub_indices": sub_dict,
+                                    "pm2_5_ug_m3": pm25,
+                                    "pm10_ug_m3": pm10,
+                                    "no2_ug_m3": no2,
+                                    "co_mg_m3": co,
+                                    "ozone_ug_m3": o3,
+                                    "temperature_c": float(r.get("temperature_c") or 28.0),
+                                    "humidity_pct": float(r.get("humidity_pct") or 65.0),
+                                })
+                            cached_result = {
+                                "status": "success",
+                                "node_id": NODE_ID,
+                                "source_table": SOURCE_AQI_TABLE,
+                                "latest_input_timestamp": latest_gen or now.isoformat(),
+                                "generated_at": latest_gen or now.isoformat(),
+                                "detected_continuous_hours": len(batch_rows),
+                                "selected_tier": rows[0].get("tier_used", "48h"),
+                                "count": len(formatted_items),
+                                "sync_status": {"synced": True, "cached_from_supabase": True},
+                                "forecast": formatted_items
+                            }
+                            _LATEST_FORECAST_CACHE = cached_result
+                            _CACHE_TIMESTAMP = now
+                            logger.info("Retrieved fresh 24h forecast from Supabase cache (gen_at: %s)", latest_gen)
+                            return cached_result
+        except Exception as err:
+            logger.warning("Supabase forecast cache check warning: %s", err)
+
+    # 3. Generate fresh forecast with inference lock
+    return await run_24h_forecast()
 
 
 if __name__ == "__main__":

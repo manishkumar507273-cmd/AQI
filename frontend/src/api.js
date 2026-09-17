@@ -24,7 +24,7 @@ const getTableRestUrl = (tableName) => `${supabaseBaseUrl}/rest/v1/${tableName}`
 
 const api = axios.create({
   baseURL,
-  timeout: 15000,
+  timeout: 45000,
 });
 
 // ==============================================================================
@@ -89,7 +89,8 @@ const calcSubindex = (paramKey, cp) => {
 // Invalidate stale local caches completely so only new model predictions render
 try {
   const v = localStorage.getItem('CALIBRATOR_CACHE_VERSION');
-  if (v !== '3.0.0') {
+  if (v !== '3.2.0') {
+    localStorage.removeItem('CACHE_AQI_NODE1_FORECAST_24H');
     localStorage.removeItem('CACHE_AQI_LSTM_FORECAST_24H');
     localStorage.removeItem('CACHE_CLOUD_LATEST');
     localStorage.removeItem('CACHE_AQI_LIVE_HISTORY');
@@ -97,7 +98,7 @@ try {
     localStorage.removeItem('CACHE_AQI_COMPARISON');
     localStorage.removeItem('CACHE_AQI_FORECAST_REGISTRY');
     localStorage.removeItem('FORECAST_PREDICTIONS_REGISTRY');
-    localStorage.setItem('CALIBRATOR_CACHE_VERSION', '3.0.0');
+    localStorage.setItem('CALIBRATOR_CACHE_VERSION', '3.2.0');
   }
 } catch (e) {}
 
@@ -366,6 +367,17 @@ export const getCloudWeatherLiveHistory = async (limit = 50) => {
   });
 };
 
+// Formats a historical AQI_NODE1 row — prefers timestamp_hour over created_at
+// so that the hour-boundary timestamp matches forecast_for_time in Forecast.jsx
+const formatHistoricalReading = (raw) => {
+  if (!raw) return null;
+  const base = formatRawReading(raw);
+  if (!base) return null;
+  // Override timestamp: prefer timestamp_hour (canonical hour boundary) over created_at
+  base.timestamp = raw.timestamp_hour || raw.created_at || raw.timestamp;
+  return base;
+};
+
 export const getCloudHistory = async (limit = 96) => {
   const cached = getCachedData('CACHE_AQI_HISTORICAL');
   try {
@@ -375,7 +387,7 @@ export const getCloudHistory = async (limit = 96) => {
       .catch(() => axios.get(`${getTableRestUrl(TABLE_AQI_HISTORICAL)}?limit=${limit}`, { headers }));
 
     const list = Array.isArray(res.data) ? res.data : [];
-    const history = list.map(formatRawReading).filter(Boolean);
+    const history = list.map(formatHistoricalReading).filter(Boolean);
 
     if (history.length > 0) {
       setCachedData('CACHE_AQI_HISTORICAL', history);
@@ -505,60 +517,79 @@ export const getAqiForecast = async (force = false) => {
 
   // 1. Try FastAPI backend endpoint (if backend is running or VITE_API_BASE_URL is set)
   try {
-    const res = await api.get(`/forecast/24h${force ? '?force=true' : ''}`)
-      .catch(() => api.get(`/aqi/forecast${force ? '?force=true' : ''}`));
+    const res = await api.get(`/forecast/24h${force ? '?force=true' : ''}`, { timeout: 60000 });
     if (res.data && res.data.forecast && res.data.forecast.length > 0) {
-      setCachedData('CACHE_AQI_NODE1_FORECAST_24H', res.data);
-      saveToForecastRegistry(res.data.forecast);
+      const incomingGen = res.data.generated_at;
+      // Guard: never overwrite with an older forecast batch
+      if (!cached || !cached.generated_at || !incomingGen || new Date(incomingGen) >= new Date(cached.generated_at)) {
+        setCachedData('CACHE_AQI_NODE1_FORECAST_24H', res.data);
+        saveToForecastRegistry(res.data.forecast);
+      }
       return { data: res.data };
     }
   } catch (err) {
     // Expected on serverless Vercel frontend if Python backend is hosted separately
   }
 
-  // 2. Try direct Supabase table fetch (aqi_forecasts_24h)
+  // 2. Try direct Supabase table fetch (aqi_forecasts_24h) - query NEWEST 24 records from latest generation batch
   try {
     const headers = getNoCacheHeaders();
-    const destRes = await axios.get(`${getTableRestUrl('aqi_forecasts_24h')}?order=forecast_for_time.asc&limit=24`, { headers })
-      .catch(() => null);
+    const destRes = await axios.get(
+      `${getTableRestUrl('aqi_forecasts_24h')}?order=forecast_generated_at.desc,forecast_for_time.asc&limit=24`,
+      { headers, timeout: 15000 }
+    ).catch(() => null);
 
     if (destRes?.data && Array.isArray(destRes.data) && destRes.data.length > 0) {
-      const items = destRes.data.map((r, i) => {
-        const pm25 = Number(r.pm2_5_ug_m3 || r.pm25 || 0);
-        const pm10 = Number(r.pm10_ug_m3 || r.pm10 || 0);
-        const no2 = Number(r.no2_ug_m3 || r.no2 || 0);
-        const co = Number(r.co_mg_m3 || r.co || 0);
-        const o3 = Number(r.ozone_ug_m3 || r.o3 || 0);
-        const subPm25 = calcSubindex('pm25', pm25);
-        const subPm10 = calcSubindex('pm10', pm10);
-        const subNo2 = calcSubindex('no2', no2);
-        const subCo = calcSubindex('co', co);
-        const subO3 = calcSubindex('o3', o3);
-        const aqi = Math.max(subPm25, subPm10, subNo2, subCo, subO3);
-        return {
-          step: i + 1,
-          forecast_for_time: r.forecast_for_time,
-          aqi,
-          cpcb_aqi: aqi,
-          pm2_5_ug_m3: pm25,
-          pm10_ug_m3: pm10,
-          no2_ug_m3: no2,
-          co_mg_m3: co,
-          ozone_ug_m3: o3,
-          temperature_c: Number(r.temperature_c || 28),
-          humidity_pct: Number(r.humidity_pct || 65)
-        };
-      });
+      const rows = destRes.data;
+      const latestGen = rows[0].forecast_generated_at;
+      // Filter strictly to rows belonging to the newest generation batch
+      const batchRows = rows.filter((r) => r.forecast_generated_at === latestGen);
 
-      const payload = {
-        status: 'success',
-        node_id: 'node_1',
-        source_table: 'aqi_forecasts_24h',
-        forecast: items
-      };
-      setCachedData('CACHE_AQI_NODE1_FORECAST_24H', payload);
-      saveToForecastRegistry(items);
-      return { data: payload };
+      if (batchRows.length >= 12) {
+        // Already ordered chronologically by forecast_for_time.asc
+        const items = batchRows.map((r, i) => {
+          const pm25 = Number(r.pm2_5_ug_m3 || r.pm25 || 0);
+          const pm10 = Number(r.pm10_ug_m3 || r.pm10 || 0);
+          const no2 = Number(r.no2_ug_m3 || r.no2 || 0);
+          const co = Number(r.co_mg_m3 || r.co || 0);
+          const o3 = Number(r.ozone_ug_m3 || r.o3 || 0);
+          const subPm25 = calcSubindex('pm25', pm25);
+          const subPm10 = calcSubindex('pm10', pm10);
+          const subNo2 = calcSubindex('no2', no2);
+          const subCo = calcSubindex('co', co);
+          const subO3 = calcSubindex('o3', o3);
+          const aqi = Math.max(subPm25, subPm10, subNo2, subCo, subO3);
+          return {
+            step: i + 1,
+            forecast_for_time: r.forecast_for_time,
+            aqi,
+            cpcb_aqi: aqi,
+            tier_used: r.tier_used || '48h',
+            pm2_5_ug_m3: pm25,
+            pm10_ug_m3: pm10,
+            no2_ug_m3: no2,
+            co_mg_m3: co,
+            ozone_ug_m3: o3,
+            temperature_c: Number(r.temperature_c || 28),
+            humidity_pct: Number(r.humidity_pct || 65)
+          };
+        });
+
+        const payload = {
+          status: 'success',
+          node_id: 'node_1',
+          source_table: 'aqi_forecasts_24h',
+          generated_at: latestGen,
+          forecast: items
+        };
+
+        // Only store if newer than or equal to current cache
+        if (!cached || !cached.generated_at || !latestGen || new Date(latestGen) >= new Date(cached.generated_at)) {
+          setCachedData('CACHE_AQI_NODE1_FORECAST_24H', payload);
+          saveToForecastRegistry(items);
+        }
+        return { data: payload };
+      }
     }
   } catch (err) {
     // Table may not be created in Supabase schema
