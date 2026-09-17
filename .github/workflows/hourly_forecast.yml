@@ -39,3 +39,17 @@ jobs:
           ARTIFACTS_DIR: "AQI-prediction-new"
         run: |
           python backend/services/forecast_engine.py
+
+      - name: Run Sensor Health & Data Downtime Alert Sentinel
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://sgkdpliqlhgiqsabxzxe.supabase.co' }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNna2RwbGlxbGhnaXFzYWJ4enhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4NzgzMTIsImV4cCI6MjEwMDQ1NDMxMn0.vMtbXomFdmOcBkhhSoiyYyp_vFxOhg4MYCFCw9-pL30' }}
+          ALERT_RECIPIENT_EMAILS: ${{ secrets.ALERT_RECIPIENT_EMAILS || 'manish.23cs065@sode-edu.in' }}
+          ALERT_THRESHOLD_MINUTES: "30"
+          ALERT_COOLDOWN_HOURS: "24"
+          SMTP_HOST: ${{ secrets.SMTP_HOST || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          python backend/services/alert_sentinel.py
