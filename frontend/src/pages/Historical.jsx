@@ -167,41 +167,18 @@ const formatLongDate = (date) => {
   return dt.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-// Returns the 8:00 AM cycle start date (YYYY-MM-DD) for weather timestamps
-const getWeatherCycleStartDate = (date) => {
-  if (!date || isNaN(date.getTime())) return '';
-  const dt = new Date(date.getTime());
-  if (dt.getHours() < 8) {
-    dt.setDate(dt.getDate() - 1);
-  }
-  return formatYYYYMMDD(dt);
-};
-
-// Returns start and end bounds based on active subTab
-// AQI: 12:00 AM (00:00) to 11:59:59 PM on selected day (24 hours: 12am to 11pm)
-// Weather: 8:00 AM on selected date to 8:00 AM next day (24 hours: 8am to 8am)
-const getCycleBounds = (dateStr, subTab = 'aqi') => {
+// Returns start and end bounds for the selected calendar day (12:00 AM / 00:00 to 11:59:59 PM)
+const getCycleBounds = (dateStr) => {
   if (!dateStr) return { start: null, end: null, startMs: 0, endMs: 0 };
   const [y, m, d] = dateStr.split('-').map(Number);
-  if (subTab === 'aqi') {
-    const start = new Date(y, m - 1, d, 0, 0, 0, 0);
-    const end = new Date(y, m - 1, d, 23, 59, 59, 999);
-    return {
-      start,
-      end,
-      startMs: start.getTime(),
-      endMs: end.getTime()
-    };
-  } else {
-    const start = new Date(y, m - 1, d, 8, 0, 0, 0);
-    const end = new Date(y, m - 1, d + 1, 8, 0, 0, 0);
-    return {
-      start,
-      end,
-      startMs: start.getTime(),
-      endMs: end.getTime()
-    };
-  }
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return {
+    start,
+    end,
+    startMs: start.getTime(),
+    endMs: end.getTime()
+  };
 };
 
 export default function Historical({ refreshKey, selectedStation = 'station-1' }) {
@@ -266,16 +243,14 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
               if (!r.timestamp) return false;
               const dt = new Date(r.timestamp);
               if (isNaN(dt.getTime())) return false;
-              return subTab === 'aqi' 
-                ? formatYYYYMMDD(dt) === selectedDate 
-                : getWeatherCycleStartDate(dt) === selectedDate;
+              return formatYYYYMMDD(dt) === selectedDate;
             });
             if (!selectedDate || !hasMatch) {
               for (const r of data) {
                 if (r.timestamp) {
                   const dt = new Date(r.timestamp);
                   if (!isNaN(dt.getTime())) {
-                    setSelectedDate(subTab === 'aqi' ? formatYYYYMMDD(dt) : getWeatherCycleStartDate(dt));
+                    setSelectedDate(formatYYYYMMDD(dt));
                     break;
                   }
                 }
@@ -321,16 +296,16 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
     if (rows.length > 0 && rows[0]?.timestamp) {
       const dt = new Date(rows[0].timestamp);
       if (!isNaN(dt.getTime())) {
-        return subTab === 'aqi' ? formatYYYYMMDD(dt) : getWeatherCycleStartDate(dt);
+        return formatYYYYMMDD(dt);
       }
     }
     return formatYYYYMMDD(new Date());
-  }, [selectedDate, rows, subTab]);
+  }, [selectedDate, rows]);
 
-  // Compute cycle bounds (AQI: 12 AM to 11:59 PM; Weather: 8 AM to next day 8 AM)
+  // Compute cycle bounds (12 AM to 11:59 PM)
   const cycleBounds = useMemo(() => {
-    return getCycleBounds(effectiveSelectedDate, subTab);
-  }, [effectiveSelectedDate, subTab]);
+    return getCycleBounds(effectiveSelectedDate);
+  }, [effectiveSelectedDate]);
 
   // Filter rows strictly to the active observation window
   const filteredRows = useMemo(() => {
@@ -417,12 +392,8 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
 
     return {
       dateStr: effectiveSelectedDate,
-      cycleStartStr: subTab === 'aqi' 
-        ? formatLongDate(cycleBounds.start)
-        : `${formatLongDate(cycleBounds.start)}, 8:00 AM`,
-      cycleEndStr: subTab === 'aqi'
-        ? '12:00 AM – 11:00 PM'
-        : `${formatLongDate(cycleBounds.end)}, 8:00 AM`,
+      cycleStartStr: formatLongDate(cycleBounds.start),
+      cycleEndStr: '12:00 AM – 11:00 PM',
       hourCount: filteredRows.length,
       avgVal,
       minVal,
@@ -455,7 +426,6 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       const slotDt = new Date(cycleBounds.startMs + i * 3600 * 1000);
       const timeLabel = formatHourLabel(slotDt);
       const fullTimeStr = formatTimeString(slotDt);
-      const isNextDay = subTab === 'weather' ? i >= 16 : false;
 
       // Match record with same year, month, date, and hour
       const matchingRecord = filteredRows.find((r) => {
@@ -481,7 +451,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
         time: timeLabel,
         fullTime: fullTimeStr,
         date: formatDDMMYYYY(slotDt),
-        isNextDay,
+        isNextDay: false,
         hasData,
         value: paramVal,
         record: matchingRecord || null,
@@ -681,20 +651,12 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>
-                  {subTab === 'aqi' 
-                    ? 'Select Date (24-Hour Telemetry: 12:00 AM – 11:00 PM)'
-                    : 'Select Date (24-Hour Cycle: 8:00 AM – Next Day 8:00 AM)'}
-                </span>
+                <span>Select Date (24-Hour Telemetry: 12:00 AM – 11:00 PM)</span>
               </div>
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                {subTab === 'aqi' 
-                  ? (cycleBounds.start 
-                      ? `Showing 24 hourly data points for ${formatLongDate(cycleBounds.start)} (12:00 AM – 11:00 PM)`
-                      : 'Select any date to view its 24-hour hourly records')
-                  : (cycleBounds.start && cycleBounds.end 
-                      ? `24-Hour observation window (24 Data): 8:00 AM (${formatDDMMYYYY(cycleBounds.start)}) to 8:00 AM (${formatDDMMYYYY(cycleBounds.end)})`
-                      : 'Select any date to view its 24-hour cycle records (8 AM – 8 AM)')
+                {cycleBounds.start 
+                  ? `Showing 24 hourly data points for ${formatLongDate(cycleBounds.start)} (12:00 AM – 11:00 PM)`
+                  : 'Select any date to view its 24-hour hourly records'
                 }
               </div>
             </div>
@@ -1073,7 +1035,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
             <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', zIndex: 2 }}>
               <tr style={{ color: '#475569', fontSize: 12 }}>
                 {subTab === 'aqi'
-                  ? ['Date', 'Time', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5', 'PM10', 'CO', 'NO₂', 'O₃'].map((h) => (
+                  ? ['Date', 'Time', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO₂ (µg/m³)', 'O₃ (µg/m³)'].map((h) => (
                       <th key={h} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                     ))
                   : ['Date', 'Time', 'Temp (°C)', 'Humidity (%)', 'Wind Spd (km/h)', 'Wind Gust (km/h)', 'Wind Dir (°)', 'Rain (mm)'].map((h) => (
@@ -1089,12 +1051,9 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <CalendarIcon style={{ width: 24, height: 24, color: '#94a3b8' }} />
                       <span style={{ fontSize: 14, fontWeight: 600 }}>
-                        {subTab === 'aqi'
+                        {cycleBounds.start 
                           ? `No telemetry records available for ${formatLongDate(cycleBounds.start)}.`
-                          : (cycleBounds.start && cycleBounds.end 
-                              ? `No telemetry records available between 8:00 AM (${formatDDMMYYYY(cycleBounds.start)}) and 8:00 AM (${formatDDMMYYYY(cycleBounds.end)}).`
-                              : 'No telemetry records available for this cycle.')
-                        }
+                          : 'No telemetry records available for this date.'}
                       </span>
                     </div>
                   </td>
@@ -1108,14 +1067,13 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                       <td style={{ padding: '10px 16px', color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>{slot.date}</td>
                       <td style={{ padding: '10px 16px', color: '#00bfa5', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
                         {slot.fullTime}
-                        {slot.isNextDay && <span style={{ marginLeft: 6, fontSize: 10, backgroundColor: '#e0f2fe', color: '#0369a1', padding: '1px 4px', borderRadius: 4, fontWeight: 700 }}>+1d</span>}
                       </td>
                       
                       {subTab === 'aqi' ? (
                         <>
                           <td style={{ padding: '10px 16px', fontWeight: 800, color: hasData ? '#0f172a' : '#94a3b8', fontFamily: 'var(--font-mono)' }}>{r?.cpcb_aqi ?? '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.temperature != null ? `${Number(r.temperature).toFixed(1)}°C` : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.humidity != null ? `${Number(r.humidity).toFixed(1)}%` : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.temperature != null ? Number(r.temperature).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.humidity != null ? Number(r.humidity).toFixed(1) : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm25 ?? '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm10 ?? '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.co ?? '-'}</td>
@@ -1124,12 +1082,12 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                         </>
                       ) : (
                         <>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#ea580c' : '#94a3b8', fontWeight: 600 }}>{r?.temperature != null ? `${Number(r.temperature).toFixed(1)}°C` : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.humidity != null ? `${Number(r.humidity).toFixed(1)}%` : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#4f46e5' : '#94a3b8', fontWeight: 600 }}>{r?.wind_speed != null ? `${Number(r.wind_speed).toFixed(1)} km/h` : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#8b5cf6' : '#94a3b8', fontWeight: 600 }}>{r?.wind_gust != null ? `${Number(r.wind_gust).toFixed(1)} km/h` : (r?.wind_speed != null ? `${(Number(r.wind_speed) * 1.35).toFixed(1)} km/h` : '-')}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.wind_direction != null ? `${getCompassDir(r.wind_direction)} ${r.wind_direction}°`.trim() : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.rain_gauge != null ? `${Number(r.rain_gauge).toFixed(1)} mm` : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#ea580c' : '#94a3b8', fontWeight: 600 }}>{r?.temperature != null ? Number(r.temperature).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.humidity != null ? Number(r.humidity).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#4f46e5' : '#94a3b8', fontWeight: 600 }}>{r?.wind_speed != null ? Number(r.wind_speed).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#8b5cf6' : '#94a3b8', fontWeight: 600 }}>{r?.wind_gust != null ? Number(r.wind_gust).toFixed(1) : (r?.wind_speed != null ? (Number(r.wind_speed) * 1.35).toFixed(1) : '-')}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.wind_direction != null ? `${getCompassDir(r.wind_direction)} ${r.wind_direction}`.trim() : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.rain_gauge != null ? Number(r.rain_gauge).toFixed(1) : '-'}</td>
                         </>
                       )}
                     </tr>

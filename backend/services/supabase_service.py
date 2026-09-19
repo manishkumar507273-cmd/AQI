@@ -363,9 +363,11 @@ async def get_weather_history(limit: int = 96) -> List[Dict[str, Any]]:
     if weather_hist_rows:
         result = []
         for raw in weather_hist_rows:
+            raw_ts = str(raw.get("timestamp_hour") or raw.get("created_at") or raw.get("timestamp") or "")
+            clean_ts = raw_ts.replace("+00:00", "").replace("Z", "")
             result.append({
-                "id": raw.get("timestamp_hour") or raw.get("id"),
-                "timestamp": raw.get("timestamp_hour") or raw.get("created_at") or raw.get("timestamp"),
+                "id": clean_ts or raw.get("id"),
+                "timestamp": clean_ts,
                 "temperature": raw.get("temperature"),
                 "humidity": raw.get("humidity"),
                 "wind_speed": raw.get("wind_speed"),

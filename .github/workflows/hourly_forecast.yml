@@ -6,6 +6,10 @@ on:
     - cron: '0 * * * *'
   # Allows you to click "Run workflow" manually from GitHub Actions tab anytime
   workflow_dispatch:
+  # Also triggers automatically whenever you push to main
+  push:
+    branches:
+      - main
 
 jobs:
   run-forecast:

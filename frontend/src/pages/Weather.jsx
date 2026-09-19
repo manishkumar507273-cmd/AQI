@@ -582,7 +582,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                 borderBottom: '1px solid #e2e8f0',
               }}>
                 <tr>
-                  {['# Record', 'Time / Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed', 'Wind Gust', 'Wind Direction', 'Rain Gauge (mm)'].map((h) => (
+                  {['# Record', 'Time / Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction (°)', 'Rain Gauge (mm)'].map((h) => (
                     <th key={h} style={{ padding: '13px 18px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -627,22 +627,22 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                           {formattedTime}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', fontSize: 13.5, fontWeight: 800, color: '#ea580c' }}>
-                          {row.temperature != null ? `${fmt(row.temperature, 2)}°C` : 'N/A'}
+                          {row.temperature != null ? fmt(row.temperature, 2) : 'N/A'}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 700 }}>
-                          {row.humidity != null ? `${fmt(row.humidity, 2)}%` : 'N/A'}
+                          {row.humidity != null ? fmt(row.humidity, 2) : 'N/A'}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>
-                          {row.wind_speed != null ? `${fmt(row.wind_speed, 2)} km/h` : 'N/A'}
+                          {row.wind_speed != null ? fmt(row.wind_speed, 2) : 'N/A'}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#8b5cf6', fontWeight: 700 }}>
-                          {rowGust != null ? `${fmt(rowGust, 2)} km/h` : 'N/A'}
+                          {rowGust != null ? fmt(rowGust, 2) : 'N/A'}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>
                           {getCompassDir(row.wind_direction) || 'N/A'}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#334155' }}>
-                          {row.rain_gauge != null ? `${fmt(row.rain_gauge, 2)} mm` : '0.00 mm'}
+                          {row.rain_gauge != null ? fmt(row.rain_gauge, 2) : '0.00'}
                         </td>
                       </tr>
                     );

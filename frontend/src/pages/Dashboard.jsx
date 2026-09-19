@@ -1224,7 +1224,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 borderBottom: '1px solid #e2e8f0',
               }}>
                 <tr>
-                  {['Records', 'Last Update', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5', 'PM10', 'CO', 'NO₂', 'O₃'].map((h) => (
+                  {['Records', 'Last Update', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO₂ (µg/m³)', 'O₃ (µg/m³)'].map((h) => (
                     <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>

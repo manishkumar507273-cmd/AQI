@@ -423,9 +423,11 @@ export const getCloudWeatherHistory = async (limit = 96) => {
     const list = Array.isArray(res.data) ? res.data : [];
     const history = list.map((raw) => {
       if (!raw) return null;
+      const rawTs = raw.timestamp_hour || raw.created_at || raw.timestamp;
+      const cleanTs = typeof rawTs === 'string' ? rawTs.replace(/(\+00:00|Z)$/, '') : rawTs;
       return {
-        id: raw.timestamp_hour || raw.id,
-        timestamp: raw.timestamp_hour || raw.created_at || raw.timestamp,
+        id: cleanTs || raw.id,
+        timestamp: cleanTs,
         temperature: raw.temperature,
         humidity: raw.humidity,
         wind_speed: raw.wind_speed,
