@@ -894,16 +894,10 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Layers style={{ width: 16, height: 16, color: activeParam.color }} />
-              {subTab === 'aqi' ? 'Air Quality Hourly Trend Analysis (12 AM – 11 PM)' : 'Weather Atmospheric 24-Hour Cycle Analysis (8 AM – 8 AM)'}
+              {subTab === 'aqi' ? 'Air Quality Hourly Trend Analysis (12 AM – 11 PM)' : 'Weather Atmospheric 24-Hour Cycle Analysis (12 AM – 11 PM)'}
             </h2>
             <p style={{ fontSize: 12, color: '#64748b', marginTop: 2, margin: 0 }}>
-              {subTab === 'aqi'
-                ? `24 Hourly data points progression for ${formatLongDate(cycleBounds.start)} (12:00 AM to 11:00 PM)`
-                : (cycleBounds.start && cycleBounds.end
-                    ? `24 Hourly data points progression from 8:00 AM on ${formatDDMMYYYY(cycleBounds.start)} to 8:00 AM on ${formatDDMMYYYY(cycleBounds.end)}`
-                    : `24 Hourly data points progression (8:00 AM to next day 8:00 AM)`
-                  )
-              }
+              {`24 Hourly data points progression for ${formatLongDate(cycleBounds.start)} (12:00 AM to 11:00 PM)`}
             </p>
           </div>
 

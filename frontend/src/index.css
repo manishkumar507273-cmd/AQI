@@ -54,7 +54,11 @@
   padding: 0;
 }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  width: 100%;
+  overflow-x: hidden;
+}
 
 body {
   background-color: #f1f5f9;
@@ -63,9 +67,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
-  /* Fixed minimum so layout never collapses below desktop widths */
-  min-width: 1100px;
-  overflow-x: auto;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Fluid Media Resets */
+img, svg, video, canvas {
+  max-width: 100%;
+  height: auto;
 }
 
 /* ── Scrollbar ── */
@@ -111,16 +120,17 @@ body {
 .pulse-glow { animation: pulseGlow 3s infinite ease-in-out; }
 
 /* ═══════════════════════════════════════════════════════════════
-   Desktop Layout System (identical on all screen sizes)
+   Fluid Responsive Layout System
    ═══════════════════════════════════════════════════════════════ */
 
 /* Header */
 .app-header {
-  padding: 12px 28px;
+  padding: 12px clamp(14px, 3vw, 28px);
+  width: 100%;
 }
 
 .app-header-brand {
-  font-size: 20px;
+  font-size: clamp(17px, 2.5vw, 20px);
 }
 
 .app-header-brand-logo {
@@ -131,57 +141,59 @@ body {
 /* Main container */
 .app-main {
   width: 100%;
-  max-width: 1360px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 24px 28px 60px;
+  padding: clamp(16px, 2.5vw, 28px) clamp(12px, 2.5vw, 28px) 60px;
   box-sizing: border-box;
 }
 
 .page-container {
   width: 100%;
-  max-width: 1360px;
+  max-width: 1440px;
   margin: 0 auto;
   box-sizing: border-box;
 }
 
-/* Hero layout — always side-by-side */
+/* Hero layout — responsive fluid flex */
 .hero-card-responsive {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: clamp(16px, 3vw, 28px);
   width: 100%;
-  padding: 28px 32px !important;
+  padding: clamp(20px, 3.5vw, 32px) !important;
 }
 
 .hero-left-col {
-  flex: 1 1 300px;
+  flex: 1 1 280px;
   min-width: 0;
+  width: 100%;
 }
 
 .hero-right-col {
   flex: 0 1 auto;
-  width: 250px;
+  width: 260px;
+  max-width: 100%;
 }
 
 /* AQI number */
 .hero-metric-val {
-  font-size: 72px !important;
+  font-size: clamp(48px, 11vw, 76px) !important;
   line-height: 1 !important;
 }
 
-/* Pollutant & Weather Grids — always multi-column */
+/* Pollutant & Weather Grids — fluid auto-fit */
 .grid-pollutants {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: clamp(10px, 1.5vw, 16px);
   width: 100%;
 }
 
 .grid-weather {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: clamp(10px, 1.5vw, 16px);
   width: 100%;
 }
 
@@ -197,9 +209,10 @@ body {
   height: 6px;
 }
 
-/* Charts — fixed desktop height */
+/* Charts — responsive fluid height */
 .chart-responsive {
-  height: 280px;
+  height: clamp(220px, 32vw, 300px);
+  width: 100%;
 }
 
 /* Filter chips */
@@ -208,6 +221,7 @@ body {
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 .filter-chips-container::-webkit-scrollbar { display: none; }
 
@@ -228,12 +242,12 @@ body {
 .section-gap {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: clamp(16px, 2.5vw, 24px);
 }
 
 /* Page headings */
 .page-heading {
-  font-size: 24px;
+  font-size: clamp(20px, 3vw, 24px);
   font-weight: 700;
   color: #0f172a;
 }
@@ -242,6 +256,44 @@ body {
   font-size: 13px;
   color: #64748b;
   margin-top: 4px;
+}
+
+/* ── Mobile Layout Adaptations (< 768px) ── */
+@media (max-width: 767px) {
+  .hero-card-responsive {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .hero-right-col {
+    width: 100% !important;
+  }
+
+  .grid-pollutants {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)) !important;
+  }
+
+  .grid-weather {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)) !important;
+  }
+
+  .desktop-only-nav {
+    display: none !important;
+  }
+
+  .mobile-only-header {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .desktop-only-nav {
+    display: flex !important;
+  }
+
+  .mobile-only-header {
+    display: none !important;
+  }
 }
 
 /* ── Smartboards & 4K (≥ 1920px) ── */
@@ -270,6 +322,6 @@ body {
   }
 
   .chart-responsive {
-    height: 320px;
+    height: 340px;
   }
 }

@@ -1216,7 +1216,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           overflow: 'hidden',
           boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
         }}>
-          <div style={{ overflowX: 'auto', maxHeight: 420 }}>
+          <div className="table-responsive-wrapper" style={{ overflowX: 'auto', maxHeight: 420 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
               <thead style={{
                 position: 'sticky', top: 0, zIndex: 1,

@@ -4,6 +4,7 @@ import {
   Sparkles,
   RefreshCw,
   Clock,
+  History,
   AlertCircle,
   TrendingUp,
   Table as TableIcon,
@@ -134,8 +135,16 @@ export default function Forecast({ refreshKey }) {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [activeParam, setActiveParam] = useState('aqi');
   const [activeView, setActiveView] = useState('timeline'); // 'timeline' | 'chart' | 'table'
-  const [selectedSlotIndex, setSelectedSlotIndex] = useState(0);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
   const [showComparison, setShowComparison] = useState(true);
+  const [showPastHours, setShowPastHours] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  // Periodically refresh current time every 30s to dynamically remove elapsed hours
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const isFetchingRef = useRef(false);
 
@@ -337,7 +346,50 @@ export default function Forecast({ refreshKey }) {
     };
   }, [processedItems]);
 
-  const activeSlot = processedItems[selectedSlotIndex] || processedItems[0];
+  // Current hour boundary timestamp (ms)
+  const currentHourMs = useMemo(() => {
+    const d = new Date(currentTime);
+    d.setMinutes(0, 0, 0, 0);
+    return d.getTime();
+  }, [currentTime]);
+
+  // Separate passed/elapsed hours from upcoming forecast slots
+  const { visibleTimelineItems, passedItems } = useMemo(() => {
+    if (!processedItems || processedItems.length === 0) {
+      return { visibleTimelineItems: [], passedItems: [] };
+    }
+
+    const passed = [];
+    const upcoming = [];
+
+    processedItems.forEach((item) => {
+      if (!item.iso_time) {
+        upcoming.push(item);
+        return;
+      }
+      const itemTime = new Date(item.iso_time).getTime();
+      if (isNaN(itemTime)) {
+        upcoming.push(item);
+      } else if (itemTime < currentHourMs) {
+        passed.push(item);
+      } else {
+        upcoming.push(item);
+      }
+    });
+
+    const visible = showPastHours ? processedItems : (upcoming.length > 0 ? upcoming : processedItems);
+    return { visibleTimelineItems: visible, passedItems: passed };
+  }, [processedItems, currentHourMs, showPastHours]);
+
+  // Active inspected slot defaults smoothly to first visible upcoming hour
+  const activeSlot = useMemo(() => {
+    if (visibleTimelineItems.length === 0) return null;
+    if (selectedSlotIndex !== null) {
+      const match = visibleTimelineItems.find((p) => p.index === selectedSlotIndex);
+      if (match) return match;
+    }
+    return visibleTimelineItems[0];
+  }, [visibleTimelineItems, selectedSlotIndex]);
 
   const renderDualCell = (actVal, fcVal, unit = '', decimals = 2) => {
     const hasAct = actVal != null && !isNaN(Number(actVal));
@@ -455,7 +507,35 @@ export default function Forecast({ refreshKey }) {
                 <Clock size={18} color="#0ea5e9" /> 24-Hour Timeline Overview
                 <span style={{ fontSize: 11.5, fontWeight: 500, color: '#94a3b8' }}>• Click any hour card to inspect details below</span>
               </h3>
+              {!showPastHours && passedItems.length > 0 && (
+                <p style={{ margin: '4px 0 0', fontSize: 11.5, color: '#64748b' }}>
+                  Showing {visibleTimelineItems.length} active & upcoming {visibleTimelineItems.length === 1 ? 'hour' : 'hours'} • {passedItems.length} elapsed {passedItems.length === 1 ? 'hour' : 'hours'} dynamically removed
+                </p>
+              )}
             </div>
+
+            {passedItems.length > 0 && (
+              <button
+                onClick={() => setShowPastHours(!showPastHours)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: showPastHours ? '1px solid #0ea5e9' : '1px solid #cbd5e1',
+                  backgroundColor: showPastHours ? '#f0f9ff' : '#ffffff',
+                  color: showPastHours ? '#0369a1' : '#64748b',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <History size={13} />
+                <span>{showPastHours ? `Hide Elapsed Hours (${passedItems.length})` : `Show Past Hours (${passedItems.length})`}</span>
+              </button>
+            )}
           </div>
 
           {/* Horizontal Scroller Cards */}
@@ -466,8 +546,8 @@ export default function Forecast({ refreshKey }) {
             paddingBottom: 8,
             scrollbarWidth: 'thin'
           }}>
-            {processedItems.map((item) => {
-              const isSelected = selectedSlotIndex === item.index;
+            {visibleTimelineItems.map((item) => {
+              const isSelected = activeSlot?.index === item.index;
               return (
                 <div
                   key={item.index}

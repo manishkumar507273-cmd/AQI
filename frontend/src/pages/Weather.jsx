@@ -574,7 +574,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
 
         {/* Telemetry Stream Table */}
         <div style={{ borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto', maxHeight: 420 }}>
+          <div className="table-responsive-wrapper" style={{ overflowX: 'auto', maxHeight: 420 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
               <thead style={{
                 position: 'sticky', top: 0, zIndex: 2,

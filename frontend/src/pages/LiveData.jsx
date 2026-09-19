@@ -36,6 +36,7 @@ export default function LiveData({
           border: '1px solid #cbd5e1',
           boxShadow: '0 4px 16px rgba(15, 23, 42, 0.06)',
           gap: 6,
+          maxWidth: '100%',
         }}>
           <button
             onClick={() => setSubTab('aqi')}
@@ -44,16 +45,17 @@ export default function LiveData({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '9px 24px',
+              padding: '9px clamp(12px, 3.5vw, 24px)',
               borderRadius: 999,
               border: 'none',
-              fontSize: 14,
+              fontSize: 'clamp(12px, 3vw, 14px)',
               fontWeight: 700,
               fontFamily: 'var(--font-sans)',
               cursor: 'pointer',
               backgroundColor: 'transparent',
               color: currentSubTab === 'aqi' ? '#ffffff' : '#64748b',
               transition: 'color 0.15s ease',
+              whiteSpace: 'nowrap',
             }}
           >
             {currentSubTab === 'aqi' && (
@@ -81,16 +83,17 @@ export default function LiveData({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '9px 24px',
+              padding: '9px clamp(12px, 3.5vw, 24px)',
               borderRadius: 999,
               border: 'none',
-              fontSize: 14,
+              fontSize: 'clamp(12px, 3vw, 14px)',
               fontWeight: 700,
               fontFamily: 'var(--font-sans)',
               cursor: 'pointer',
               backgroundColor: 'transparent',
               color: currentSubTab === 'weather' ? '#ffffff' : '#64748b',
               transition: 'color 0.15s ease',
+              whiteSpace: 'nowrap',
             }}
           >
             {currentSubTab === 'weather' && (
