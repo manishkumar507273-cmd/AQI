@@ -1,8 +1,6 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from services.forecast_engine import run_24h_forecast
-
 logger = logging.getLogger("forecast_scheduler")
 logging.basicConfig(level=logging.INFO)
 
@@ -10,6 +8,7 @@ async def forecast_hourly_job():
     """Runs the 24-hour tiered forecast engine and syncs to Supabase."""
     logger.info("Starting scheduled 24-Hour AQI forecast job at %s...", datetime.now(timezone.utc).isoformat())
     try:
+        from services.forecast_engine import run_24h_forecast
         result = await run_24h_forecast()
         logger.info(
             "Forecast job completed: Continuous Hours=%d, Selected Tier=%s, Upsert Status=%s",
@@ -17,8 +16,8 @@ async def forecast_hourly_job():
             result.get("selected_tier", "unknown"),
             result.get("sync_status", {}).get("status", "unknown")
         )
-    except Exception as e:
-        logger.error("Forecast scheduled job encountered error: %s", str(e), exc_info=True)
+    except (Exception, MemoryError) as e:
+        logger.warning("Forecast scheduled job could not run: %s", str(e))
 
 async def start_scheduler(interval_seconds: int = 3600):
     """Loops infinitely, executing the forecast sync every `interval_seconds` (default: 1 hour)."""

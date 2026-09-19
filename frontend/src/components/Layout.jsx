@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wind, LineChart, Database, Radio, ChevronDown, Menu, X } from 'lucide-react';
+import { Wind, LineChart, Database, Radio, Menu, X } from 'lucide-react';
 import WindCanvas from './WindCanvas';
 
 export const STATIONS = [
@@ -169,47 +169,29 @@ export default function Layout({
           })}
         </nav>
 
-        {/* Right: Desktop Station controls (Hidden on mobile <768px) */}
+        {/* Right: Desktop Live status badge */}
         <div className="desktop-only-nav" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div style={{
-            position: 'relative',
-            display: 'inline-flex',
+            padding: '6px 14px',
+            borderRadius: 999,
+            fontSize: 11.5,
+            fontWeight: 700,
+            display: 'flex',
             alignItems: 'center',
-            backgroundColor: '#ffffff',
-            border: '1px solid #cbd5e1',
-            borderRadius: 14,
-            padding: '6px 12px',
-            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+            gap: 6,
+            backgroundColor: currentStationObj.isLive ? '#dcfce7' : '#f1f5f9',
+            color: currentStationObj.isLive ? '#15803d' : '#64748b',
+            border: `1.5px solid ${currentStationObj.isLive ? '#bbf7d0' : '#e2e8f0'}`,
+            fontFamily: 'var(--font-mono)',
+            whiteSpace: 'nowrap',
           }}>
-            <Radio style={{ width: 15, height: 15, color: currentStationObj.isLive ? '#00bfa5' : '#94a3b8', marginRight: 6, flexShrink: 0 }} />
-            <select
-              value={selectedStation}
-              onChange={(e) => onStationChange && onStationChange(e.target.value)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: '#0f172a',
-                fontSize: 12.5,
-                fontWeight: 700,
-                fontFamily: 'var(--font-sans)',
-                cursor: 'pointer',
-                paddingRight: 18,
-                appearance: 'none',
-                WebkitAppearance: 'none',
-                MozAppearance: 'none',
-                minWidth: 160,
-              }}
-            >
-              {STATIONS.map((st) => (
-                <option key={st.id} value={st.id}>
-                  {st.name} {st.isLive ? '(Live)' : '(NaN)'}
-                </option>
-              ))}
-            </select>
-            <ChevronDown style={{ width: 14, height: 14, color: '#64748b', position: 'absolute', right: 8, pointerEvents: 'none' }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: currentStationObj.isLive ? '#16a34a' : '#94a3b8' }} />
+            <span>{currentStationObj.isLive ? 'LIVE' : 'STANDBY'}</span>
           </div>
+        </div>
 
+        {/* Right: Mobile Header Controls (Visible only on mobile <768px) */}
+        <div className="mobile-only-header" style={{ display: 'none', alignItems: 'center', gap: 8 }}>
           <div style={{
             padding: '5px 10px',
             borderRadius: 999,
@@ -222,63 +204,9 @@ export default function Layout({
             color: currentStationObj.isLive ? '#15803d' : '#64748b',
             border: `1px solid ${currentStationObj.isLive ? '#bbf7d0' : '#e2e8f0'}`,
             fontFamily: 'var(--font-mono)',
-            whiteSpace: 'nowrap',
           }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: currentStationObj.isLive ? '#16a34a' : '#94a3b8' }} />
+            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: currentStationObj.isLive ? '#16a34a' : '#94a3b8' }} />
             <span>{currentStationObj.isLive ? 'LIVE' : 'STANDBY'}</span>
-          </div>
-        </div>
-
-        {/* Right: Mobile Header Controls (Visible only on mobile <768px) */}
-        <div className="mobile-only-header" style={{ display: 'none', alignItems: 'center', gap: 6 }}>
-          {/* Direct Station Selector for instant switching on mobile */}
-          <div style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            backgroundColor: '#ffffff',
-            border: '1.5px solid #cbd5e1',
-            borderRadius: 12,
-            padding: '4px 8px',
-            boxShadow: '0 1px 4px rgba(15, 23, 42, 0.04)',
-            maxWidth: 135,
-          }}>
-            <span style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              backgroundColor: currentStationObj.isLive ? '#16a34a' : '#94a3b8',
-              marginRight: 6,
-              flexShrink: 0
-            }} />
-            <select
-              value={selectedStation}
-              onChange={(e) => onStationChange && onStationChange(e.target.value)}
-              aria-label="Select Station"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: '#0f172a',
-                fontSize: 11.5,
-                fontWeight: 700,
-                width: '100%',
-                cursor: 'pointer',
-                appearance: 'none',
-                WebkitAppearance: 'none',
-                paddingRight: 14,
-                textOverflow: 'ellipsis',
-                overflow: 'hidden',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {STATIONS.map((st) => (
-                <option key={st.id} value={st.id}>
-                  {st.name.replace(' — ', ' ')}
-                </option>
-              ))}
-            </select>
-            <ChevronDown style={{ width: 12, height: 12, color: '#64748b', position: 'absolute', right: 6, pointerEvents: 'none' }} />
           </div>
 
           <button
@@ -308,110 +236,81 @@ export default function Layout({
       {/* ─── Mobile Navigation Drawer / Dropdown (<768px) ─── */}
       <AnimatePresence>
         {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            style={{
-              position: 'fixed',
-              top: 64,
-              left: 0,
-              right: 0,
-              backgroundColor: 'rgba(255, 255, 255, 0.98)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              borderBottom: '1.5px solid #e2e8f0',
-              boxShadow: '0 16px 36px rgba(15, 23, 42, 0.12)',
-              padding: '16px 20px 22px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 14,
-              zIndex: 49,
-            }}
-          >
-            {/* Mobile Nav Links */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {NAV_ITEMS.map((tab) => {
-                const isActive = currentTab === tab.id;
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTopTabClick(tab.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      padding: '12px 16px',
-                      borderRadius: 14,
-                      border: 'none',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      backgroundColor: isActive ? '#00bfa5' : '#f8fafc',
-                      color: isActive ? '#ffffff' : '#334155',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      boxShadow: isActive ? '0 4px 14px rgba(0, 191, 165, 0.35)' : 'none',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <Icon style={{ width: 18, height: 18 }} />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Mobile Station Selector */}
-            <div style={{
-              paddingTop: 12,
-              borderTop: '1px solid #f1f5f9',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Select Active Station
-              </div>
-              <div style={{
-                position: 'relative',
+          <div key="mobile-menu-wrapper">
+            <motion.div
+              key="mobile-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                top: 64,
+                backgroundColor: 'rgba(15, 23, 42, 0.4)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+                zIndex: 48,
+              }}
+            />
+            <motion.div
+              key="mobile-drawer"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              style={{
+                position: 'fixed',
+                top: 64,
+                left: 0,
+                right: 0,
+                backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                borderBottom: '1.5px solid #e2e8f0',
+                boxShadow: '0 16px 36px rgba(15, 23, 42, 0.12)',
+                padding: '16px 20px 22px',
                 display: 'flex',
-                alignItems: 'center',
-                backgroundColor: '#f8fafc',
-                border: '1.5px solid #cbd5e1',
-                borderRadius: 14,
-                padding: '8px 12px',
-              }}>
-                <Radio style={{ width: 16, height: 16, color: currentStationObj.isLive ? '#00bfa5' : '#94a3b8', marginRight: 8, flexShrink: 0 }} />
-                <select
-                  value={selectedStation}
-                  onChange={(e) => {
-                    onStationChange && onStationChange(e.target.value);
-                    setMobileMenuOpen(false);
-                  }}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    color: '#0f172a',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    width: '100%',
-                    cursor: 'pointer',
-                    appearance: 'none',
-                  }}
-                >
-                  {STATIONS.map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {st.name} {st.isLive ? '(Live)' : '(Standby)'}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown style={{ width: 16, height: 16, color: '#64748b', position: 'absolute', right: 12, pointerEvents: 'none' }} />
+                flexDirection: 'column',
+                gap: 14,
+                zIndex: 49,
+              }}
+            >
+              {/* Mobile Nav Links */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {NAV_ITEMS.map((tab) => {
+                  const isActive = currentTab === tab.id;
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => handleTopTabClick(tab.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '12px 16px',
+                        borderRadius: 14,
+                        border: 'none',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        backgroundColor: isActive ? '#00bfa5' : '#f8fafc',
+                        color: isActive ? '#ffffff' : '#334155',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        boxShadow: isActive ? '0 4px 14px rgba(0, 191, 165, 0.35)' : 'none',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Icon style={{ width: 18, height: 18 }} />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

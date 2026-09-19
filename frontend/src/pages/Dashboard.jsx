@@ -988,7 +988,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         </div>
 
         {/* Responsive Grid for both Line plots */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 20 }}>
+        <div className="mobile-chart-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 20 }}>
 
           {/* 1. AQI Lineplot Card */}
           <div
@@ -1078,7 +1078,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                       }
                       return null;
                     }} />
-                    <Area type="monotone" dataKey="cpcb_aqi" name="AQI" stroke="#00bfa5" strokeWidth={2.5} fillOpacity={1} fill="url(#aqiGrad)" dot={{ r: 2, fill: '#00bfa5' }} activeDot={{ r: 5, fill: '#00bfa5', stroke: '#ffffff', strokeWidth: 2 }} />
+                    <Area type="monotone" dataKey="cpcb_aqi" name="AQI" stroke="#00bfa5" strokeWidth={2.5} fillOpacity={1} fill="url(#aqiGrad)" dot={false} activeDot={{ r: 5, fill: '#00bfa5', stroke: '#ffffff', strokeWidth: 2 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -1113,7 +1113,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             </div>
 
             {/* Pollutant Filter Chips */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div className="filter-chips-container" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {[
                 { key: 'pm25', label: 'PM2.5', color: '#0284c7' },
                 { key: 'pm10', label: 'PM10', color: '#6366f1' },
@@ -1317,6 +1317,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               initial={{ opacity: 0, y: 24, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              className="pollutant-modal-content"
               style={{
                 background: '#ffffff', border: '1px solid #e2e8f0',
                 borderRadius: 24, width: '100%', maxWidth: 620, maxHeight: '90vh',
@@ -1328,6 +1329,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             >
               <button
                 onClick={() => setActivePollutantModal(null)}
+                className="pollutant-modal-close-btn"
                 style={{
                   position: 'absolute', top: 22, right: 22,
                   width: 34, height: 34, borderRadius: '50%',

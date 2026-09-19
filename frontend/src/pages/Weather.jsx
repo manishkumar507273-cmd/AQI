@@ -10,13 +10,59 @@ import rainGaugeSensorImg from '../assets/rain_gauge_sensor.png';
 const fmt = (val, d = 1) =>
   val != null && !isNaN(Number(val)) ? (Number(val) % 1 === 0 ? Number(val).toFixed(0) : Number(val).toFixed(d)) : null;
 
+const COMPASS_MAP = {
+  'n': { deg: 0, abbr: 'N', name: 'North' },
+  'north': { deg: 0, abbr: 'N', name: 'North' },
+  'nne': { deg: 22.5, abbr: 'NNE', name: 'North-Northeast' },
+  'ne': { deg: 45, abbr: 'NE', name: 'Northeast' },
+  'northeast': { deg: 45, abbr: 'NE', name: 'Northeast' },
+  'ene': { deg: 67.5, abbr: 'ENE', name: 'East-Northeast' },
+  'e': { deg: 90, abbr: 'E', name: 'East' },
+  'east': { deg: 90, abbr: 'E', name: 'East' },
+  'ese': { deg: 112.5, abbr: 'ESE', name: 'East-Southeast' },
+  'se': { deg: 135, abbr: 'SE', name: 'Southeast' },
+  'southeast': { deg: 135, abbr: 'SE', name: 'Southeast' },
+  'sse': { deg: 157.5, abbr: 'SSE', name: 'South-Southeast' },
+  's': { deg: 180, abbr: 'S', name: 'South' },
+  'south': { deg: 180, abbr: 'S', name: 'South' },
+  'ssw': { deg: 202.5, abbr: 'SSW', name: 'South-Southwest' },
+  'sw': { deg: 225, abbr: 'SW', name: 'Southwest' },
+  'southwest': { deg: 225, abbr: 'SW', name: 'Southwest' },
+  'wsw': { deg: 247.5, abbr: 'WSW', name: 'West-Southwest' },
+  'w': { deg: 270, abbr: 'W', name: 'West' },
+  'west': { deg: 270, abbr: 'W', name: 'West' },
+  'wnw': { deg: 292.5, abbr: 'WNW', name: 'West-Northwest' },
+  'nw': { deg: 315, abbr: 'NW', name: 'Northwest' },
+  'northwest': { deg: 315, abbr: 'NW', name: 'Northwest' },
+  'nnw': { deg: 337.5, abbr: 'NNW', name: 'North-Northwest' }
+};
+
+const COMPASS_DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+
+const parseWindDir = (val) => {
+  if (val == null) return null;
+  const s = String(val).trim();
+  if (!s || s === 'N/A' || s === '-' || s === 'null' || s === 'undefined') return null;
+  
+  if (!isNaN(Number(s))) {
+    const deg = Math.round(((Number(s) % 360) + 360) % 360);
+    const abbr = COMPASS_DIRS[Math.round(deg / 22.5) % 16];
+    return { deg, abbr, name: abbr, label: `${abbr} (${deg}°)` };
+  }
+
+  const clean = s.toLowerCase().replace(/[\s_-]+/g, '');
+  if (COMPASS_MAP[clean]) {
+    const { deg, abbr, name } = COMPASS_MAP[clean];
+    return { deg: Math.round(deg), abbr, name, label: `${abbr} (${Math.round(deg)}°)` };
+  }
+
+  return { deg: null, abbr: s, name: s, label: s };
+};
+
 const getCompassDir = (val) => {
   if (val == null) return null;
-  if (typeof val === 'string' && isNaN(Number(val))) return val;
-  const deg = Number(val);
-  if (isNaN(deg)) return String(val);
-  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-  return `${dirs[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]} (${deg.toFixed(0)}°)`;
+  const parsed = parseWindDir(val);
+  return parsed ? parsed.label : String(val);
 };
 
 const getHumidityLabel = (h) => {
@@ -682,6 +728,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
               initial={{ opacity: 0, y: 24, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              className="pollutant-modal-content"
               style={{
                 background: '#ffffff', border: '1px solid #e2e8f0',
                 borderRadius: 24, width: '100%', maxWidth: 620, maxHeight: '90vh',
@@ -693,6 +740,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
             >
               <button
                 onClick={() => setActiveWeatherModal(null)}
+                className="pollutant-modal-close-btn"
                 style={{
                   position: 'absolute', top: 22, right: 22,
                   width: 34, height: 34, borderRadius: '50%',

@@ -506,15 +506,7 @@ export default function Forecast({ refreshKey }) {
             <div>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <Clock size={18} color="#0ea5e9" /> 24-Hour Timeline Overview
-                <span className="desktop-only-inline" style={{ fontSize: 11.5, fontWeight: 500, color: '#94a3b8' }}>• Click any hour card to inspect details below</span>
-                <span className="mobile-only-inline" style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8' }}>• Tap to inspect</span>
               </h3>
-              {!showPastHours && passedItems.length > 0 && (
-                <p style={{ margin: '4px 0 0', fontSize: 11.5, color: '#64748b' }}>
-                  <span className="desktop-only-inline">Showing {visibleTimelineItems.length} active &amp; upcoming {visibleTimelineItems.length === 1 ? 'hour' : 'hours'} • {passedItems.length} elapsed {passedItems.length === 1 ? 'hour' : 'hours'} dynamically removed</span>
-                  <span className="mobile-only-inline">{visibleTimelineItems.length} active hours • {passedItems.length} elapsed hidden</span>
-                </p>
-              )}
             </div>
 
             {passedItems.length > 0 && (
@@ -549,228 +541,55 @@ export default function Forecast({ refreshKey }) {
             paddingBottom: 8,
             scrollbarWidth: 'thin'
           }}>
-            {visibleTimelineItems.map((item) => {
-              const isSelected = activeSlot?.index === item.index;
-              return (
-                <div
-                  key={item.index}
-                  onClick={() => setSelectedSlotIndex(item.index)}
-                  className="forecast-timeline-card"
-                  style={{
-                    flex: '0 0 110px',
-                    padding: '12px 10px',
-                    borderRadius: 14,
-                    border: isSelected ? `2.5px solid ${item.aqi_color}` : '1.5px solid #e2e8f0',
-                    background: isSelected ? item.aqi_bg : '#ffffff',
-                    cursor: 'pointer',
-                    textAlign: 'center',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    transform: isSelected ? 'translateY(-2px)' : 'none',
-                    boxShadow: isSelected ? `0 8px 16px -4px ${item.aqi_color}40` : 'none'
-                  }}
-                >
-                  <div className="forecast-timeline-hour" style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>
-                    {item.display_hour}
-                  </div>
-                  <div className="forecast-timeline-aqi" style={{ fontSize: 22, fontWeight: 800, color: item.aqi_color, lineHeight: 1.1 }}>
-                    {item.aqi}
-                  </div>
-                  <div className="forecast-timeline-category" style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: item.aqi_color,
-                    marginTop: 4,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
-                    {item.aqi_category}
-                  </div>
-                  <div className="forecast-timeline-actual" style={{
-                    marginTop: 6,
-                    paddingTop: 6,
-                    borderTop: '1px dashed #e2e8f0',
-                    fontSize: 10,
-                    color: item.hasActual ? '#0284c7' : '#94a3b8',
-                    fontWeight: 600
-                  }}>
-                    {item.hasActual ? (
-                      <span>Act: <strong>{item.actual_aqi ?? '—'}</strong></span>
-                    ) : (
-                      <span>Pending</span>
-                    )}
-                  </div>
+            {visibleTimelineItems.map((item) => (
+              <div
+                key={item.index}
+                className="forecast-timeline-card"
+                style={{
+                  flex: '0 0 110px',
+                  padding: '12px 10px',
+                  borderRadius: 14,
+                  border: `1.5px solid ${item.aqi_border || '#e2e8f0'}`,
+                  background: item.aqi_bg || '#ffffff',
+                  textAlign: 'center',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+                }}
+              >
+                <div className="forecast-timeline-hour" style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>
+                  {item.display_hour}
                 </div>
-              );
-            })}
+                <div className="forecast-timeline-aqi" style={{ fontSize: 22, fontWeight: 800, color: item.aqi_color, lineHeight: 1.1 }}>
+                  {item.aqi}
+                </div>
+                <div className="forecast-timeline-category" style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: item.aqi_color,
+                  marginTop: 4,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {item.aqi_category}
+                </div>
+                <div className="forecast-timeline-actual" style={{
+                  marginTop: 6,
+                  paddingTop: 6,
+                  borderTop: '1px dashed #e2e8f0',
+                  fontSize: 10,
+                  color: item.hasActual ? '#0284c7' : '#94a3b8',
+                  fontWeight: 600
+                }}>
+                  {item.hasActual ? (
+                    <span>Act: <strong>{item.actual_aqi ?? '—'}</strong></span>
+                  ) : (
+                    <span>Pending</span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-
-          {/* Selected Hour Detailed Inspector */}
-          {activeSlot && (
-            <motion.div
-              key={activeSlot.index}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.18 }}
-              className="forecast-inspector-card"
-              style={{
-                marginTop: 18,
-                padding: '16px 20px',
-                borderRadius: 14,
-                backgroundColor: '#f8fafc',
-                border: `1.5px solid ${activeSlot.aqi_border || '#e2e8f0'}`,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12
-              }}
-            >
-              {/* Header: Selected Hour info & badges */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Clock size={15} color="#0ea5e9" />
-                    <span>Hour Window: <strong>{activeSlot.display_hour}</strong> <span style={{ color: '#64748b', fontWeight: 500 }}>({activeSlot.display_date})</span></span>
-                    <span style={{ fontSize: 11, background: '#e2e8f0', color: '#475569', padding: '2px 7px', borderRadius: 6, fontWeight: 600 }}>+{activeSlot.step}h</span>
-                  </span>
-
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '3px 10px',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    background: activeSlot.aqi_bg,
-                    color: activeSlot.aqi_color,
-                    border: `1px solid ${activeSlot.aqi_border}`
-                  }}>
-                    Forecast AQI: {activeSlot.aqi} • {activeSlot.aqi_category}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, color: '#64748b' }}>
-                    <span className="desktop-only-inline">Dominant Pollutant: <strong style={{ color: '#0f172a' }}>{activeSlot.dominant_pollutant}</strong> (Sub: {activeSlot.dominant_sub})</span>
-                    <span className="mobile-only-inline">Dominant: <strong style={{ color: '#0f172a' }}>{activeSlot.dominant_pollutant}</strong></span>
-                  </span>
-                  {activeSlot.hasActual && activeSlot.actual_aqi != null && (
-                    <span style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: '3px 9px',
-                      borderRadius: 6,
-                      background: '#e0f2fe',
-                      color: '#0369a1',
-                      border: '1px solid #bae6fd',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5
-                    }}>
-                      Actual AQI: {activeSlot.actual_aqi}
-                      {activeSlot.aqi_delta != null && (
-                        <span style={{ color: activeSlot.aqi_delta === 0 ? '#64748b' : (activeSlot.aqi_delta > 0 ? '#dc2626' : '#16a34a') }}>
-                          ({activeSlot.aqi_delta > 0 ? `+${activeSlot.aqi_delta}` : activeSlot.aqi_delta})
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Health Guidance Banner */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 9,
-                padding: '9px 14px',
-                borderRadius: 10,
-                background: activeSlot.aqi_bg,
-                border: `1px solid ${activeSlot.aqi_border}`,
-                color: activeSlot.aqi_color,
-                fontSize: 12.5,
-                fontWeight: 600
-              }}>
-                <HeartPulse size={16} />
-                <span>{activeSlot.aqi_advice}</span>
-              </div>
-
-              {/* Pollutants & Weather Breakdown Grid */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                gap: 10
-              }}>
-                {activeSlot.pollutant_breakdown.map((p) => {
-                  const actVal = activeSlot.hasActual ? activeSlot[`actual_${p.key}`] : null;
-                  return (
-                    <div
-                      key={p.key}
-                      style={{
-                        background: '#ffffff',
-                        padding: '9px 12px',
-                        borderRadius: 10,
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-                      }}
-                    >
-                      <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
-                        <span>{p.name}</span>
-                        <span style={{ color: '#94a3b8', fontSize: 10 }}>Sub: {p.val}</span>
-                      </div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
-                        {p.raw != null ? Number(p.raw).toFixed(p.key === 'co' ? 3 : 2) : '—'}
-                        <span style={{ fontSize: 10, fontWeight: 500, color: '#94a3b8', marginLeft: 3 }}>{p.unit}</span>
-                      </div>
-                      {activeSlot.hasActual && (
-                        <div style={{ fontSize: 10, color: actVal != null ? '#0284c7' : '#cbd5e1', marginTop: 2, fontWeight: 500 }}>
-                          Act: {actVal != null ? Number(actVal).toFixed(p.key === 'co' ? 3 : 2) : '—'} {p.unit}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Temperature */}
-                <div style={{
-                  background: '#ffffff',
-                  padding: '9px 12px',
-                  borderRadius: 10,
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-                }}>
-                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Temperature</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
-                    {activeSlot.temperature_c != null ? Number(activeSlot.temperature_c).toFixed(1) : '—'}°C
-                  </div>
-                  {activeSlot.hasActual && (
-                    <div style={{ fontSize: 10, color: activeSlot.actual_temp != null ? '#0284c7' : '#cbd5e1', marginTop: 2, fontWeight: 500 }}>
-                      Act: {activeSlot.actual_temp != null ? Number(activeSlot.actual_temp).toFixed(1) : '—'}°C
-                    </div>
-                  )}
-                </div>
-
-                {/* Humidity */}
-                <div style={{
-                  background: '#ffffff',
-                  padding: '9px 12px',
-                  borderRadius: 10,
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-                }}>
-                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Humidity</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
-                    {activeSlot.humidity_pct != null ? Number(activeSlot.humidity_pct).toFixed(1) : '—'}%
-                  </div>
-                  {activeSlot.hasActual && (
-                    <div style={{ fontSize: 10, color: activeSlot.actual_hum != null ? '#0284c7' : '#cbd5e1', marginTop: 2, fontWeight: 500 }}>
-                      Act: {activeSlot.actual_hum != null ? Number(activeSlot.actual_hum).toFixed(1) : '—'}%
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
         </div>
       )}
 
@@ -800,8 +619,8 @@ export default function Forecast({ refreshKey }) {
           borderBottom: '1px solid #f1f5f9'
         }}>
           {/* Parameter Selectors */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div className="filter-chips-container" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', maxWidth: '100%' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               <Sliders size={14} /> Metric:
             </span>
             {Object.keys(PARAM_CONFIG).map((pKey) => {
@@ -821,7 +640,9 @@ export default function Forecast({ refreshKey }) {
                     transition: 'all 0.15s ease',
                     border: isSelected ? `2px solid ${cfg.color}` : '1px solid #e2e8f0',
                     background: isSelected ? `${cfg.color}15` : '#f8fafc',
-                    color: isSelected ? cfg.color : '#64748b'
+                    color: isSelected ? cfg.color : '#64748b',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
                   }}
                 >
                   {cfg.name}
@@ -850,7 +671,8 @@ export default function Forecast({ refreshKey }) {
               }}
             >
               <ArrowLeftRight size={14} color={showComparison ? '#00bfa5' : '#64748b'} />
-              <span>{showComparison ? 'Comparison: Active' : 'Enable Comparison'}</span>
+              <span className="desktop-only-inline">{showComparison ? 'Comparison: Active' : 'Enable Comparison'}</span>
+              <span className="mobile-only-inline">{showComparison ? 'Compare On' : 'Compare'}</span>
             </button>
 
             <div style={{ display: 'flex', background: '#f1f5f9', padding: 4, borderRadius: 10, border: '1px solid #e2e8f0' }}>
@@ -871,7 +693,9 @@ export default function Forecast({ refreshKey }) {
                   boxShadow: activeView === 'chart' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
                 }}
               >
-                <LineChartIcon size={14} /> Trend Curve
+                <LineChartIcon size={14} />
+                <span className="desktop-only-inline">Trend Curve</span>
+                <span className="mobile-only-inline">Curve</span>
               </button>
               <button
                 onClick={() => setActiveView('table')}
@@ -890,7 +714,9 @@ export default function Forecast({ refreshKey }) {
                   boxShadow: activeView === 'table' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
                 }}
               >
-                <TableIcon size={14} /> Full 24h Table
+                <TableIcon size={14} />
+                <span className="desktop-only-inline">Full 24h Table</span>
+                <span className="mobile-only-inline">Table</span>
               </button>
             </div>
           </div>
@@ -1040,7 +866,7 @@ export default function Forecast({ refreshKey }) {
                       stroke="#f59e0b"
                       strokeWidth={2.5}
                       strokeDasharray="5 5"
-                      dot={{ r: 4, fill: '#f59e0b' }}
+                      dot={false}
                       connectNulls={false}
                     />
                   )}
