@@ -748,7 +748,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isOnline ? '#22c55e' : '#f97316', display: 'inline-block' }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {isOnline ? 'Status Panel • Live' : `Status Panel • Offline (${timeAgoStr})`}
+              <span className="desktop-only-inline">Status Panel • </span>{isOnline ? 'Live Stream' : `Offline (${timeAgoStr})`}
             </span>
           </div>
 
@@ -780,7 +780,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
 
           {/* Overall AQI Scale Bar */}
           <div style={{ maxWidth: 380, width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px', marginBottom: 6 }}>
+            <div className="hero-scale-bar-labels" style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px', marginBottom: 6 }}>
               {[
                 { label: 'Good', color: '#22c55e' },
                 { label: 'Moderate', color: '#eab308' },
@@ -793,13 +793,13 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               ))}
             </div>
 
-            <div style={{ position: 'relative', height: 12, borderRadius: 999, backgroundColor: '#e2e8f0', marginBottom: 6 }}>
+            <div className="hero-scale-bar-track" style={{ position: 'relative', height: 12, borderRadius: 999, backgroundColor: '#e2e8f0', marginBottom: 6 }}>
               <div style={{
                 width: '100%', height: '100%', borderRadius: 999,
                 background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 16.66%, #eab308 16.66%, #eab308 33.33%, #f97316 33.33%, #f97316 50%, #ef4444 50%, #ef4444 66.66%, #a855f7 66.66%, #a855f7 83.33%, #f43f5e 83.33%, #f43f5e 100%)',
                 boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)'
               }} />
-              <div style={{
+              <div className="hero-scale-bar-indicator" style={{
                 position: 'absolute', top: '50%', left: `${scalePosition}%`,
                 transform: 'translate(-50%, -50%)',
                 width: 20, height: 20, borderRadius: '50%',
@@ -809,7 +809,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               }} />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
+            <div className="hero-scale-bar-ticks" style={{ display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
               {['0', '50', '100', '150', '200', '300', '301+'].map((num) => (
                 <span key={num} style={{ fontSize: 9.5, fontWeight: 600, color: '#64748b', fontFamily: 'var(--font-mono)' }}>{num}</span>
               ))}
@@ -861,7 +861,8 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               Major Air Pollutants
             </h2>
             <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>
-              Click any pollutant card for WHO safety limits, health impacts, and sensor specs
+              <span className="desktop-only-inline">Click any pollutant card for WHO safety limits, health impacts, and sensor specs</span>
+              <span className="mobile-only-inline">Tap any card for WHO limits, health tips &amp; sensor specs</span>
             </p>
           </div>
         </div>
@@ -990,16 +991,19 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 20 }}>
 
           {/* 1. AQI Lineplot Card */}
-          <div style={{
-            backgroundColor: '#ffffff',
-            borderRadius: 20,
-            padding: 24,
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16
-          }}>
+          <div
+            className="mobile-card-compact"
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 24,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1007,7 +1011,8 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                   AQI Line Plot
                 </div>
                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                  Real-time Air Quality Index progression
+                  <span className="desktop-only-inline">Real-time Air Quality Index progression</span>
+                  <span className="mobile-only-inline">Real-time AQI progression</span>
                 </div>
               </div>
               <div style={{
@@ -1081,16 +1086,19 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           </div>
 
           {/* 2. AQI Pollutants Comparison Lineplot Card */}
-          <div style={{
-            backgroundColor: '#ffffff',
-            borderRadius: 20,
-            padding: 24,
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16
-          }}>
+          <div
+            className="mobile-card-compact"
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 24,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1098,7 +1106,8 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                   AQI Parameters Comparison
                 </div>
                 <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}>
-                  All AQI pollutants on a single graph (excl. temp, humidity, wind & rain)
+                  <span className="desktop-only-inline">All AQI pollutants on a single graph (excl. temp, humidity, wind & rain)</span>
+                  <span className="mobile-only-inline">Multi-pollutant trend overlay</span>
                 </div>
               </div>
             </div>
@@ -1206,17 +1215,21 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         <div style={{ marginBottom: 12 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)' }}>
             <Table style={{ width: 18, height: 18, color: '#00bfa5' }} />
-            Network Readings &amp; Status
+            <span className="desktop-only-inline">Network Readings &amp; Status</span>
+            <span className="mobile-only-inline">Live Stream Records</span>
           </h2>
         </div>
 
-        <div style={{
-          backgroundColor: '#ffffff',
-          borderRadius: 20,
-          border: '1px solid #e2e8f0',
-          overflow: 'hidden',
-          boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
-        }}>
+        <div
+          className="mobile-card-compact"
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden',
+            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
+          }}
+        >
           <div className="table-responsive-wrapper" style={{ overflowX: 'auto', maxHeight: 420 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
               <thead style={{

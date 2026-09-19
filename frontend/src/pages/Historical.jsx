@@ -10,9 +10,11 @@ import {
   Calendar as CalendarIcon, 
   Clock, 
   Download,
-  Info
+  Info,
+  TrendingUp,
+  BarChart2
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { getCloudHistory, getCloudWeatherHistory, getCachedData } from '../api';
 
 const AQI_PARAMS = [
@@ -195,6 +197,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
 
   const [selectedAqiParam, setSelectedAqiParam] = useState('cpcb_aqi');
   const [selectedWeatherParam, setSelectedWeatherParam] = useState('wind_speed');
+  const [chartType, setChartType] = useState('area'); // 'area' | 'bar'
 
   // Track if user has manually picked a date
   const hasUserPickedDateRef = useRef(false);
@@ -656,13 +659,19 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>Select Date (24-Hour Telemetry: 12:00 AM – 11:00 PM)</span>
+                <span className="desktop-only-inline">Select Date (24-Hour Telemetry: 12:00 AM – 11:00 PM)</span>
+                <span className="mobile-only-inline">Daily Archive Records</span>
               </div>
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                {cycleBounds.start 
-                  ? `Showing 24 hourly data points for ${formatLongDate(cycleBounds.start)} (12:00 AM – 11:00 PM)`
-                  : 'Select any date to view its 24-hour hourly records'
-                }
+                <span className="desktop-only-inline">
+                  {cycleBounds.start 
+                    ? `Showing 24 hourly data points for ${formatLongDate(cycleBounds.start)} (12:00 AM – 11:00 PM)`
+                    : 'Select any date to view its 24-hour hourly records'
+                  }
+                </span>
+                <span className="mobile-only-inline">
+                  24 hourly points • 12 AM – 11 PM
+                </span>
               </div>
             </div>
           </div>
@@ -733,9 +742,8 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                       : `${selectedDaySummary.cycleStartStr} → ${selectedDaySummary.cycleEndStr}`}
                   </div>
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontWeight: 700, color: '#00bfa5' }}>24 Hourly Points ({selectedDaySummary.hourCount} Logged)</span>
-                    <span>•</span>
-                    <span>{subTab === 'aqi' ? '24 Data Per Day (12 AM – 11 PM)' : '24 Data Per Day (8:00 AM – Next Day 8:00 AM)'}</span>
+                    <span className="desktop-only-inline" style={{ fontWeight: 700, color: '#00bfa5' }}>24 Hourly Points ({selectedDaySummary.hourCount} Logged) • {subTab === 'aqi' ? '12 AM – 11 PM' : '24h Cycle'}</span>
+                    <span className="mobile-only-inline" style={{ fontWeight: 700, color: '#00bfa5' }}>{selectedDaySummary.hourCount}/24 Hours Logged</span>
                   </div>
                 </div>
               </div>
@@ -899,37 +907,92 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Layers style={{ width: 16, height: 16, color: activeParam.color }} />
-              {subTab === 'aqi' ? 'Air Quality Hourly Trend Analysis (12 AM – 11 PM)' : 'Weather Atmospheric 24-Hour Cycle Analysis (12 AM – 11 PM)'}
+              <span className="desktop-only-inline">
+                {subTab === 'aqi' ? 'Air Quality Hourly Trend Analysis (12 AM – 11 PM)' : 'Weather Atmospheric 24-Hour Cycle Analysis (12 AM – 11 PM)'}
+              </span>
+              <span className="mobile-only-inline">
+                {subTab === 'aqi' ? 'Hourly Air Quality Trend' : 'Hourly Weather Trend'}
+              </span>
             </h2>
             <p style={{ fontSize: 12, color: '#64748b', marginTop: 2, margin: 0 }}>
-              {`24 Hourly data points progression for ${formatLongDate(cycleBounds.start)} (12:00 AM to 11:00 PM)`}
+              <span className="desktop-only-inline">{`24 Hourly data points progression for ${formatLongDate(cycleBounds.start)} (12:00 AM to 11:00 PM)`}</span>
+              <span className="mobile-only-inline">{`24-hour cycle (${formatLongDate(cycleBounds.start)})`}</span>
             </p>
           </div>
 
-          {/* Parameter Filter Chips */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', background: '#f8fafc', padding: 4, borderRadius: 999, border: '1px solid #e2e8f0' }}>
-            {(subTab === 'aqi' ? AQI_PARAMS : WEATHER_PARAMS).map((p) => {
-              const isSelected = subTab === 'aqi' ? selectedAqiParam === p.key : selectedWeatherParam === p.key;
-              return (
-                <button
-                  key={p.key}
-                  onClick={() => subTab === 'aqi' ? setSelectedAqiParam(p.key) : setSelectedWeatherParam(p.key)}
-                  style={{
-                    padding: '6px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
-                    fontSize: 12, fontWeight: 600,
-                    background: isSelected ? p.color : 'transparent',
-                    color: isSelected ? '#ffffff' : '#64748b',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
+          {/* Right Action: Parameter Chips & Chart Type Toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {/* Chart Type Toggle */}
+            <div style={{ display: 'inline-flex', background: '#f1f5f9', padding: 3, borderRadius: 999, border: '1px solid #e2e8f0' }}>
+              <button
+                onClick={() => setChartType('area')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: 'none',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  backgroundColor: chartType === 'area' ? '#ffffff' : 'transparent',
+                  color: chartType === 'area' ? '#0f172a' : '#64748b',
+                  boxShadow: chartType === 'area' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <TrendingUp style={{ width: 13, height: 13, color: chartType === 'area' ? '#00bfa5' : '#64748b' }} />
+                <span>Curve</span>
+              </button>
+              <button
+                onClick={() => setChartType('bar')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: 'none',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  backgroundColor: chartType === 'bar' ? '#ffffff' : 'transparent',
+                  color: chartType === 'bar' ? '#0f172a' : '#64748b',
+                  boxShadow: chartType === 'bar' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <BarChart2 style={{ width: 13, height: 13, color: chartType === 'bar' ? '#00bfa5' : '#64748b' }} />
+                <span>Bars</span>
+              </button>
+            </div>
+
+            {/* Parameter Filter Chips */}
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', background: '#f8fafc', padding: 3, borderRadius: 999, border: '1px solid #e2e8f0' }}>
+              {(subTab === 'aqi' ? AQI_PARAMS : WEATHER_PARAMS).map((p) => {
+                const isSelected = subTab === 'aqi' ? selectedAqiParam === p.key : selectedWeatherParam === p.key;
+                return (
+                  <button
+                    key={p.key}
+                    onClick={() => subTab === 'aqi' ? setSelectedAqiParam(p.key) : setSelectedWeatherParam(p.key)}
+                    style={{
+                      padding: '5px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                      fontSize: 11.5, fontWeight: 600,
+                      background: isSelected ? p.color : 'transparent',
+                      color: isSelected ? '#ffffff' : '#64748b',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        <div style={{ width: '100%', height: 340, minWidth: 0 }}>
+        <div className="chart-responsive" style={{ width: '100%', height: 300, minWidth: 0 }}>
           {loading ? (
             <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
               <RefreshCw style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', marginRight: 8, color: '#00bfa5' }} />
@@ -942,55 +1005,161 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={day24HourData} margin={{ top: 15, right: 20, left: 10, bottom: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="time"
-                  stroke="#94a3b8"
-                  fontSize={11}
-                  tick={{ fill: '#64748b' }}
-                  interval={0}
-                />
-                <YAxis stroke="#94a3b8" fontSize={11} tick={{ fill: '#64748b' }} />
-                <Tooltip content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const d = payload[0].payload;
-                    return (
-                      <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', borderRadius: 8, padding: '10px 14px', fontSize: 12, boxShadow: '0 10px 25px rgba(15,23,42,0.12)', minWidth: 150 }}>
-                        <div style={{ color: '#64748b', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                          <span>{d.date} • {d.fullTime}</span>
-                          {d.isNextDay && (
-                            <span style={{ fontSize: 10, backgroundColor: '#e0f2fe', color: '#0369a1', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>+1 Day</span>
+              {chartType === 'area' ? (
+                <AreaChart data={day24HourData} margin={{ top: 12, right: 12, left: -16, bottom: 8 }}>
+                  <defs>
+                    <linearGradient id={`histGrad_${activeParam.key}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={activeParam.color} stopOpacity={0.4} />
+                      <stop offset="95%" stopColor={activeParam.color} stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="time"
+                    stroke="#94a3b8"
+                    fontSize={10.5}
+                    tick={{ fill: '#64748b' }}
+                    interval="preserveStartEnd"
+                    minTickGap={22}
+                  />
+                  <YAxis
+                    stroke="#94a3b8"
+                    fontSize={10.5}
+                    tick={{ fill: '#64748b' }}
+                    width={38}
+                    domain={activeParam.key === 'cpcb_aqi' ? [0, 'auto'] : ['auto', 'auto']}
+                  />
+                  <Tooltip content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const d = payload[0].payload;
+                      return (
+                        <div style={{
+                          background: '#0f172a',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          color: '#ffffff',
+                          borderRadius: 12,
+                          padding: '10px 14px',
+                          fontSize: 12,
+                          boxShadow: '0 10px 25px rgba(0,0,0,0.35)',
+                          minWidth: 150
+                        }}>
+                          <div style={{ color: '#94a3b8', fontSize: 10.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                            <span>{d.date} • {d.fullTime}</span>
+                            {d.isNextDay && (
+                              <span style={{ fontSize: 9.5, backgroundColor: '#0284c7', color: '#ffffff', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>+1 Day</span>
+                            )}
+                          </div>
+                          {d.hasData ? (
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                              <span style={{ fontWeight: 800, fontSize: 18, color: activeParam.color, fontFamily: 'var(--font-mono)' }}>
+                                {d.value}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>
+                                {activeParam.unit}
+                              </span>
+                            </div>
+                          ) : (
+                            <div style={{ fontWeight: 600, fontSize: 11.5, color: '#94a3b8' }}>
+                              No Data Logged
+                            </div>
                           )}
                         </div>
-                        {d.hasData ? (
-                          <div style={{ fontWeight: 800, fontSize: 16, color: activeParam.color, marginTop: 4 }}>
-                            {d.value} {activeParam.unit}
+                      );
+                    }
+                    return null;
+                  }} />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    name={activeParam.label}
+                    stroke={activeParam.color}
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill={`url(#histGrad_${activeParam.key})`}
+                    dot={{ r: 2.5, fill: activeParam.color, strokeWidth: 0 }}
+                    activeDot={{ r: 5, fill: activeParam.color, stroke: '#ffffff', strokeWidth: 2 }}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              ) : (
+                <BarChart data={day24HourData} margin={{ top: 12, right: 12, left: -16, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="time"
+                    stroke="#94a3b8"
+                    fontSize={10.5}
+                    tick={{ fill: '#64748b' }}
+                    interval="preserveStartEnd"
+                    minTickGap={22}
+                  />
+                  <YAxis
+                    stroke="#94a3b8"
+                    fontSize={10.5}
+                    tick={{ fill: '#64748b' }}
+                    width={38}
+                    domain={activeParam.key === 'cpcb_aqi' ? [0, 'auto'] : ['auto', 'auto']}
+                  />
+                  <Tooltip content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const d = payload[0].payload;
+                      return (
+                        <div style={{
+                          background: '#0f172a',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          color: '#ffffff',
+                          borderRadius: 12,
+                          padding: '10px 14px',
+                          fontSize: 12,
+                          boxShadow: '0 10px 25px rgba(0,0,0,0.35)',
+                          minWidth: 150
+                        }}>
+                          <div style={{ color: '#94a3b8', fontSize: 10.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                            <span>{d.date} • {d.fullTime}</span>
+                            {d.isNextDay && (
+                              <span style={{ fontSize: 9.5, backgroundColor: '#0284c7', color: '#ffffff', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>+1 Day</span>
+                            )}
                           </div>
-                        ) : (
-                          <div style={{ fontWeight: 600, fontSize: 12.5, color: '#94a3b8', marginTop: 4 }}>
-                            No Data Logged
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-                  return null;
-                }} />
-                <Bar dataKey="value" fill={activeParam.color} radius={[4, 4, 0, 0]} isAnimationActive={false} />
-              </BarChart>
+                          {d.hasData ? (
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                              <span style={{ fontWeight: 800, fontSize: 18, color: activeParam.color, fontFamily: 'var(--font-mono)' }}>
+                                {d.value}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>
+                                {activeParam.unit}
+                              </span>
+                            </div>
+                          ) : (
+                            <div style={{ fontWeight: 600, fontSize: 11.5, color: '#94a3b8' }}>
+                              No Data Logged
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }} />
+                  <Bar
+                    dataKey="value"
+                    fill={activeParam.color}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={14}
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              )}
             </ResponsiveContainer>
           )}
         </div>
       </div>
 
       {/* ── TABLE SECTION: 24 HOURLY ROWS (TOTAL 24 DATA PER DAY) ── */}
-      <div style={{ backgroundColor: '#ffffff', borderRadius: 24, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
+      <div className="mobile-card-compact" style={{ backgroundColor: '#ffffff', borderRadius: 24, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
         <div style={{ padding: '20px 24px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #f1f5f9' }}>
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Table style={{ width: 18, height: 18, color: '#00bfa5' }} />
-              {subTab === 'aqi' ? 'AQI Historical Telemetry Table (12 AM – 11 PM)' : 'Weather Historical Telemetry Table (8 AM – 8 AM)'}
+              <span className="desktop-only-inline">{subTab === 'aqi' ? 'AQI Historical Telemetry Table (12 AM – 11 PM)' : 'Weather Historical Telemetry Table (8 AM – 8 AM)'}</span>
+              <span className="mobile-only-inline">{subTab === 'aqi' ? 'Hourly AQI Table' : 'Hourly Weather Table'}</span>
             </h2>
             <p style={{ fontSize: 12, color: '#64748b', marginTop: 2, margin: 0 }}>
               {subTab === 'aqi'

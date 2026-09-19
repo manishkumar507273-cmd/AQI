@@ -230,22 +230,55 @@ export default function Layout({
         </div>
 
         {/* Right: Mobile Header Controls (Visible only on mobile <768px) */}
-        <div className="mobile-only-header" style={{ display: 'none', alignItems: 'center', gap: 8 }}>
+        <div className="mobile-only-header" style={{ display: 'none', alignItems: 'center', gap: 6 }}>
+          {/* Direct Station Selector for instant switching on mobile */}
           <div style={{
-            padding: '4px 8px',
-            borderRadius: 999,
-            fontSize: 10.5,
-            fontWeight: 700,
+            position: 'relative',
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
-            backgroundColor: currentStationObj.isLive ? '#dcfce7' : '#f1f5f9',
-            color: currentStationObj.isLive ? '#15803d' : '#64748b',
-            border: `1px solid ${currentStationObj.isLive ? '#bbf7d0' : '#e2e8f0'}`,
-            fontFamily: 'var(--font-mono)',
+            backgroundColor: '#ffffff',
+            border: '1.5px solid #cbd5e1',
+            borderRadius: 12,
+            padding: '4px 8px',
+            boxShadow: '0 1px 4px rgba(15, 23, 42, 0.04)',
+            maxWidth: 135,
           }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: currentStationObj.isLive ? '#16a34a' : '#94a3b8' }} />
-            <span>{currentStationObj.isLive ? 'LIVE' : 'STANDBY'}</span>
+            <span style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              backgroundColor: currentStationObj.isLive ? '#16a34a' : '#94a3b8',
+              marginRight: 6,
+              flexShrink: 0
+            }} />
+            <select
+              value={selectedStation}
+              onChange={(e) => onStationChange && onStationChange(e.target.value)}
+              aria-label="Select Station"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: '#0f172a',
+                fontSize: 11.5,
+                fontWeight: 700,
+                width: '100%',
+                cursor: 'pointer',
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                paddingRight: 14,
+                textOverflow: 'ellipsis',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {STATIONS.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name.replace(' — ', ' ')}
+                </option>
+              ))}
+            </select>
+            <ChevronDown style={{ width: 12, height: 12, color: '#64748b', position: 'absolute', right: 6, pointerEvents: 'none' }} />
           </div>
 
           <button
@@ -255,17 +288,18 @@ export default function Layout({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 38,
-              height: 38,
-              borderRadius: 12,
+              width: 34,
+              height: 34,
+              borderRadius: 10,
               backgroundColor: '#f8fafc',
               border: '1.5px solid #cbd5e1',
               color: '#0f172a',
               cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(15, 23, 42, 0.04)',
+              boxShadow: '0 1px 4px rgba(15, 23, 42, 0.04)',
+              flexShrink: 0,
             }}
           >
-            {mobileMenuOpen ? <X style={{ width: 20, height: 20, color: '#00bfa5' }} /> : <Menu style={{ width: 20, height: 20 }} />}
+            {mobileMenuOpen ? <X style={{ width: 18, height: 18, color: '#00bfa5' }} /> : <Menu style={{ width: 18, height: 18 }} />}
           </button>
         </div>
 
@@ -392,6 +426,38 @@ export default function Layout({
           {children}
         </motion.div>
       </main>
+
+      {/* ─── Native Mobile Bottom Navigation Bar (<768px) ─── */}
+      <nav className="mobile-bottom-nav">
+        {[
+          { id: 'live', label: 'Live Stream', icon: Radio },
+          { id: 'forecast', label: '96h Forecast', icon: LineChart },
+          { id: 'historical', label: 'Archive', icon: Database },
+        ].map((tab) => {
+          const isActive = currentTab === tab.id;
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleTopTabClick(tab.id)}
+              className={`mobile-bottom-nav-item ${isActive ? 'active' : ''}`}
+              aria-label={tab.label}
+            >
+              <div className="mobile-bottom-nav-icon-wrap">
+                <Icon className="mobile-bottom-nav-icon" />
+                {isActive && (
+                  <motion.div
+                    layoutId="mobileBottomIndicator"
+                    className="mobile-bottom-nav-indicator"
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                  />
+                )}
+              </div>
+              <span className="mobile-bottom-nav-label">{tab.label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }

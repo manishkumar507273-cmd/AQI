@@ -434,7 +434,8 @@ export default function Forecast({ refreshKey }) {
             Predictive Forecast (24h)
           </h1>
           <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13.5 }}>
-            Node 1 24-hour horizon (t+1 → t+24) with expanding-lookback Seq2Seq LSTM and real-time telemetry sync.
+            <span className="desktop-only-inline">Node 1 24-hour horizon (t+1 → t+24) with expanding-lookback Seq2Seq LSTM and real-time telemetry sync.</span>
+            <span className="mobile-only-inline">24-hour predictive AI horizon &amp; real-time telemetry sync</span>
           </p>
         </div>
 
@@ -505,11 +506,13 @@ export default function Forecast({ refreshKey }) {
             <div>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <Clock size={18} color="#0ea5e9" /> 24-Hour Timeline Overview
-                <span style={{ fontSize: 11.5, fontWeight: 500, color: '#94a3b8' }}>• Click any hour card to inspect details below</span>
+                <span className="desktop-only-inline" style={{ fontSize: 11.5, fontWeight: 500, color: '#94a3b8' }}>• Click any hour card to inspect details below</span>
+                <span className="mobile-only-inline" style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8' }}>• Tap to inspect</span>
               </h3>
               {!showPastHours && passedItems.length > 0 && (
                 <p style={{ margin: '4px 0 0', fontSize: 11.5, color: '#64748b' }}>
-                  Showing {visibleTimelineItems.length} active & upcoming {visibleTimelineItems.length === 1 ? 'hour' : 'hours'} • {passedItems.length} elapsed {passedItems.length === 1 ? 'hour' : 'hours'} dynamically removed
+                  <span className="desktop-only-inline">Showing {visibleTimelineItems.length} active &amp; upcoming {visibleTimelineItems.length === 1 ? 'hour' : 'hours'} • {passedItems.length} elapsed {passedItems.length === 1 ? 'hour' : 'hours'} dynamically removed</span>
+                  <span className="mobile-only-inline">{visibleTimelineItems.length} active hours • {passedItems.length} elapsed hidden</span>
                 </p>
               )}
             </div>
@@ -648,7 +651,8 @@ export default function Forecast({ refreshKey }) {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: '#64748b' }}>
-                    Dominant Pollutant: <strong style={{ color: '#0f172a' }}>{activeSlot.dominant_pollutant}</strong> (Sub: {activeSlot.dominant_sub})
+                    <span className="desktop-only-inline">Dominant Pollutant: <strong style={{ color: '#0f172a' }}>{activeSlot.dominant_pollutant}</strong> (Sub: {activeSlot.dominant_sub})</span>
+                    <span className="mobile-only-inline">Dominant: <strong style={{ color: '#0f172a' }}>{activeSlot.dominant_pollutant}</strong></span>
                   </span>
                   {activeSlot.hasActual && activeSlot.actual_aqi != null && (
                     <span style={{
@@ -807,6 +811,7 @@ export default function Forecast({ refreshKey }) {
                 <button
                   key={pKey}
                   onClick={() => setActiveParam(pKey)}
+                  className="forecast-param-btn"
                   style={{
                     padding: '7px 14px',
                     borderRadius: 10,

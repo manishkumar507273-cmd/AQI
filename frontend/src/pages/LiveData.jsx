@@ -74,7 +74,10 @@ export default function LiveData({
               />
             )}
             <Activity style={{ width: 17, height: 17, zIndex: 1 }} />
-            <span style={{ zIndex: 1 }}>AQI Dashboard</span>
+            <span style={{ zIndex: 1 }}>
+              <span className="desktop-only-inline">AQI Dashboard</span>
+              <span className="mobile-only-inline">Air Quality</span>
+            </span>
           </button>
 
           <button
@@ -113,7 +116,10 @@ export default function LiveData({
               />
             )}
             <CloudSun style={{ width: 17, height: 17, zIndex: 1 }} />
-            <span style={{ zIndex: 1 }}>Weather Telemetry</span>
+            <span style={{ zIndex: 1 }}>
+              <span className="desktop-only-inline">Weather Telemetry</span>
+              <span className="mobile-only-inline">Weather</span>
+            </span>
           </button>
         </div>
       </div>

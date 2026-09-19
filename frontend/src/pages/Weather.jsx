@@ -373,7 +373,12 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <AlertTriangle style={{ width: 18, height: 18, color: '#ea580c', flexShrink: 0 }} />
               <span style={{ fontSize: 13.5, color: '#475569', fontWeight: 600 }}>
-                <strong style={{ color: '#9a3412' }}>Weather Sensor Offline:</strong> No new live telemetry received in cloud for &gt;5 mins (Last update: <span style={{ color: '#ea580c', fontWeight: 700 }}>{timeAgoStr}</span>). Showing past records below.
+                <span className="desktop-only-inline">
+                  <strong style={{ color: '#9a3412' }}>Weather Sensor Offline:</strong> No new live telemetry received in cloud for &gt;5 mins (Last update: <span style={{ color: '#ea580c', fontWeight: 700 }}>{timeAgoStr}</span>). Showing past records below.
+                </span>
+                <span className="mobile-only-inline">
+                  <strong style={{ color: '#9a3412' }}>Sensor Offline:</strong> Last update {timeAgoStr}. Past records shown.
+                </span>
               </span>
             </div>
             <span style={{ fontSize: 11.5, fontWeight: 700, padding: '4px 12px', borderRadius: 999, backgroundColor: '#ffedd5', color: '#c2410c', fontFamily: 'var(--font-mono)' }}>
@@ -388,7 +393,8 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
             Weather Conditions
           </h1>
           <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>
-            Real-time atmospheric telemetry stream
+            <span className="desktop-only-inline">Real-time atmospheric telemetry stream</span>
+            <span className="mobile-only-inline">Atmospheric telemetry stream</span>
           </p>
         </motion.div>
 
@@ -415,16 +421,16 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                 <span className="hero-metric-val" style={{ fontFamily: 'var(--font-mono)', fontSize: 76, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#0f172a' }}>
                   {fmt(temperature, 1) ?? '--'}
                 </span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 32, fontWeight: 700, color: '#64748b' }}>°C</span>
+                <span className="hero-metric-unit" style={{ fontFamily: 'var(--font-mono)', fontSize: 32, fontWeight: 700, color: '#64748b' }}>°C</span>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ padding: '6px 16px', borderRadius: 999, backgroundColor: '#e0f2fe', color: '#0284c7', fontSize: 14, fontWeight: 700 }}>
+              <span className="hero-score-badge" style={{ padding: '6px 16px', borderRadius: 999, backgroundColor: '#e0f2fe', color: '#0284c7', fontSize: 14, fontWeight: 700 }}>
                 {tempLabel}
               </span>
               {aqi != null && (
-                <span style={{ padding: '6px 16px', borderRadius: 999, backgroundColor: '#f8fafc', color: '#0f172a', fontSize: 14, fontWeight: 700, border: `1.5px solid ${aqiColor}50` }}>
+                <span className="hero-score-badge" style={{ padding: '6px 16px', borderRadius: 999, backgroundColor: '#f8fafc', color: '#0f172a', fontSize: 14, fontWeight: 700, border: `1.5px solid ${aqiColor}50` }}>
                   AQI {aqi} · {aqiLabel}
                 </span>
               )}
@@ -547,6 +553,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.2 }}
+        className="mobile-card-compact"
         style={{
           backgroundColor: '#ffffff',
           borderRadius: 24,
@@ -567,7 +574,8 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                 <Table style={{ width: 18, height: 18 }} />
               </div>
               <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: 0, fontFamily: 'var(--font-sans)' }}>
-                Live Temperature &amp; Weather Telemetry Stream
+                <span className="desktop-only-inline">Live Temperature &amp; Weather Telemetry Stream</span>
+                <span className="mobile-only-inline">Weather Stream Records</span>
               </h3>
             </div>
           </div>

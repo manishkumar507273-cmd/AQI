@@ -284,7 +284,7 @@ img, svg, video, canvas {
   }
 
   .app-main {
-    padding: 8px 10px 48px !important;
+    padding: 8px 10px 78px !important;
     max-width: 100vw !important;
   }
 
@@ -329,14 +329,22 @@ img, svg, video, canvas {
   }
 
   .subtab-pill-btn {
-    padding: 5px 12px !important;
-    font-size: 11.5px !important;
+    padding: 5px 14px !important;
+    font-size: 12px !important;
     gap: 6px !important;
   }
 
   .subtab-pill-btn svg {
     width: 14px !important;
     height: 14px !important;
+  }
+
+  .desktop-only-inline {
+    display: none !important;
+  }
+
+  .mobile-only-inline {
+    display: inline !important;
   }
 
   /* 4. Hero Card & Main AQI / Weather Score */
@@ -491,6 +499,96 @@ img, svg, video, canvas {
   .mobile-only-header {
     display: flex !important;
   }
+
+  /* 12. Native Mobile Bottom Navigation Bar */
+  .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 60px !important;
+    background: rgba(255, 255, 255, 0.97) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-top: 1px solid #e2e8f0 !important;
+    align-items: center !important;
+    justify-content: space-around !important;
+    z-index: 100 !important;
+    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.08) !important;
+    padding: 4px 8px calc(env(safe-area-inset-bottom, 0px) + 4px) !important;
+  }
+
+  .mobile-bottom-nav-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 1 !important;
+    height: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    color: #64748b !important;
+    cursor: pointer !important;
+    padding: 3px 0 !important;
+    gap: 3px !important;
+    position: relative !important;
+    -webkit-tap-highlight-color: transparent !important;
+    transition: color 0.15s ease !important;
+  }
+
+  .mobile-bottom-nav-item.active {
+    color: #00bfa5 !important;
+    font-weight: 700 !important;
+  }
+
+  .mobile-bottom-nav-icon-wrap {
+    position: relative !important;
+    width: 26px !important;
+    height: 24px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .mobile-bottom-nav-icon {
+    width: 20px !important;
+    height: 20px !important;
+    transition: transform 0.15s ease !important;
+  }
+
+  .mobile-bottom-nav-item.active .mobile-bottom-nav-icon {
+    transform: scale(1.12) !important;
+    color: #00bfa5 !important;
+  }
+
+  .mobile-bottom-nav-label {
+    font-size: 10.5px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em !important;
+    line-height: 1 !important;
+  }
+
+  .mobile-bottom-nav-indicator {
+    position: absolute !important;
+    bottom: -2px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 14px !important;
+    height: 3px !important;
+    border-radius: 999px !important;
+    background-color: #00bfa5 !important;
+    box-shadow: 0 1px 6px rgba(0, 191, 165, 0.45) !important;
+  }
+
+  .hero-metric-unit {
+    font-size: 18px !important;
+  }
+
+  .forecast-param-btn {
+    padding: 5px 10px !important;
+    font-size: 11.5px !important;
+  }
 }
 
 @media (min-width: 768px) {
@@ -499,6 +597,18 @@ img, svg, video, canvas {
   }
 
   .mobile-only-header {
+    display: none !important;
+  }
+
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+
+  .desktop-only-inline {
+    display: inline !important;
+  }
+
+  .mobile-only-inline {
     display: none !important;
   }
 }
