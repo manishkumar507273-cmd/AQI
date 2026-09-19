@@ -330,7 +330,7 @@ export default function Layout({
       <nav className="mobile-bottom-nav">
         {[
           { id: 'live', label: 'Live Stream', icon: Radio },
-          { id: 'forecast', label: '96h Forecast', icon: LineChart },
+          { id: 'forecast', label: 'Forecast', icon: LineChart },
           { id: 'historical', label: 'Archive', icon: Database },
         ].map((tab) => {
           const isActive = currentTab === tab.id;

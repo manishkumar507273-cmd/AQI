@@ -342,6 +342,20 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
 
   const activeDetail = activeWeatherModal ? WEATHER_DETAILS[activeWeatherModal] : null;
 
+  const latestTableTime = useMemo(() => {
+    if (!latestTimestamp) return 'N/A';
+    const dt = new Date(latestTimestamp);
+    if (isNaN(dt.getTime())) return String(latestTimestamp);
+    const now = new Date();
+    const isToday = dt.getDate() === now.getDate() &&
+                    dt.getMonth() === now.getMonth() &&
+                    dt.getFullYear() === now.getFullYear();
+    const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+    if (isToday) return timeStr;
+    const dateStr2 = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    return `${dateStr2}, ${timeStr}`;
+  }, [latestTimestamp]);
+
   // Temperature Statistics over live stream
   const tempStats = useMemo(() => {
     const temps = liveHistory
@@ -438,10 +452,26 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
           <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
             Weather Conditions
           </h1>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 3 }}>
-            <span className="desktop-only-inline">Real-time atmospheric telemetry stream</span>
-            <span className="mobile-only-inline">Atmospheric telemetry stream</span>
-          </p>
+          <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 6, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span>Last Updated: <span style={{ color: selectedStation === 'station-1' && !isOnline ? '#ea580c' : '#00bfa5', fontWeight: 600 }}>{selectedStation === 'station-1' ? latestTableTime : 'N/A (Station Standby)'}</span></span>
+            {selectedStation === 'station-1' && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '2px 8px',
+                borderRadius: 999,
+                fontSize: 11,
+                fontWeight: 700,
+                backgroundColor: isOnline ? '#ecfdf5' : '#fff7ed',
+                color: isOnline ? '#059669' : '#ea580c',
+                border: `1px solid ${isOnline ? '#a7f3d0' : '#fed7aa'}`
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: isOnline ? '#10b981' : '#f97316' }} />
+                {isOnline ? 'LIVE' : `OFFLINE (${timeAgoStr})`}
+              </span>
+            )}
+          </div>
         </motion.div>
 
         {/* ── Clean Hero Container ── */}
@@ -660,7 +690,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                   liveHistory.map((row, index) => {
                     const tsDate = row.timestamp ? new Date(row.timestamp) : null;
                     const formattedTime = tsDate && !isNaN(tsDate)
-                      ? tsDate.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
+                      ? tsDate.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
                       : 'N/A';
 
                     const rowGust = row.wind_gust != null 

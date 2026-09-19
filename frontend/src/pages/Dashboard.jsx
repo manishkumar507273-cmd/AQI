@@ -370,7 +370,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                     dt.getMonth() === now.getMonth() &&
                     dt.getFullYear() === now.getFullYear();
 
-    const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
+    const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
     
     if (isToday) {
       return timeStr;
@@ -1261,7 +1261,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                   liveHistory.map((row, index) => {
                     const tsDate = row.timestamp ? new Date(row.timestamp) : null;
                     const formattedTime = tsDate && !isNaN(tsDate)
-                      ? tsDate.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
+                      ? tsDate.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
                       : '21.06.2023 12:56:50';
 
                     return (
