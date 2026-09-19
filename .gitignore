@@ -16,6 +16,11 @@ env/
 htmlcov/
 *.log
 
+# SQLite / Local Databases
+*.db
+*.sqlite
+*.sqlite3
+
 # Node / Frontend
 node_modules/
 frontend/node_modules/

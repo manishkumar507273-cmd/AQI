@@ -1,8 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import Layout from './components/Layout';
 import LiveData from './pages/LiveData';
-import Dashboard from './pages/Dashboard';
-import Weather from './pages/Weather';
 import Forecast from './pages/Forecast';
 import Historical from './pages/Historical';
 import { getCloudLatest } from './api';
@@ -90,27 +88,6 @@ export default function App() {
           selectedStation={selectedStation}
           activeSubTab={activeTab}
           onSubTabChange={setActiveTab}
-        />
-      )}
-
-      {activeNav === 'home' && activeTab === 'aqi' && (
-        <Dashboard
-          cloudData={cloudData}
-          cloudLoading={cloudLoading}
-          cloudError={cloudError}
-          onDataLoad={handleDataLoad}
-          refreshKey={refreshKey}
-          selectedStation={selectedStation}
-        />
-      )}
-
-      {activeNav === 'home' && activeTab === 'weather' && (
-        <Weather
-          cloudData={cloudData}
-          cloudLoading={cloudLoading}
-          cloudError={cloudError}
-          refreshKey={refreshKey}
-          selectedStation={selectedStation}
         />
       )}
 
