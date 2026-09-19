@@ -531,7 +531,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
         justifyContent: 'center',
         marginBottom: 4,
       }}>
-        <div style={{
+        <div className="subtab-pill-container" style={{
           display: 'inline-flex',
           alignItems: 'center',
           backgroundColor: '#ffffff',
@@ -543,6 +543,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
         }}>
           <button
             onClick={() => handleTabChange('aqi')}
+            className="subtab-pill-btn"
             style={{
               position: 'relative',
               display: 'flex',
@@ -580,6 +581,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
 
           <button
             onClick={() => handleTabChange('weather')}
+            className="subtab-pill-btn"
             style={{
               position: 'relative',
               display: 'flex',
@@ -618,14 +620,17 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       </div>
 
       {/* ── UNIFIED DATE SELECTOR & 24-HOUR SUMMARY CARD ── */}
-      <div style={{
-        backgroundColor: '#ffffff',
-        borderRadius: 24,
-        padding: '20px 24px',
-        border: '1.5px solid #00bfa5',
-        boxShadow: '0 4px 20px rgba(0, 191, 165, 0.08)',
-        transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
-      }}>
+      <div
+        className="mobile-card-compact"
+        style={{
+          backgroundColor: '#ffffff',
+          borderRadius: 24,
+          padding: '20px 24px',
+          border: '1.5px solid #00bfa5',
+          boxShadow: '0 4px 20px rgba(0, 191, 165, 0.08)',
+          transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
+        }}
+      >
         {/* Top Header Row: Date Selector & Controls */}
         <div style={{
           display: 'flex',
@@ -889,7 +894,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       </div>
 
       {/* ── CHART SECTION: 24 HOURLY DATA POINTS (TOTAL 24 DATA PER DAY) ── */}
-      <div style={{ backgroundColor: '#ffffff', borderRadius: 24, padding: 24, border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
+      <div className="mobile-card-compact" style={{ backgroundColor: '#ffffff', borderRadius: 24, padding: 24, border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>

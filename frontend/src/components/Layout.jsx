@@ -86,21 +86,24 @@ export default function Layout({
           onClick={() => handleTopTabClick('live')}
           style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none', flexShrink: 0 }}
         >
-          <div style={{
-            width: 38, height: 38, borderRadius: 12,
-            backgroundColor: '#00bfa5',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#ffffff',
-            boxShadow: '0 4px 14px rgba(0, 191, 165, 0.35)',
-            flexShrink: 0,
-          }}>
-            <Wind style={{ width: 22, height: 22 }} />
+          <div
+            className="app-header-brand-icon"
+            style={{
+              width: 38, height: 38, borderRadius: 12,
+              backgroundColor: '#00bfa5',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#ffffff',
+              boxShadow: '0 4px 14px rgba(0, 191, 165, 0.35)',
+              flexShrink: 0,
+            }}
+          >
+            <Wind style={{ width: 20, height: 20 }} />
           </div>
           <div>
-            <div style={{ fontSize: 'clamp(18px, 3vw, 20px)', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+            <div className="app-header-title" style={{ fontSize: 'clamp(17px, 3vw, 20px)', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
               Smart <span style={{ fontWeight: 500, color: '#00bfa5' }}>AirNet</span>
             </div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: -1 }}>
+            <div className="app-header-subtitle" style={{ fontSize: 10, fontWeight: 600, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: -1 }}>
               Real-time AQI &amp; Weather
             </div>
           </div>

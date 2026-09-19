@@ -27,7 +27,7 @@ export default function LiveData({
         justifyContent: 'center',
         marginBottom: 8,
       }}>
-        <div style={{
+        <div className="subtab-pill-container" style={{
           display: 'inline-flex',
           alignItems: 'center',
           backgroundColor: '#ffffff',
@@ -40,6 +40,7 @@ export default function LiveData({
         }}>
           <button
             onClick={() => setSubTab('aqi')}
+            className="subtab-pill-btn"
             style={{
               position: 'relative',
               display: 'flex',
@@ -78,6 +79,7 @@ export default function LiveData({
 
           <button
             onClick={() => setSubTab('weather')}
+            className="subtab-pill-btn"
             style={{
               position: 'relative',
               display: 'flex',

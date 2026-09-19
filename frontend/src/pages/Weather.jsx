@@ -410,7 +410,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
           <div className="hero-left-col" style={{ zIndex: 1 }}>
             <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>{dateStr}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 14, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 64, lineHeight: 1 }}>{tempIcon}</span>
+              <span className="hero-temp-icon" style={{ fontSize: 64, lineHeight: 1 }}>{tempIcon}</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                 <span className="hero-metric-val" style={{ fontFamily: 'var(--font-mono)', fontSize: 76, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#0f172a' }}>
                   {fmt(temperature, 1) ?? '--'}
@@ -471,6 +471,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
               <motion.div
                 key={key}
                 custom={i + 1} variants={cardVariants} initial="hidden" animate="visible"
+                className="sensor-card-mobile"
                 onClick={() => setActiveWeatherModal(key)}
                 style={{
                   backgroundColor: '#ffffff',
@@ -530,7 +531,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                 {/* Bottom Row: Large Monospace Reading */}
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%', marginTop: 4 }}>
                   <div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 21, fontWeight: 800, color: accent, lineHeight: 1 }}>
+                    <div className="sensor-card-val-mobile" style={{ fontFamily: 'var(--font-mono)', fontSize: 21, fontWeight: 800, color: accent, lineHeight: 1 }}>
                       {val}
                     </div>
                   </div>

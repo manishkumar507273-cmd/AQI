@@ -493,7 +493,7 @@ export default function Forecast({ refreshKey }) {
 
       {/* 24-Hour Quick Timeline Scrubber */}
       {processedItems.length > 0 && (
-        <div style={{
+        <div className="mobile-card-compact" style={{
           background: '#ffffff',
           borderRadius: 18,
           padding: '20px 24px',
@@ -552,6 +552,7 @@ export default function Forecast({ refreshKey }) {
                 <div
                   key={item.index}
                   onClick={() => setSelectedSlotIndex(item.index)}
+                  className="forecast-timeline-card"
                   style={{
                     flex: '0 0 110px',
                     padding: '12px 10px',
@@ -565,13 +566,13 @@ export default function Forecast({ refreshKey }) {
                     boxShadow: isSelected ? `0 8px 16px -4px ${item.aqi_color}40` : 'none'
                   }}
                 >
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>
+                  <div className="forecast-timeline-hour" style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>
                     {item.display_hour}
                   </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: item.aqi_color, lineHeight: 1.1 }}>
+                  <div className="forecast-timeline-aqi" style={{ fontSize: 22, fontWeight: 800, color: item.aqi_color, lineHeight: 1.1 }}>
                     {item.aqi}
                   </div>
-                  <div style={{
+                  <div className="forecast-timeline-category" style={{
                     fontSize: 10,
                     fontWeight: 700,
                     color: item.aqi_color,
@@ -582,7 +583,7 @@ export default function Forecast({ refreshKey }) {
                   }}>
                     {item.aqi_category}
                   </div>
-                  <div style={{
+                  <div className="forecast-timeline-actual" style={{
                     marginTop: 6,
                     paddingTop: 6,
                     borderTop: '1px dashed #e2e8f0',
@@ -608,6 +609,7 @@ export default function Forecast({ refreshKey }) {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.18 }}
+              className="forecast-inspector-card"
               style={{
                 marginTop: 18,
                 padding: '16px 20px',
@@ -771,14 +773,17 @@ export default function Forecast({ refreshKey }) {
 
 
       {/* Main Analytics Hub: Chart & Full 24h Table with Metric Switcher */}
-      <div style={{
-        background: '#ffffff',
-        borderRadius: 20,
-        border: '1px solid #e2e8f0',
-        padding: '26px 28px',
-        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.04)',
-        marginBottom: 28
-      }}>
+      <div
+        className="forecast-main-hub"
+        style={{
+          background: '#ffffff',
+          borderRadius: 20,
+          border: '1px solid #e2e8f0',
+          padding: '26px 28px',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.04)',
+          marginBottom: 28
+        }}
+      >
         {/* Navigation Toolbar */}
         <div style={{
           display: 'flex',

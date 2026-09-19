@@ -752,7 +752,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20, flexWrap: 'wrap' }}>
+          <div className="hero-metric-container" style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20, flexWrap: 'wrap' }}>
             <div>
               <div className="hero-metric-val" style={{ fontFamily: 'var(--font-mono)', fontSize: 72, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#0f172a' }}>
                 {aqiValue}
@@ -764,7 +764,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
 
             <div>
               <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Air Quality is</div>
-              <div style={{
+              <div className="hero-score-badge" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 7,
                 padding: '6px 18px', borderRadius: 999,
                 backgroundColor: '#ffffff',
@@ -884,6 +884,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               <motion.div
                 key={key}
                 custom={i + 1} variants={cardVariants} initial="hidden" animate="visible"
+                className="sensor-card-mobile"
                 onClick={() => {
                   setHeroScaleTab(key);
                   setActivePollutantModal(key);
@@ -943,7 +944,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 {/* Middle Row: Monospace Value + Status Tag */}
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%', marginTop: 2 }}>
                   <div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 800, color: st.accent, lineHeight: 1 }}>
+                    <div className="sensor-card-val-mobile" style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 800, color: st.accent, lineHeight: 1 }}>
                       {p.value}
                     </div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
