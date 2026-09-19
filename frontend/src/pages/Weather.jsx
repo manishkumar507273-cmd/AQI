@@ -526,12 +526,37 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
               <span>Live Sensor Feed</span>
               <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isOnline ? '#10b981' : '#f59e0b', display: 'inline-block' }} />
             </div>
-            <div style={{ fontSize: 13, color: '#0f172a', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div>🌡️ Temp: <strong style={{ fontFamily: 'var(--font-mono)', color: '#ea580c' }}>{temperature != null ? `${fmt(temperature, 1)}°C` : 'N/A'}</strong></div>
-              <div>💧 Humidity: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0284c7' }}>{humidity != null ? `${fmt(humidity, 1)}%` : 'N/A'}</strong></div>
-              <div>💨 Wind: <strong style={{ fontFamily: 'var(--font-mono)', color: '#6366f1' }}>{windSpeed != null ? `${fmt(windSpeed, 1)} km/h` : 'N/A'}</strong></div>
-              <div>🌪️ Gust: <strong style={{ fontFamily: 'var(--font-mono)', color: '#8b5cf6' }}>{windGust != null ? `${fmt(windGust, 1)} km/h` : 'N/A'}</strong></div>
-              <div>🌧️ Rain: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0891b2' }}>{rainGauge != null ? `${fmt(rainGauge, 1)} mm` : 'N/A'}</strong></div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))',
+              gap: 8,
+              fontSize: 12,
+              color: '#0f172a'
+            }}>
+              <div style={{ padding: '6px 10px', borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🌡️</span>
+                <span>Temp: <strong style={{ fontFamily: 'var(--font-mono)', color: '#ea580c' }}>{temperature != null ? `${fmt(temperature, 1)}°C` : 'N/A'}</strong></span>
+              </div>
+              <div style={{ padding: '6px 10px', borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>💧</span>
+                <span>Humidity: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0284c7' }}>{humidity != null ? `${fmt(humidity, 1)}%` : 'N/A'}</strong></span>
+              </div>
+              <div style={{ padding: '6px 10px', borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>💨</span>
+                <span>Wind: <strong style={{ fontFamily: 'var(--font-mono)', color: '#6366f1' }}>{windSpeed != null ? `${fmt(windSpeed, 1)} km/h` : 'N/A'}</strong></span>
+              </div>
+              <div style={{ padding: '6px 10px', borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🌪️</span>
+                <span>Gust: <strong style={{ fontFamily: 'var(--font-mono)', color: '#8b5cf6' }}>{windGust != null ? `${fmt(windGust, 1)} km/h` : 'N/A'}</strong></span>
+              </div>
+              <div style={{ padding: '6px 10px', borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🌧️</span>
+                <span>Rain: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0891b2' }}>{rainGauge != null ? `${fmt(rainGauge, 1)} mm` : 'N/A'}</strong></span>
+              </div>
+              <div style={{ padding: '6px 10px', borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🧭</span>
+                <span>Dir: <strong style={{ fontFamily: 'var(--font-mono)', color: '#475569' }}>{compassDir || 'N/A'}</strong></span>
+              </div>
             </div>
           </div>
         </motion.div>
