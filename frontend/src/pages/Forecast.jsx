@@ -312,8 +312,8 @@ export default function Forecast({ refreshKey }) {
   const stats = useMemo(() => {
     if (processedItems.length === 0) return null;
     const aqiVals = processedItems.map(p => p.aqi);
-    const minAqi = Math.min(...aqiVals);
-    const maxAqi = Math.max(...aqiVals);
+    const minAqi = Math.round(Math.min(...aqiVals));
+    const maxAqi = Math.round(Math.max(...aqiVals));
     const avgAqi = Math.round(aqiVals.reduce((a, b) => a + b, 0) / aqiVals.length);
     const maxItem = processedItems.find(p => p.aqi === maxAqi);
     const minItem = processedItems.find(p => p.aqi === minAqi);
@@ -325,7 +325,7 @@ export default function Forecast({ refreshKey }) {
     let maeAqi = null;
     if (actualCount > 0) {
       const sumErr = matchedItems.reduce((acc, curr) => acc + Math.abs(curr.aqi_delta || 0), 0);
-      maeAqi = (sumErr / actualCount).toFixed(1);
+      maeAqi = (sumErr / actualCount).toFixed(3);
     }
 
     return {
@@ -391,18 +391,18 @@ export default function Forecast({ refreshKey }) {
     return visibleTimelineItems[0];
   }, [visibleTimelineItems, selectedSlotIndex]);
 
-  const renderDualCell = (actVal, fcVal, unit = '', decimals = 2) => {
+  const renderDualCell = (actVal, fcVal, unit = '', decimals = 3) => {
     const hasAct = actVal != null && !isNaN(Number(actVal));
     const hasFc = fcVal != null && !isNaN(Number(fcVal));
 
     return (
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
         <span style={{ fontWeight: 700, color: hasAct ? '#0f172a' : '#94a3b8' }}>
-          {hasAct ? `${Number(actVal).toFixed(decimals)}${unit}` : '—'}
+          {hasAct ? `${Number(actVal).toFixed(3)}${unit}` : '—'}
         </span>
         <span style={{ color: '#cbd5e1' }}>/</span>
         <span style={{ color: hasFc ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>
-          {hasFc ? `${Number(fcVal).toFixed(decimals)}${unit}` : '—'}
+          {hasFc ? `${Number(fcVal).toFixed(3)}${unit}` : '—'}
         </span>
       </div>
     );
@@ -803,7 +803,7 @@ export default function Forecast({ refreshKey }) {
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 4 }}>
                               <span style={{ color: '#94a3b8' }}>Forecast {PARAM_CONFIG[activeParam].name}:</span>
                               <strong style={{ color: PARAM_CONFIG[activeParam].color }}>
-                                {data[activeParam]} {PARAM_CONFIG[activeParam].unit}
+                                {data[activeParam] != null && !isNaN(Number(data[activeParam])) ? Number(data[activeParam]).toFixed(activeParam === 'temperature' || activeParam === 'humidity' ? 1 : 3) : data[activeParam]} {PARAM_CONFIG[activeParam].unit}
                               </strong>
                             </div>
 
@@ -811,7 +811,7 @@ export default function Forecast({ refreshKey }) {
                               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 4 }}>
                                 <span style={{ color: '#94a3b8' }}>Actual Telemetry:</span>
                                 <strong style={{ color: actVal != null ? '#f59e0b' : '#64748b' }}>
-                                  {actVal != null ? `${Number(actVal).toFixed(2)} ${PARAM_CONFIG[activeParam].unit}` : 'Pending (—)'}
+                                  {actVal != null ? `${Number(actVal).toFixed(activeParam === 'temperature' || activeParam === 'humidity' ? 1 : 3)} ${PARAM_CONFIG[activeParam].unit}` : 'Pending (—)'}
                                 </strong>
                               </div>
                             )}
@@ -820,7 +820,7 @@ export default function Forecast({ refreshKey }) {
                               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 4 }}>
                                 <span style={{ color: '#94a3b8' }}>Difference (Δ):</span>
                                 <strong style={{ color: data.aqi_delta > 0 ? '#ef4444' : '#10b981' }}>
-                                  {data.aqi_delta > 0 ? `+${data.aqi_delta}` : `${data.aqi_delta}`} AQI
+                                  {data.aqi_delta > 0 ? `+${Number(data.aqi_delta).toFixed(3)}` : `${Number(data.aqi_delta).toFixed(3)}`} AQI
                                 </strong>
                               </div>
                             )}
@@ -935,7 +935,7 @@ export default function Forecast({ refreshKey }) {
                           color: getAqiCategory(row.actual_aqi).text,
                           border: `1px solid ${getAqiCategory(row.actual_aqi).border}`
                         }}>
-                          {row.actual_aqi} • {getAqiCategory(row.actual_aqi).label}
+                          {row.actual_aqi != null && !isNaN(Number(row.actual_aqi)) ? Math.round(Number(row.actual_aqi)) : row.actual_aqi} • {getAqiCategory(row.actual_aqi).label}
                         </span>
                       ) : (
                         <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: 12 }}>
@@ -958,7 +958,7 @@ export default function Forecast({ refreshKey }) {
                         color: row.aqi_color,
                         border: `1px solid ${row.aqi_border}`
                       }}>
-                        {row.aqi} • {row.aqi_category}
+                        {row.aqi != null && !isNaN(Number(row.aqi)) ? Math.round(Number(row.aqi)) : row.aqi} • {row.aqi_category}
                       </span>
                     </td>
 
@@ -976,7 +976,7 @@ export default function Forecast({ refreshKey }) {
                           backgroundColor: row.aqi_delta === 0 ? '#f1f5f9' : (row.aqi_delta > 0 ? '#fef2f2' : '#f0fdf4'),
                           color: row.aqi_delta === 0 ? '#64748b' : (row.aqi_delta > 0 ? '#dc2626' : '#16a34a')
                         }}>
-                          {row.aqi_delta > 0 ? `+${row.aqi_delta}` : `${row.aqi_delta}`}
+                          {row.aqi_delta != null && !isNaN(Number(row.aqi_delta)) ? (row.aqi_delta > 0 ? `+${Math.round(Number(row.aqi_delta))}` : `${Math.round(Number(row.aqi_delta))}`) : (row.aqi_delta > 0 ? `+${row.aqi_delta}` : `${row.aqi_delta}`)}
                         </span>
                       ) : (
                         <span style={{ color: '#cbd5e1' }}>—</span>
@@ -988,11 +988,11 @@ export default function Forecast({ refreshKey }) {
                     </td>
 
                     {/* Actual vs Forecast pairs */}
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_pm25, row.pm2_5_ug_m3, '', 2)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_pm10, row.pm10_ug_m3, '', 2)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_no2, row.no2_ug_m3, '', 2)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_pm25, row.pm2_5_ug_m3, '', 3)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_pm10, row.pm10_ug_m3, '', 3)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_no2, row.no2_ug_m3, '', 3)}</td>
                     <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_co, row.co_mg_m3, '', 3)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_o3, row.ozone_ug_m3, '', 2)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_o3, row.ozone_ug_m3, '', 3)}</td>
                     <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_temp, row.temperature_c, '°', 1)}</td>
                     <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_hum, row.humidity_pct, '%', 1)}</td>
                   </tr>

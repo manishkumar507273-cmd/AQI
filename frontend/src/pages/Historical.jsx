@@ -33,7 +33,7 @@ const WEATHER_PARAMS = [
   { key: 'humidity', label: 'Hum.', unit: '%', color: '#00bfa5' },
   { key: 'wind_speed', label: 'Wind Spd', unit: 'km/h', color: '#4f46e5' },
   { key: 'wind_gust', label: 'Wind Gust', unit: 'km/h', color: '#8b5cf6' },
-  { key: 'wind_direction', label: 'Wind Dir', unit: '°', color: '#0284c7' },
+  { key: 'wind_direction', label: 'Wind Dir', unit: '', color: '#0284c7' },
   { key: 'rain_gauge', label: 'Rain', unit: 'mm', color: '#0891b2' },
 ];
 
@@ -121,46 +121,73 @@ const COMPASS_MAP = {
   'n': { deg: 0, abbr: 'N', name: 'North' },
   'north': { deg: 0, abbr: 'N', name: 'North' },
   'nne': { deg: 22.5, abbr: 'NNE', name: 'North-Northeast' },
+  'northnortheast': { deg: 22.5, abbr: 'NNE', name: 'North-Northeast' },
   'ne': { deg: 45, abbr: 'NE', name: 'Northeast' },
   'northeast': { deg: 45, abbr: 'NE', name: 'Northeast' },
   'ene': { deg: 67.5, abbr: 'ENE', name: 'East-Northeast' },
+  'eastnortheast': { deg: 67.5, abbr: 'ENE', name: 'East-Northeast' },
   'e': { deg: 90, abbr: 'E', name: 'East' },
   'east': { deg: 90, abbr: 'E', name: 'East' },
   'ese': { deg: 112.5, abbr: 'ESE', name: 'East-Southeast' },
+  'eastsoutheast': { deg: 112.5, abbr: 'ESE', name: 'East-Southeast' },
   'se': { deg: 135, abbr: 'SE', name: 'Southeast' },
   'southeast': { deg: 135, abbr: 'SE', name: 'Southeast' },
   'sse': { deg: 157.5, abbr: 'SSE', name: 'South-Southeast' },
+  'southsoutheast': { deg: 157.5, abbr: 'SSE', name: 'South-Southeast' },
   's': { deg: 180, abbr: 'S', name: 'South' },
   'south': { deg: 180, abbr: 'S', name: 'South' },
   'ssw': { deg: 202.5, abbr: 'SSW', name: 'South-Southwest' },
+  'southsouthwest': { deg: 202.5, abbr: 'SSW', name: 'South-Southwest' },
   'sw': { deg: 225, abbr: 'SW', name: 'Southwest' },
   'southwest': { deg: 225, abbr: 'SW', name: 'Southwest' },
   'wsw': { deg: 247.5, abbr: 'WSW', name: 'West-Southwest' },
+  'westsouthwest': { deg: 247.5, abbr: 'WSW', name: 'West-Southwest' },
   'w': { deg: 270, abbr: 'W', name: 'West' },
   'west': { deg: 270, abbr: 'W', name: 'West' },
   'wnw': { deg: 292.5, abbr: 'WNW', name: 'West-Northwest' },
+  'westnorthwest': { deg: 292.5, abbr: 'WNW', name: 'West-Northwest' },
   'nw': { deg: 315, abbr: 'NW', name: 'Northwest' },
   'northwest': { deg: 315, abbr: 'NW', name: 'Northwest' },
-  'nnw': { deg: 337.5, abbr: 'NNW', name: 'North-Northwest' }
+  'nnw': { deg: 337.5, abbr: 'NNW', name: 'North-Northwest' },
+  'northnorthwest': { deg: 337.5, abbr: 'NNW', name: 'North-Northwest' }
 };
 
-const COMPASS_DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+const COMPASS_DIRS = [
+  { abbr: 'N', name: 'North', deg: 0 },
+  { abbr: 'NNE', name: 'North-Northeast', deg: 22.5 },
+  { abbr: 'NE', name: 'Northeast', deg: 45 },
+  { abbr: 'ENE', name: 'East-Northeast', deg: 67.5 },
+  { abbr: 'E', name: 'East', deg: 90 },
+  { abbr: 'ESE', name: 'East-Southeast', deg: 112.5 },
+  { abbr: 'SE', name: 'Southeast', deg: 135 },
+  { abbr: 'SSE', name: 'South-Southeast', deg: 157.5 },
+  { abbr: 'S', name: 'South', deg: 180 },
+  { abbr: 'SSW', name: 'South-Southwest', deg: 202.5 },
+  { abbr: 'SW', name: 'Southwest', deg: 225 },
+  { abbr: 'WSW', name: 'West-Southwest', deg: 247.5 },
+  { abbr: 'W', name: 'West', deg: 270 },
+  { abbr: 'WNW', name: 'West-Northwest', deg: 292.5 },
+  { abbr: 'NW', name: 'Northwest', deg: 315 },
+  { abbr: 'NNW', name: 'North-Northwest', deg: 337.5 }
+];
 
 const parseWindDir = (val) => {
   if (val == null) return null;
   const s = String(val).trim();
   if (!s || s === 'N/A' || s === '-' || s === 'null' || s === 'undefined') return null;
   
-  if (!isNaN(Number(s))) {
-    const deg = Math.round(((Number(s) % 360) + 360) % 360);
-    const abbr = COMPASS_DIRS[Math.round(deg / 22.5) % 16];
-    return { deg, abbr, name: abbr, label: `${abbr} (${deg}°)` };
+  const numOnly = s.replace(/°/g, '').trim();
+  if (!isNaN(Number(numOnly)) && numOnly !== '') {
+    const deg = Math.round(((Number(numOnly) % 360) + 360) % 360);
+    const item = COMPASS_DIRS[Math.round(deg / 22.5) % 16];
+    return { deg, abbr: item.abbr, name: item.name, label: item.name };
   }
 
-  const clean = s.toLowerCase().replace(/[\s_-]+/g, '');
+  const match = s.match(/([A-Za-z\-]+)/);
+  const clean = match ? match[1].toLowerCase().replace(/[\s_-]+/g, '') : s.toLowerCase().replace(/[\s_-]+/g, '');
   if (COMPASS_MAP[clean]) {
     const { deg, abbr, name } = COMPASS_MAP[clean];
-    return { deg: Math.round(deg), abbr, name, label: `${abbr} (${Math.round(deg)}°)` };
+    return { deg: Math.round(deg), abbr, name, label: name };
   }
 
   return { deg: null, abbr: s, name: s, label: s };
@@ -169,7 +196,7 @@ const parseWindDir = (val) => {
 const getCompassDir = (val) => {
   if (val == null) return '';
   const parsed = parseWindDir(val);
-  return parsed ? parsed.label : String(val);
+  return parsed ? parsed.name : String(val);
 };
 
 const formatDDMMYYYY = (date) => {
@@ -417,27 +444,31 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       .filter(v => v != null && !isNaN(Number(v)))
       .map(Number);
 
-    const avgVal = values.length > 0 ? (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1) : 'N/A';
-    const minVal = values.length > 0 ? Math.min(...values).toFixed(1) : 'N/A';
-    const maxVal = values.length > 0 ? Math.max(...values).toFixed(1) : 'N/A';
+    const isTempOrHum = activeParamKey === 'temperature' || activeParamKey === 'humidity';
+    const isAqiParam = activeParamKey === 'cpcb_aqi';
+    const activeDecimals = isAqiParam ? 0 : (isTempOrHum ? 1 : 3);
+
+    const avgVal = values.length > 0 ? (isAqiParam ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : (values.reduce((a, b) => a + b, 0) / values.length).toFixed(activeDecimals)) : 'N/A';
+    const minVal = values.length > 0 ? (isAqiParam ? Math.round(Math.min(...values)) : Math.min(...values).toFixed(activeDecimals)) : 'N/A';
+    const maxVal = values.length > 0 ? (isAqiParam ? Math.round(Math.max(...values)) : Math.max(...values).toFixed(activeDecimals)) : 'N/A';
 
     const avgAqi = aqiValues.length > 0 ? Math.round(aqiValues.reduce((a, b) => a + b, 0) / aqiValues.length) : null;
-    const minAqi = aqiValues.length > 0 ? Math.min(...aqiValues) : null;
-    const maxAqi = aqiValues.length > 0 ? Math.max(...aqiValues) : null;
+    const minAqi = aqiValues.length > 0 ? Math.round(Math.min(...aqiValues)) : null;
+    const maxAqi = aqiValues.length > 0 ? Math.round(Math.max(...aqiValues)) : null;
 
-    const calcAvg = (key) => {
+    const calcAvg = (key, d = 3) => {
       const vals = filteredRows.map(r => r[key]).filter(v => v != null && !isNaN(Number(v))).map(Number);
-      return vals.length > 0 ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
+      return vals.length > 0 ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(d) : null;
     };
 
-    const avgPm25 = calcAvg('pm25');
-    const avgPm10 = calcAvg('pm10');
-    const avgCo = calcAvg('co');
-    const avgNo2 = calcAvg('no2');
-    const avgO3 = calcAvg('o3');
-    const avgTemp = calcAvg('temperature');
-    const avgHum = calcAvg('humidity');
-    const avgWind = calcAvg('wind_speed');
+    const avgPm25 = calcAvg('pm25', 3);
+    const avgPm10 = calcAvg('pm10', 3);
+    const avgCo = calcAvg('co', 3);
+    const avgNo2 = calcAvg('no2', 3);
+    const avgO3 = calcAvg('o3', 3);
+    const avgTemp = calcAvg('temperature', 1);
+    const avgHum = calcAvg('humidity', 1);
+    const avgWind = calcAvg('wind_speed', 3);
 
     // Wind direction statistical Mode across observation cycle
     const parsedDirs = filteredRows
@@ -452,7 +483,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       let maxCount = 0;
       let bestItem = parsedDirs[0];
       for (const item of parsedDirs) {
-        const key = item.abbr || item.label;
+        const key = item.name || item.abbr || item.label;
         counts[key] = (counts[key] || 0) + 1;
         if (counts[key] > maxCount) {
           maxCount = counts[key];
@@ -460,8 +491,8 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
         }
       }
       modeWindDir = bestItem.deg;
-      modeCompassDir = bestItem.abbr;
-      modeDisplay = bestItem.label;
+      modeCompassDir = bestItem.name;
+      modeDisplay = bestItem.name;
     }
 
     // Total Rain: sum of all hourly rainfall values in observation cycle
@@ -471,7 +502,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       .map(Number);
 
     const totalRainSum = rainVals.length > 0 
-      ? Number(rainVals.reduce((acc, val) => acc + val, 0).toFixed(1))
+      ? Number(rainVals.reduce((acc, val) => acc + val, 0).toFixed(3))
       : 0;
 
     return {
@@ -568,29 +599,29 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
         return [
           slot.date,
           slot.fullTime,
-          r?.cpcb_aqi ?? '',
-          r?.temperature ?? '',
-          r?.humidity ?? '',
-          r?.pm25 ?? '',
-          r?.pm10 ?? '',
-          r?.co ?? '',
-          r?.no2 ?? '',
-          r?.o3 ?? ''
+          r?.cpcb_aqi != null && !isNaN(Number(r.cpcb_aqi)) ? Math.round(Number(r.cpcb_aqi)) : (r?.cpcb_aqi ?? ''),
+          r?.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '',
+          r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '',
+          r?.pm25 != null && !isNaN(Number(r.pm25)) ? Number(r.pm25).toFixed(3) : '',
+          r?.pm10 != null && !isNaN(Number(r.pm10)) ? Number(r.pm10).toFixed(3) : '',
+          r?.co != null && !isNaN(Number(r.co)) ? Number(r.co).toFixed(3) : '',
+          r?.no2 != null && !isNaN(Number(r.no2)) ? Number(r.no2).toFixed(3) : '',
+          r?.o3 != null && !isNaN(Number(r.o3)) ? Number(r.o3).toFixed(3) : ''
         ];
       });
     } else {
-      headers = ['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction (°)', 'Rain Gauge (mm)'];
+      headers = ['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'];
       rowsData = day24HourData.map((slot) => {
         const r = slot.record;
         return [
           slot.date,
           slot.fullTime,
-          r?.temperature ?? '',
-          r?.humidity ?? '',
-          r?.wind_speed ?? '',
-          r?.wind_gust ?? (r?.wind_speed != null ? (Number(r.wind_speed) * 1.35).toFixed(2) : ''),
-          r?.wind_direction ?? '',
-          r?.rain_gauge ?? ''
+          r?.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '',
+          r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '',
+          r?.wind_speed != null && !isNaN(Number(r.wind_speed)) ? Number(r.wind_speed).toFixed(3) : '',
+          r?.wind_gust != null && !isNaN(Number(r.wind_gust)) ? Number(r.wind_gust).toFixed(3) : (r?.wind_speed != null ? (Number(r.wind_speed) * 1.35).toFixed(3) : ''),
+          r?.wind_direction != null ? getCompassDir(r.wind_direction) : '',
+          r?.rain_gauge != null && !isNaN(Number(r.rain_gauge)) ? Number(r.rain_gauge).toFixed(3) : ''
         ];
       });
     }
@@ -1169,7 +1200,11 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                               <span style={{ fontWeight: 800, fontSize: 18, color: activeParam.color, fontFamily: 'var(--font-mono)' }}>
                                 {activeParam.key === 'wind_direction' && d.record?.wind_direction
                                   ? getCompassDir(d.record.wind_direction)
-                                  : d.value}
+                                  : (d.value != null && !isNaN(Number(d.value))
+                                      ? (activeParam.key === 'cpcb_aqi'
+                                          ? Math.round(Number(d.value))
+                                          : Number(d.value).toFixed(activeParam.key === 'temperature' || activeParam.key === 'humidity' ? 1 : 3))
+                                      : d.value)}
                               </span>
                               <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>
                                 {activeParam.key === 'wind_direction' ? '' : activeParam.unit}
@@ -1241,7 +1276,11 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                               <span style={{ fontWeight: 800, fontSize: 18, color: activeParam.color, fontFamily: 'var(--font-mono)' }}>
                                 {activeParam.key === 'wind_direction' && d.record?.wind_direction
                                   ? getCompassDir(d.record.wind_direction)
-                                  : d.value}
+                                  : (d.value != null && !isNaN(Number(d.value))
+                                      ? (activeParam.key === 'cpcb_aqi'
+                                          ? Math.round(Number(d.value))
+                                          : Number(d.value).toFixed(activeParam.key === 'temperature' || activeParam.key === 'humidity' ? 1 : 3))
+                                      : d.value)}
                               </span>
                               <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>
                                 {activeParam.key === 'wind_direction' ? '' : activeParam.unit}
@@ -1326,7 +1365,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                   ? ['Date', 'Time', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO₂ (µg/m³)', 'O₃ (µg/m³)'].map((h) => (
                       <th key={h} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                     ))
-                  : ['Date', 'Time', 'Temp (°C)', 'Humidity (%)', 'Wind Spd (km/h)', 'Wind Gust (km/h)', 'Wind Dir (°)', 'Rain (mm)'].map((h) => (
+                  : ['Date', 'Time', 'Temp (°C)', 'Humidity (%)', 'Wind Spd (km/h)', 'Wind Gust (km/h)', 'Wind Dir', 'Rain (mm)'].map((h) => (
                       <th key={h} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                     ))
                 }
@@ -1374,23 +1413,23 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                       
                       {subTab === 'aqi' ? (
                         <>
-                          <td style={{ padding: '10px 16px', fontWeight: 800, color: hasData ? '#0f172a' : '#94a3b8', fontFamily: 'var(--font-mono)' }}>{r?.cpcb_aqi ?? '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.temperature != null ? Number(r.temperature).toFixed(1) : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.humidity != null ? Number(r.humidity).toFixed(1) : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm25 ?? '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm10 ?? '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.co ?? '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.no2 ?? '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.o3 ?? '-'}</td>
+                          <td style={{ padding: '10px 16px', fontWeight: 800, color: hasData ? '#0f172a' : '#94a3b8', fontFamily: 'var(--font-mono)' }}>{r?.cpcb_aqi != null && !isNaN(Number(r.cpcb_aqi)) ? Math.round(Number(r.cpcb_aqi)) : (r?.cpcb_aqi ?? '-')}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm25 != null && !isNaN(Number(r.pm25)) ? Number(r.pm25).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm10 != null && !isNaN(Number(r.pm10)) ? Number(r.pm10).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.co != null && !isNaN(Number(r.co)) ? Number(r.co).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.no2 != null && !isNaN(Number(r.no2)) ? Number(r.no2).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.o3 != null && !isNaN(Number(r.o3)) ? Number(r.o3).toFixed(3) : '-'}</td>
                         </>
                       ) : (
                         <>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#ea580c' : '#94a3b8', fontWeight: 600 }}>{r?.temperature != null ? Number(r.temperature).toFixed(1) : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.humidity != null ? Number(r.humidity).toFixed(1) : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#4f46e5' : '#94a3b8', fontWeight: 600 }}>{r?.wind_speed != null ? Number(r.wind_speed).toFixed(1) : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#8b5cf6' : '#94a3b8', fontWeight: 600 }}>{r?.wind_gust != null ? Number(r.wind_gust).toFixed(1) : (r?.wind_speed != null ? (Number(r.wind_speed) * 1.35).toFixed(1) : '-')}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.wind_direction != null ? getCompassDir(r.wind_direction) : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.rain_gauge != null ? Number(r.rain_gauge).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#ea580c' : '#94a3b8', fontWeight: 600 }}>{r?.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#4f46e5' : '#94a3b8', fontWeight: 600 }}>{r?.wind_speed != null && !isNaN(Number(r.wind_speed)) ? Number(r.wind_speed).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#8b5cf6' : '#94a3b8', fontWeight: 600 }}>{r?.wind_gust != null && !isNaN(Number(r.wind_gust)) ? Number(r.wind_gust).toFixed(3) : (r?.wind_speed != null && !isNaN(Number(r.wind_speed)) ? (Number(r.wind_speed) * 1.35).toFixed(3) : '-')}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-sans)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{r?.wind_direction != null ? getCompassDir(r.wind_direction) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.rain_gauge != null && !isNaN(Number(r.rain_gauge)) ? Number(r.rain_gauge).toFixed(3) : '-'}</td>
                         </>
                       )}
                     </tr>

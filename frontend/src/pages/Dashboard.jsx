@@ -300,12 +300,12 @@ const ParameterScaleBar = ({ paramKey, value, compact = false }) => {
 
 const computeInitialDashboardData = (cloud) => {
   if (!cloud) return null;
-  const fmt = (val, decimals = 2) => val != null ? Number(val).toFixed(decimals) : 'N/A';
-  const fmtSmart = (val, d = 1) => val != null ? (Number(val) % 1 === 0 ? Number(val).toFixed(0) : Number(val).toFixed(d)) : 'N/A';
+  const fmt = (val, decimals = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(3) : 'N/A';
+  const fmtSmart = (val, d = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(3) : 'N/A';
   return {
     location: { name: 'SMVITM Station Node', country: 'IN' },
     aqi: {
-      value: cloud?.cpcb_aqi ?? 'N/A',
+      value: (cloud?.cpcb_aqi != null && !isNaN(Number(cloud.cpcb_aqi))) ? Math.round(Number(cloud.cpcb_aqi)) : (cloud?.cpcb_aqi ?? 'N/A'),
       label: cloud?.aqi_info?.label ?? 'N/A',
       color: cloud?.aqi_info?.color ?? '#94a3b8',
     },
@@ -319,9 +319,9 @@ const computeInitialDashboardData = (cloud) => {
     weather: {
       temperature:     fmtSmart(cloud?.temperature, 1),
       humidity:        fmtSmart(cloud?.humidity, 1),
-      wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 1)     : 'N/A',
-      wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 1) : 'N/A',
-      rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 1)     : 'N/A',
+      wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 3)     : 'N/A',
+      wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 3) : 'N/A',
+      rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 3)     : 'N/A',
     },
     dominant_pollutant: cloud?.dominant_pollutant ?? 'N/A',
     timestamp: cloud?.timestamp ?? 'N/A',
@@ -432,8 +432,8 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
     return ticks.length > 0 ? ticks : undefined;
   }, [liveHistoryChartData]);
 
-  const fmt = (val, decimals = 2) => val != null ? Number(val).toFixed(decimals) : 'N/A';
-  const fmtSmart = (val, d = 1) => val != null ? (Number(val) % 1 === 0 ? Number(val).toFixed(0) : Number(val).toFixed(d)) : 'N/A';
+  const fmt = (val, decimals = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(3) : 'N/A';
+  const fmtSmart = (val, d = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(3) : 'N/A';
 
   useEffect(() => {
     let isMounted = true;
@@ -494,7 +494,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
       const combined = {
         location: { name: 'SMVITM Station Node', country: 'IN' },
         aqi: {
-          value: cloud?.cpcb_aqi ?? 'N/A',
+          value: (cloud?.cpcb_aqi != null && !isNaN(Number(cloud.cpcb_aqi))) ? Math.round(Number(cloud.cpcb_aqi)) : (cloud?.cpcb_aqi ?? 'N/A'),
           label: cloud?.aqi_info?.label ?? 'N/A',
           color: cloud?.aqi_info?.color ?? '#94a3b8',
         },
@@ -508,9 +508,9 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         weather: {
           temperature:     fmtSmart(cloud?.temperature, 1),
           humidity:        fmtSmart(cloud?.humidity, 1),
-          wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 1)     : 'N/A',
-          wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 1) : 'N/A',
-          rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 1)     : 'N/A',
+          wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 3)     : 'N/A',
+          wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 3) : 'N/A',
+          rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 3)     : 'N/A',
         },
         dominant_pollutant: cloud?.dominant_pollutant ?? 'N/A',
         timestamp: cloud?.timestamp ?? 'N/A',
@@ -532,7 +532,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         const combined = {
           location: { name: 'SMVITM Station Node', country: 'IN' },
           aqi: {
-            value: cloud?.cpcb_aqi ?? 'N/A',
+            value: (cloud?.cpcb_aqi != null && !isNaN(Number(cloud.cpcb_aqi))) ? Math.round(Number(cloud.cpcb_aqi)) : (cloud?.cpcb_aqi ?? 'N/A'),
             label: cloud?.aqi_info?.label ?? 'N/A',
             color: cloud?.aqi_info?.color ?? '#94a3b8',
           },
@@ -546,9 +546,9 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           weather: {
             temperature:     fmtSmart(cloud?.temperature, 1),
             humidity:        fmtSmart(cloud?.humidity, 1),
-            wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 1)     : 'N/A',
-            wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 1) : 'N/A',
-            rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 1)     : 'N/A',
+            wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 3)     : 'N/A',
+            wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 3) : 'N/A',
+            rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 3)     : 'N/A',
           },
           dominant_pollutant: cloud?.dominant_pollutant ?? 'N/A',
           timestamp: cloud?.timestamp ?? 'N/A',
@@ -893,21 +893,17 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             </div>
 
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
               paddingTop: 8,
               borderTop: '1px solid #f1f5f9',
-              width: '100%'
+              width: '100%',
+              fontSize: 11.5,
+              color: '#475569'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#475569' }}>
-                <span>💧</span>
-                <span>Humidity <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{weather?.humidity !== 'N/A' ? `${weather?.humidity}%` : 'N/A'}</strong></span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#475569' }}>
-                <span>💨</span>
-                <span>Wind <strong style={{ color: '#0284c7', fontFamily: 'var(--font-mono)' }}>{weather?.wind_speed !== 'N/A' ? `${weather?.wind_speed} km/h` : 'N/A'}</strong></span>
-              </div>
+              <span>💧</span>
+              <span>Humidity <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{weather?.humidity !== 'N/A' ? `${weather?.humidity}%` : 'N/A'}</strong></span>
             </div>
           </div>
         )}
@@ -1363,15 +1359,15 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                           {formattedTime}
                         </td>
                         <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: '#0f172a', fontSize: 14 }}>
-                          {row.cpcb_aqi || 'N/A'}
+                          {row.cpcb_aqi != null && !isNaN(Number(row.cpcb_aqi)) ? Math.round(Number(row.cpcb_aqi)) : (row.cpcb_aqi || 'N/A')}
                         </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.temperature != null ? row.temperature : 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.humidity != null ? row.humidity : 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm25 || 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm10 || 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.co || 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.no2 || 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.o3 || 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.temperature != null && !isNaN(Number(row.temperature)) ? Number(row.temperature).toFixed(1) : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.humidity != null && !isNaN(Number(row.humidity)) ? Number(row.humidity).toFixed(1) : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm25 != null && !isNaN(Number(row.pm25)) ? Number(row.pm25).toFixed(3) : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm10 != null && !isNaN(Number(row.pm10)) ? Number(row.pm10).toFixed(3) : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.co != null && !isNaN(Number(row.co)) ? Number(row.co).toFixed(3) : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.no2 != null && !isNaN(Number(row.no2)) ? Number(row.no2).toFixed(3) : 'N/A'}</td>
+                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.o3 != null && !isNaN(Number(row.o3)) ? Number(row.o3).toFixed(3) : 'N/A'}</td>
                       </tr>
                     );
                   })

@@ -7,53 +7,80 @@ import windSpeedSensorImg from '../assets/wind_speed_sensor.png';
 import windDirSensorImg from '../assets/wind_dir_sensor.png';
 import rainGaugeSensorImg from '../assets/rain_gauge_sensor.png';
 
-const fmt = (val, d = 1) =>
-  val != null && !isNaN(Number(val)) ? (Number(val) % 1 === 0 ? Number(val).toFixed(0) : Number(val).toFixed(d)) : null;
+const fmt = (val, d = 3) =>
+  val != null && !isNaN(Number(val)) ? Number(val).toFixed(d) : null;
 
 const COMPASS_MAP = {
   'n': { deg: 0, abbr: 'N', name: 'North' },
   'north': { deg: 0, abbr: 'N', name: 'North' },
   'nne': { deg: 22.5, abbr: 'NNE', name: 'North-Northeast' },
+  'northnortheast': { deg: 22.5, abbr: 'NNE', name: 'North-Northeast' },
   'ne': { deg: 45, abbr: 'NE', name: 'Northeast' },
   'northeast': { deg: 45, abbr: 'NE', name: 'Northeast' },
   'ene': { deg: 67.5, abbr: 'ENE', name: 'East-Northeast' },
+  'eastnortheast': { deg: 67.5, abbr: 'ENE', name: 'East-Northeast' },
   'e': { deg: 90, abbr: 'E', name: 'East' },
   'east': { deg: 90, abbr: 'E', name: 'East' },
   'ese': { deg: 112.5, abbr: 'ESE', name: 'East-Southeast' },
+  'eastsoutheast': { deg: 112.5, abbr: 'ESE', name: 'East-Southeast' },
   'se': { deg: 135, abbr: 'SE', name: 'Southeast' },
   'southeast': { deg: 135, abbr: 'SE', name: 'Southeast' },
   'sse': { deg: 157.5, abbr: 'SSE', name: 'South-Southeast' },
+  'southsoutheast': { deg: 157.5, abbr: 'SSE', name: 'South-Southeast' },
   's': { deg: 180, abbr: 'S', name: 'South' },
   'south': { deg: 180, abbr: 'S', name: 'South' },
   'ssw': { deg: 202.5, abbr: 'SSW', name: 'South-Southwest' },
+  'southsouthwest': { deg: 202.5, abbr: 'SSW', name: 'South-Southwest' },
   'sw': { deg: 225, abbr: 'SW', name: 'Southwest' },
   'southwest': { deg: 225, abbr: 'SW', name: 'Southwest' },
   'wsw': { deg: 247.5, abbr: 'WSW', name: 'West-Southwest' },
+  'westsouthwest': { deg: 247.5, abbr: 'WSW', name: 'West-Southwest' },
   'w': { deg: 270, abbr: 'W', name: 'West' },
   'west': { deg: 270, abbr: 'W', name: 'West' },
   'wnw': { deg: 292.5, abbr: 'WNW', name: 'West-Northwest' },
+  'westnorthwest': { deg: 292.5, abbr: 'WNW', name: 'West-Northwest' },
   'nw': { deg: 315, abbr: 'NW', name: 'Northwest' },
   'northwest': { deg: 315, abbr: 'NW', name: 'Northwest' },
-  'nnw': { deg: 337.5, abbr: 'NNW', name: 'North-Northwest' }
+  'nnw': { deg: 337.5, abbr: 'NNW', name: 'North-Northwest' },
+  'northnorthwest': { deg: 337.5, abbr: 'NNW', name: 'North-Northwest' }
 };
 
-const COMPASS_DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+const COMPASS_DIRS = [
+  { abbr: 'N', name: 'North', deg: 0 },
+  { abbr: 'NNE', name: 'North-Northeast', deg: 22.5 },
+  { abbr: 'NE', name: 'Northeast', deg: 45 },
+  { abbr: 'ENE', name: 'East-Northeast', deg: 67.5 },
+  { abbr: 'E', name: 'East', deg: 90 },
+  { abbr: 'ESE', name: 'East-Southeast', deg: 112.5 },
+  { abbr: 'SE', name: 'Southeast', deg: 135 },
+  { abbr: 'SSE', name: 'South-Southeast', deg: 157.5 },
+  { abbr: 'S', name: 'South', deg: 180 },
+  { abbr: 'SSW', name: 'South-Southwest', deg: 202.5 },
+  { abbr: 'SW', name: 'Southwest', deg: 225 },
+  { abbr: 'WSW', name: 'West-Southwest', deg: 247.5 },
+  { abbr: 'W', name: 'West', deg: 270 },
+  { abbr: 'WNW', name: 'West-Northwest', deg: 292.5 },
+  { abbr: 'NW', name: 'Northwest', deg: 315 },
+  { abbr: 'NNW', name: 'North-Northwest', deg: 337.5 }
+];
 
 const parseWindDir = (val) => {
   if (val == null) return null;
   const s = String(val).trim();
   if (!s || s === 'N/A' || s === '-' || s === 'null' || s === 'undefined') return null;
   
-  if (!isNaN(Number(s))) {
-    const deg = Math.round(((Number(s) % 360) + 360) % 360);
-    const abbr = COMPASS_DIRS[Math.round(deg / 22.5) % 16];
-    return { deg, abbr, name: abbr, label: `${abbr} (${deg}°)` };
+  const numOnly = s.replace(/°/g, '').trim();
+  if (!isNaN(Number(numOnly)) && numOnly !== '') {
+    const deg = Math.round(((Number(numOnly) % 360) + 360) % 360);
+    const item = COMPASS_DIRS[Math.round(deg / 22.5) % 16];
+    return { deg, abbr: item.abbr, name: item.name, label: item.name };
   }
 
-  const clean = s.toLowerCase().replace(/[\s_-]+/g, '');
+  const match = s.match(/([A-Za-z\-]+)/);
+  const clean = match ? match[1].toLowerCase().replace(/[\s_-]+/g, '') : s.toLowerCase().replace(/[\s_-]+/g, '');
   if (COMPASS_MAP[clean]) {
     const { deg, abbr, name } = COMPASS_MAP[clean];
-    return { deg: Math.round(deg), abbr, name, label: `${abbr} (${Math.round(deg)}°)` };
+    return { deg: Math.round(deg), abbr, name, label: name };
   }
 
   return { deg: null, abbr: s, name: s, label: s };
@@ -62,7 +89,7 @@ const parseWindDir = (val) => {
 const getCompassDir = (val) => {
   if (val == null) return null;
   const parsed = parseWindDir(val);
-  return parsed ? parsed.label : String(val);
+  return parsed ? parsed.name : String(val);
 };
 
 const getHumidityLabel = (h) => {
@@ -222,7 +249,7 @@ const WEATHER_DETAILS = {
   wind_dir: {
     name: 'Wind Azimuth Direction',
     sub: 'Compass Heading',
-    unit: '°',
+    unit: '',
     icon: '🧭',
     normalRange: '0° – 360°',
     description: 'Compass heading indicating direction from which atmospheric wind originates.',
@@ -325,11 +352,11 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
   const temperature = weatherLive?.temperature ?? latestRow?.temperature ?? null;
   const humidity    = weatherLive?.humidity    ?? latestRow?.humidity    ?? null;
   const windSpeed   = weatherLive?.wind_speed  ?? latestRow?.wind_speed  ?? null;
-  const windGust    = weatherLive?.wind_gust   ?? latestRow?.wind_gust   ?? (windSpeed != null ? Number((Number(windSpeed) * 1.35).toFixed(1)) : null);
+  const windGust    = weatherLive?.wind_gust   ?? latestRow?.wind_gust   ?? (windSpeed != null ? Number((Number(windSpeed) * 1.35).toFixed(3)) : null);
   const windDir     = weatherLive?.wind_direction ?? latestRow?.wind_direction ?? null;
   const rainGauge   = weatherLive?.rain_gauge  ?? latestRow?.rain_gauge  ?? null;
 
-  const aqi         = cloudData?.cpcb_aqi ?? null;
+  const aqi         = (cloudData?.cpcb_aqi != null && !isNaN(Number(cloudData.cpcb_aqi))) ? Math.round(Number(cloudData.cpcb_aqi)) : null;
   const aqiLabel    = cloudData?.aqi_info?.label ?? null;
   const aqiColor    = cloudData?.aqi_info?.color ?? '#94a3b8';
 
@@ -543,15 +570,15 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
               </div>
               <div style={{ padding: '6px 10px', borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>💨</span>
-                <span>Wind: <strong style={{ fontFamily: 'var(--font-mono)', color: '#6366f1' }}>{windSpeed != null ? `${fmt(windSpeed, 1)} km/h` : 'N/A'}</strong></span>
+                <span>Wind: <strong style={{ fontFamily: 'var(--font-mono)', color: '#6366f1' }}>{windSpeed != null ? `${fmt(windSpeed, 3)} km/h` : 'N/A'}</strong></span>
               </div>
               <div style={{ padding: '6px 10px', borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>🌪️</span>
-                <span>Gust: <strong style={{ fontFamily: 'var(--font-mono)', color: '#8b5cf6' }}>{windGust != null ? `${fmt(windGust, 1)} km/h` : 'N/A'}</strong></span>
+                <span>Gust: <strong style={{ fontFamily: 'var(--font-mono)', color: '#8b5cf6' }}>{windGust != null ? `${fmt(windGust, 3)} km/h` : 'N/A'}</strong></span>
               </div>
               <div style={{ padding: '6px 10px', borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>🌧️</span>
-                <span>Rain: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0891b2' }}>{rainGauge != null ? `${fmt(rainGauge, 1)} mm` : 'N/A'}</strong></span>
+                <span>Rain: <strong style={{ fontFamily: 'var(--font-mono)', color: '#0891b2' }}>{rainGauge != null ? `${fmt(rainGauge, 3)} mm` : 'N/A'}</strong></span>
               </div>
               <div style={{ padding: '6px 10px', borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>🧭</span>
@@ -567,9 +594,9 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
           {[
             { key: 'temperature', name: 'Temperature', val: temperature != null ? `${fmt(temperature, 1)}°C` : 'N/A', icon: '🌡️', badgeBg: '#ffedd5', badgeText: '#ea580c', accent: '#ea580c' },
             { key: 'humidity', name: 'Humidity', val: humidity != null ? `${fmt(humidity, 1)}%` : 'N/A', icon: '💧', badgeBg: '#e0f2fe', badgeText: '#0284c7', accent: '#0284c7' },
-            { key: 'wind_speed', name: 'Wind Speed', val: windSpeed != null ? `${fmt(windSpeed, 1)} km/h` : 'N/A', icon: '💨', badgeBg: '#e0e7ff', badgeText: '#4f46e5', accent: '#4f46e5' },
-            { key: 'wind_gust', name: 'Wind Gust', val: windGust != null ? `${fmt(windGust, 1)} km/h` : 'N/A', icon: '🌪️', badgeBg: '#f5f3ff', badgeText: '#8b5cf6', accent: '#8b5cf6' },
-            { key: 'rain_gauge', name: 'Rainfall', val: rainGauge != null ? `${fmt(rainGauge, 1)} mm` : 'N/A', icon: '🌧️', badgeBg: '#cff4fc', badgeText: '#0891b2', accent: '#0891b2' },
+            { key: 'wind_speed', name: 'Wind Speed', val: windSpeed != null ? `${fmt(windSpeed, 3)} km/h` : 'N/A', icon: '💨', badgeBg: '#e0e7ff', badgeText: '#4f46e5', accent: '#4f46e5' },
+            { key: 'wind_gust', name: 'Wind Gust', val: windGust != null ? `${fmt(windGust, 3)} km/h` : 'N/A', icon: '🌪️', badgeBg: '#f5f3ff', badgeText: '#8b5cf6', accent: '#8b5cf6' },
+            { key: 'rain_gauge', name: 'Rainfall', val: rainGauge != null ? `${fmt(rainGauge, 3)} mm` : 'N/A', icon: '🌧️', badgeBg: '#cff4fc', badgeText: '#0891b2', accent: '#0891b2' },
             { key: 'wind_dir', name: 'Wind Direction', val: compassDir || 'N/A', icon: '🧭', badgeBg: '#f1f5f9', badgeText: '#475569', accent: '#64748b' },
           ].map(({ key, name, val, icon, badgeBg, badgeText, accent }, i) => {
             const anim = ICON_ANIMATIONS[key];
@@ -635,10 +662,16 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                   </div>
                 </div>
 
-                {/* Bottom Row: Large Monospace Reading */}
+                {/* Bottom Row: Large Reading */}
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%', marginTop: 4 }}>
                   <div>
-                    <div className="sensor-card-val-mobile" style={{ fontFamily: 'var(--font-mono)', fontSize: 21, fontWeight: 800, color: accent, lineHeight: 1 }}>
+                    <div className="sensor-card-val-mobile" style={{
+                      fontFamily: key === 'wind_dir' ? 'var(--font-sans)' : 'var(--font-mono)',
+                      fontSize: key === 'wind_dir' && String(val).length > 10 ? 18 : 21,
+                      fontWeight: 800,
+                      color: accent,
+                      lineHeight: 1.1
+                    }}>
                       {val}
                     </div>
                   </div>
@@ -692,7 +725,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                 borderBottom: '1px solid #e2e8f0',
               }}>
                 <tr>
-                  {['# Record', 'Time / Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction (°)', 'Rain Gauge (mm)'].map((h) => (
+                  {['# Record', 'Time / Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'].map((h) => (
                     <th key={h} style={{ padding: '13px 18px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -720,7 +753,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
 
                     const rowGust = row.wind_gust != null 
                       ? Number(row.wind_gust) 
-                      : (row.wind_speed != null ? Number((Number(row.wind_speed) * 1.35).toFixed(2)) : null);
+                      : (row.wind_speed != null ? Number((Number(row.wind_speed) * 1.35).toFixed(3)) : null);
 
                     return (
                       <tr
@@ -737,22 +770,22 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                           {formattedTime}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', fontSize: 13.5, fontWeight: 800, color: '#ea580c' }}>
-                          {row.temperature != null ? fmt(row.temperature, 2) : 'N/A'}
+                          {row.temperature != null ? fmt(row.temperature, 1) : 'N/A'}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 700 }}>
-                          {row.humidity != null ? fmt(row.humidity, 2) : 'N/A'}
+                          {row.humidity != null ? fmt(row.humidity, 1) : 'N/A'}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#4f46e5', fontWeight: 600 }}>
-                          {row.wind_speed != null ? fmt(row.wind_speed, 2) : 'N/A'}
+                          {row.wind_speed != null ? fmt(row.wind_speed, 3) : 'N/A'}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#8b5cf6', fontWeight: 700 }}>
-                          {rowGust != null ? fmt(rowGust, 2) : 'N/A'}
+                          {rowGust != null ? fmt(rowGust, 3) : 'N/A'}
                         </td>
-                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#0284c7', fontWeight: 600 }}>
+                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-sans)', color: '#0284c7', fontWeight: 600, whiteSpace: 'nowrap' }}>
                           {getCompassDir(row.wind_direction) || 'N/A'}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#334155' }}>
-                          {row.rain_gauge != null ? fmt(row.rain_gauge, 2) : '0.00'}
+                          {row.rain_gauge != null ? fmt(row.rain_gauge, 3) : '0.000'}
                         </td>
                       </tr>
                     );

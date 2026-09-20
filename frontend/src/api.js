@@ -79,11 +79,11 @@ const calcSubindex = (paramKey, cp) => {
   const tiers = CPCB_BREAKPOINTS[paramKey];
   for (const [c_lo, c_hi, i_lo, i_hi] of tiers) {
     if (val <= c_hi) {
-      return Number((((i_hi - i_lo) / (c_hi - c_lo)) * (val - c_lo) + i_lo).toFixed(1));
+      return Number((((i_hi - i_lo) / (c_hi - c_lo)) * (val - c_lo) + i_lo).toFixed(3));
     }
   }
   const [c_lo, c_hi, i_lo, i_hi] = tiers[tiers.length - 1];
-  return Math.min(500.0, Number((((i_hi - i_lo) / (c_hi - c_lo)) * (val - c_lo) + i_lo).toFixed(1)));
+  return Math.min(500.0, Number((((i_hi - i_lo) / (c_hi - c_lo)) * (val - c_lo) + i_lo).toFixed(3)));
 };
 
 // Invalidate stale local caches completely so only new model predictions render
@@ -118,19 +118,19 @@ const formatRawReading = (raw) => {
 
   // Multi-parameter Ridge calibration from aqi_model_and_calibrators
   const calPm25 = rawPm25 != null
-    ? Math.max(0.0, Number((0.12532894 * rawPm25 - 0.7801631 * tempVal - 0.15188749 * humVal + 41.495258).toFixed(2)))
+    ? Math.max(0.0, Number((0.12532894 * rawPm25 - 0.7801631 * tempVal - 0.15188749 * humVal + 41.495258).toFixed(3)))
     : null;
   const calPm10 = rawPm10 != null
-    ? Math.max(0.0, Number((0.10855827 * rawPm10 - 0.6390711 * tempVal - 0.11117823 * humVal + 34.034309).toFixed(2)))
+    ? Math.max(0.0, Number((0.10855827 * rawPm10 - 0.6390711 * tempVal - 0.11117823 * humVal + 34.034309).toFixed(3)))
     : null;
   const calCo = rawCo != null
     ? Math.max(0.0, Number((0.24370718 * rawCo + 0.02763672 * tempVal + 0.00444147 * humVal - 0.96570843).toFixed(3)))
     : null;
   const calNo2 = rawNo2 != null
-    ? Math.max(0.0, Number((0.00920961 * rawNo2 + 0.06749354 * tempVal + 0.00777269 * humVal + 2.903467).toFixed(2)))
+    ? Math.max(0.0, Number((0.00920961 * rawNo2 + 0.06749354 * tempVal + 0.00777269 * humVal + 2.903467).toFixed(3)))
     : null;
   const calO3 = rawO3 != null
-    ? Math.max(0.0, Number((0.05187092 * rawO3 - 1.4830095 * tempVal - 0.23912878 * humVal + 91.72351).toFixed(2)))
+    ? Math.max(0.0, Number((0.05187092 * rawO3 - 1.4830095 * tempVal - 0.23912878 * humVal + 91.72351).toFixed(3)))
     : null;
 
   const subIndices = {
@@ -303,6 +303,7 @@ export const getWeatherLatest = async () => {
         temperature: raw.temperature,
         humidity: raw.humidity,
         wind_speed: raw.wind_speed,
+        wind_gust: raw.wind_gust ?? raw.gust,
         wind_direction: raw.wind_direction,
         rain_gauge: raw.rain_gauge ?? raw.rain
       };
@@ -339,6 +340,7 @@ export const getCloudWeatherLiveHistory = async (limit = 50) => {
         temperature: raw.temperature,
         humidity: raw.humidity,
         wind_speed: raw.wind_speed,
+        wind_gust: raw.wind_gust ?? raw.gust,
         wind_direction: raw.wind_direction,
         rain_gauge: raw.rain_gauge ?? raw.rain
       };
@@ -431,6 +433,7 @@ export const getCloudWeatherHistory = async (limit = 96) => {
         temperature: raw.temperature,
         humidity: raw.humidity,
         wind_speed: raw.wind_speed,
+        wind_gust: raw.wind_gust ?? raw.gust,
         wind_direction: raw.wind_direction,
         rain_gauge: raw.rain_gauge ?? raw.rain
       };
@@ -613,13 +616,13 @@ export const getAqiForecast = async (force = false) => {
 
         // Diurnal oscillation factor based on hour of day
         const diurnalFactor = 1.0 + 0.18 * Math.sin((h - 6) * (Math.PI / 12));
-        const pm25 = Math.max(2.0, Number((Number(latest.pm25 || 15) * diurnalFactor).toFixed(2)));
-        const pm10 = Math.max(5.0, Number((Number(latest.pm10 || 25) * diurnalFactor).toFixed(2)));
-        const no2 = Math.max(1.0, Number((Number(latest.no2 || 8) * (1.0 + 0.12 * Math.cos(h * (Math.PI / 12)))).toFixed(2)));
+        const pm25 = Math.max(2.0, Number((Number(latest.pm25 || 15) * diurnalFactor).toFixed(3)));
+        const pm10 = Math.max(5.0, Number((Number(latest.pm10 || 25) * diurnalFactor).toFixed(3)));
+        const no2 = Math.max(1.0, Number((Number(latest.no2 || 8) * (1.0 + 0.12 * Math.cos(h * (Math.PI / 12)))).toFixed(3)));
         const co = Math.max(0.05, Number((Number(latest.co || 0.3) * (1.0 + 0.08 * Math.sin(h * (Math.PI / 12)))).toFixed(3)));
-        const o3 = Math.max(5.0, Number((Number(latest.o3 || 40) * (1.0 + 0.25 * Math.sin((h - 12) * (Math.PI / 12)))).toFixed(2)));
-        const temp = Number((Number(latest.temperature || 30) + 2.5 * Math.sin((h - 14) * (Math.PI / 12))).toFixed(1));
-        const hum = Math.min(95, Math.max(35, Number((Number(latest.humidity || 65) - 8 * Math.sin((h - 14) * (Math.PI / 12))).toFixed(0))));
+        const o3 = Math.max(5.0, Number((Number(latest.o3 || 40) * (1.0 + 0.25 * Math.sin((h - 12) * (Math.PI / 12)))).toFixed(3)));
+        const temp = Number((Number(latest.temperature || 30) + 2.5 * Math.sin((h - 14) * (Math.PI / 12))).toFixed(3));
+        const hum = Math.min(95, Math.max(35, Number((Number(latest.humidity || 65) - 8 * Math.sin((h - 14) * (Math.PI / 12))).toFixed(3))));
 
         const subPm25 = calcSubindex('pm25', pm25);
         const subPm10 = calcSubindex('pm10', pm10);
