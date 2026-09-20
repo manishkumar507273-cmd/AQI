@@ -301,7 +301,7 @@ const ParameterScaleBar = ({ paramKey, value, compact = false }) => {
 const computeInitialDashboardData = (cloud) => {
   if (!cloud) return null;
   const fmt = (val, decimals = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(3) : 'N/A';
-  const fmtSmart = (val, d = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(3) : 'N/A';
+  const fmtSmart = (val, d = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(d) : 'N/A';
   return {
     location: { name: 'SMVITM Station Node', country: 'IN' },
     aqi: {
@@ -319,9 +319,9 @@ const computeInitialDashboardData = (cloud) => {
     weather: {
       temperature:     fmtSmart(cloud?.temperature, 1),
       humidity:        fmtSmart(cloud?.humidity, 1),
-      wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 3)     : 'N/A',
-      wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 3) : 'N/A',
-      rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 3)     : 'N/A',
+      wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 1)     : 'N/A',
+      wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 0) : 'N/A',
+      rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 1)     : 'N/A',
     },
     dominant_pollutant: cloud?.dominant_pollutant ?? 'N/A',
     timestamp: cloud?.timestamp ?? 'N/A',
@@ -433,7 +433,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
   }, [liveHistoryChartData]);
 
   const fmt = (val, decimals = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(3) : 'N/A';
-  const fmtSmart = (val, d = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(3) : 'N/A';
+  const fmtSmart = (val, d = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(d) : 'N/A';
 
   useEffect(() => {
     let isMounted = true;
@@ -508,9 +508,9 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         weather: {
           temperature:     fmtSmart(cloud?.temperature, 1),
           humidity:        fmtSmart(cloud?.humidity, 1),
-          wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 3)     : 'N/A',
-          wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 3) : 'N/A',
-          rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 3)     : 'N/A',
+          wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 1)     : 'N/A',
+          wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 0) : 'N/A',
+          rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 1)     : 'N/A',
         },
         dominant_pollutant: cloud?.dominant_pollutant ?? 'N/A',
         timestamp: cloud?.timestamp ?? 'N/A',
@@ -546,9 +546,9 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           weather: {
             temperature:     fmtSmart(cloud?.temperature, 1),
             humidity:        fmtSmart(cloud?.humidity, 1),
-            wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 3)     : 'N/A',
-            wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 3) : 'N/A',
-            rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 3)     : 'N/A',
+            wind_speed:      cloud?.wind_speed     != null ? fmtSmart(cloud.wind_speed, 1)     : 'N/A',
+            wind_direction:  cloud?.wind_direction != null ? fmtSmart(cloud.wind_direction, 0) : 'N/A',
+            rain_gauge:      cloud?.rain_gauge     != null ? fmtSmart(cloud.rain_gauge, 1)     : 'N/A',
           },
           dominant_pollutant: cloud?.dominant_pollutant ?? 'N/A',
           timestamp: cloud?.timestamp ?? 'N/A',
@@ -879,7 +879,9 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 <div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: weather?.temperature === 'N/A' ? 24 : 32, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
-                      {weather?.temperature ?? 'N/A'}
+                      {weather?.temperature != null && weather.temperature !== 'N/A' && !isNaN(Number(weather.temperature))
+                        ? Number(weather.temperature).toFixed(1)
+                        : (weather?.temperature ?? 'N/A')}
                     </span>
                     {weather?.temperature !== 'N/A' && (
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#64748b' }}>°C</span>
@@ -903,7 +905,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               color: '#475569'
             }}>
               <span>💧</span>
-              <span>Humidity <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{weather?.humidity !== 'N/A' ? `${weather?.humidity}%` : 'N/A'}</strong></span>
+              <span>Humidity <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{weather?.humidity != null && weather.humidity !== 'N/A' && !isNaN(Number(weather.humidity)) ? `${Number(weather.humidity).toFixed(1)}%` : (weather?.humidity !== 'N/A' ? `${weather?.humidity}%` : 'N/A')}</strong></span>
             </div>
           </div>
         )}

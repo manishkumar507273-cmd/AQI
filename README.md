@@ -2,6 +2,8 @@
 
 A modern, full-stack intelligence platform for real-time air quality index (AQI) telemetry and meteorological monitoring, powered by **FastAPI**, **React 19**, **Vite**, and **Supabase Cloud**.
 
+🌐 **Live Deployment:** [https://aqi-monitoring-v2.vercel.app/](https://aqi-monitoring-v2.vercel.app/)
+
 ---
 
 ## 🌟 Tech Stack
@@ -121,6 +123,7 @@ npm install
 npm run dev
 ```
 - **Frontend App**: [http://localhost:5173](http://localhost:5173)
+- **Live Production**: [https://aqi-monitoring-v2.vercel.app/](https://aqi-monitoring-v2.vercel.app/)
 
 ---
 
