@@ -13,7 +13,7 @@ A modern, full-stack intelligence platform for real-time air quality index (AQI)
 | **Frontend** | React 19, Vite, Recharts, Framer Motion, Lucide Icons, Vanilla CSS & TailwindCSS |
 | **Backend** | Python 3.12, FastAPI, Uvicorn, HTTPX, Pydantic, python-dotenv |
 | **Sensor Calibration** | Scikit-Learn (`Ridge` multi-parameter sensor calibrators), Joblib |
-| **Data Source** | Supabase Cloud REST API (`AQI_LIVE_NODE1`, `AQI_NODE1`, `WEATHER_LIVE_NODE1`, `WEATHER_NODE1`) |
+| **Data Source** | Supabase Cloud REST API (`AQI_LIVE_NODE1`, `AQI_NODE1`, `WEATHER_LIVE_NODE1`, `WEATHER_NODE`) |
 | **Design System** | Dark Slate Theme (`#0f172a`), Space Grotesk & JetBrains Mono typography, Glassmorphism, Micro-animations |
 
 ---

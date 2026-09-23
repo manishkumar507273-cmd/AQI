@@ -14,11 +14,11 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || import.meta.env.NEXT_PU
 // 1st: AQI_LIVE_NODE1 (Live AQI)
 // 2nd: AQI_NODE1 (Historical AQI)
 // 3rd: WEATHER_LIVE_NODE1 (Live Weather)
-// 4th: WEATHER_NODE1 (Historical Weather)
+// 4th: WEATHER_NODE (Historical Weather)
 const TABLE_AQI_LIVE = 'AQI_LIVE_NODE1';
 const TABLE_AQI_HISTORICAL = 'AQI_NODE1';
 const TABLE_WEATHER_LIVE = 'WEATHER_LIVE_NODE1';
-const TABLE_WEATHER_HISTORICAL = 'WEATHER_NODE1';
+const TABLE_WEATHER_HISTORICAL = 'WEATHER_NODE';
 
 const getTableRestUrl = (tableName) => `${supabaseBaseUrl}/rest/v1/${tableName}`;
 
