@@ -682,9 +682,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
                     Temperature
                   </h3>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
-                    WEATHER STATION NODE 1
-                  </span>
                 </div>
               </div>
 
@@ -805,9 +802,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
                     Humidity
                   </h3>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
-                    WEATHER STATION NODE 1
-                  </span>
                 </div>
               </div>
 
@@ -928,9 +922,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
                     Wind Speed
                   </h3>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
-                    WEATHER STATION NODE 1
-                  </span>
                 </div>
               </div>
 
@@ -1077,9 +1068,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
                     Rainfall
                   </h3>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
-                    WEATHER STATION NODE 1
-                  </span>
                 </div>
               </div>
 
