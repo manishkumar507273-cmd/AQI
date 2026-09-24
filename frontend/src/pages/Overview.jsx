@@ -9,11 +9,20 @@ import {
   RefreshCw,
   Clock,
   Sparkles,
+  History,
   ArrowUpRight,
   Sun,
   Activity
 } from 'lucide-react';
-import { getCloudLatest, getWeatherLatest, getTimeAgo, isSensorOnline } from '../api';
+import {
+  getCloudLatest,
+  getWeatherLatest,
+  getTimeAgo,
+  isSensorOnline,
+  getAqiForecast,
+  getCloudHistory,
+  getCachedData
+} from '../api';
 
 // Format time for timestamp display
 const formatLocalTime = (ts) => {
@@ -77,6 +86,79 @@ const getBeaufortRating = (kmh) => {
   return { level: 6, label: 'Strong Breeze', desc: 'Large branches sway' };
 };
 
+// CPCB India Breakpoints Table: [C_lo, C_hi, I_lo, I_hi]
+const CPCB_BREAKPOINTS = {
+  pm25: [
+    [0.0, 30.0, 0, 50],
+    [30.0, 60.0, 51, 100],
+    [60.0, 90.0, 101, 200],
+    [90.0, 120.0, 201, 300],
+    [120.0, 250.0, 301, 400],
+    [250.0, 500.0, 401, 500]
+  ],
+  pm10: [
+    [0.0, 50.0, 0, 50],
+    [50.0, 100.0, 51, 100],
+    [100.0, 250.0, 101, 200],
+    [250.0, 350.0, 201, 300],
+    [350.0, 430.0, 301, 400],
+    [430.0, 600.0, 401, 500]
+  ],
+  co: [
+    [0.0, 1.0, 0, 50],
+    [1.0, 2.0, 51, 100],
+    [2.0, 10.0, 101, 200],
+    [10.0, 17.0, 201, 300],
+    [17.0, 34.0, 301, 400],
+    [34.0, 50.0, 401, 500]
+  ],
+  no2: [
+    [0.0, 40.0, 0, 50],
+    [40.0, 80.0, 51, 100],
+    [80.0, 180.0, 101, 200],
+    [180.0, 280.0, 201, 300],
+    [280.0, 400.0, 301, 400],
+    [400.0, 500.0, 401, 500]
+  ],
+  o3: [
+    [0.0, 50.0, 0, 50],
+    [50.0, 100.0, 51, 100],
+    [100.0, 168.0, 101, 200],
+    [168.0, 208.0, 201, 300],
+    [208.0, 748.0, 301, 400],
+    [748.0, 1000.0, 401, 500]
+  ]
+};
+
+const calculateSubIndex = (key, val) => {
+  const tiers = CPCB_BREAKPOINTS[key];
+  if (!tiers) return 0;
+  const cp = Math.max(0, Number(val) || 0);
+  for (let i = 0; i < tiers.length; i++) {
+    const [cLo, cHi, iLo, iHi] = tiers[i];
+    if (cp <= cHi) {
+      const ip = ((iHi - iLo) / (cHi - cLo)) * (cp - cLo) + iLo;
+      return Math.round(Math.max(0, ip));
+    }
+  }
+  const [cLo, cHi, iLo, iHi] = tiers[tiers.length - 1];
+  const ip = ((iHi - iLo) / (cHi - cLo)) * (cp - cLo) + iLo;
+  return Math.min(500, Math.round(Math.max(0, ip)));
+};
+
+const getForecastAqiCategory = (val) => {
+  if (val == null || isNaN(Number(val))) {
+    return { label: 'Pending', color: '#94a3b8', bg: '#f8fafc', border: '#e2e8f0', text: '#64748b' };
+  }
+  const v = Math.round(Number(val) || 0);
+  if (v <= 50) return { label: 'Good', color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0', text: '#065f46' };
+  if (v <= 100) return { label: 'Satisfactory', color: '#84cc16', bg: '#f7fee7', border: '#d9f99d', text: '#3f6212' };
+  if (v <= 200) return { label: 'Moderate', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', text: '#92400e' };
+  if (v <= 300) return { label: 'Poor', color: '#f97316', bg: '#fff7ed', border: '#fed7aa', text: '#9a3412' };
+  if (v <= 400) return { label: 'Very Poor', color: '#ef4444', bg: '#fef2f2', border: '#fecaca', text: '#991b1b' };
+  return { label: 'Severe', color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe', text: '#5b21b6' };
+};
+
 export default function Overview({ refreshKey = 0, selectedStation = 'station-1' }) {
   const [aqiData, setAqiData] = useState(null);
   const [weatherData, setWeatherData] = useState(null);
@@ -85,6 +167,14 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   const [tempUnit, setTempUnit] = useState('C'); // 'C' | 'F'
   const [windUnit, setWindUnit] = useState('kmh'); // 'kmh' | 'ms'
   const canvasRef = useRef(null);
+
+  // 24-Hour Predictive Forecast States
+  const [forecastData, setForecastData] = useState(() => getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
+  const [historicalRecords, setHistoricalRecords] = useState([]);
+  const [forecastLoading, setForecastLoading] = useState(() => !getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
+  const [forecastLastUpdated, setForecastLastUpdated] = useState(null);
+  const [showPastHours, setShowPastHours] = useState(true); // Default TRUE to show ALL 24 hours
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   // Fetch telemetry from both tables
   const fetchData = async (isManual = false) => {
@@ -114,6 +204,135 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
     const interval = setInterval(() => fetchData(false), 5000);
     return () => clearInterval(interval);
   }, [refreshKey, selectedStation]);
+
+  // Fetch 24-Hour AI Predictive Forecast and Historical Actuals
+  const fetchForecast = async (force = false) => {
+    if (force || !forecastData) setForecastLoading(true);
+    try {
+      const [fcRes, histRes] = await Promise.allSettled([
+        getAqiForecast(force),
+        getCloudHistory(100)
+      ]);
+
+      if (fcRes.status === 'fulfilled' && fcRes.value?.data?.status === 'success' && Array.isArray(fcRes.value.data.forecast)) {
+        const incoming = fcRes.value.data;
+        setForecastData((prev) => {
+          if (!prev || !prev.generated_at || !incoming.generated_at) return incoming;
+          const prevTime = new Date(prev.generated_at).getTime();
+          const incomingTime = new Date(incoming.generated_at).getTime();
+          if (!isNaN(incomingTime) && !isNaN(prevTime) && incomingTime < prevTime) return prev;
+          return incoming;
+        });
+        setForecastLastUpdated(new Date());
+      }
+
+      if (histRes.status === 'fulfilled' && Array.isArray(histRes.value?.data?.history)) {
+        setHistoricalRecords(histRes.value.data.history);
+      }
+    } catch (err) {
+      console.error('Failed to fetch forecast:', err);
+    } finally {
+      setForecastLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchForecast(false);
+    const timer = setInterval(() => fetchForecast(false), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (refreshKey > 0) {
+      getCloudHistory(100).then(res => {
+        if (Array.isArray(res.data?.history)) {
+          setHistoricalRecords(res.data.history);
+        }
+      }).catch(() => {});
+    }
+  }, [refreshKey]);
+
+  // Process 24-Hour Forecast Items
+  const processedForecastItems = useMemo(() => {
+    if (!forecastData?.forecast) return [];
+    return forecastData.forecast.map((item, index) => {
+      const subPm25 = calculateSubIndex('pm25', item.pm2_5_ug_m3);
+      const subPm10 = calculateSubIndex('pm10', item.pm10_ug_m3);
+      const subNo2 = calculateSubIndex('no2', item.no2_ug_m3);
+      const subCo = calculateSubIndex('co', item.co_mg_m3);
+      const subO3 = calculateSubIndex('o3', item.ozone_ug_m3);
+
+      const maxSub = Math.max(subPm25, subPm10, subNo2, subCo, subO3);
+      const cat = getForecastAqiCategory(maxSub);
+
+      const dt = new Date(item.forecast_for_time);
+      const hourStr = isNaN(dt.getTime())
+        ? `+${item.step}h`
+        : dt.toLocaleTimeString([], { hour: 'numeric', hour12: true }).toLowerCase();
+
+      const matchingActual = historicalRecords.find((h) => {
+        if (!h?.timestamp) return false;
+        const hDt = new Date(h.timestamp);
+        if (isNaN(hDt.getTime())) return false;
+        return (
+          hDt.getFullYear() === dt.getFullYear() &&
+          hDt.getMonth() === dt.getMonth() &&
+          hDt.getDate() === dt.getDate() &&
+          hDt.getHours() === dt.getHours()
+        );
+      });
+
+      const hasActual = !!matchingActual;
+      const actualAqi = hasActual && matchingActual.cpcb_aqi != null ? Number(matchingActual.cpcb_aqi) : null;
+
+      return {
+        ...item,
+        index,
+        display_hour: hourStr,
+        aqi: maxSub,
+        aqi_category: cat.label,
+        aqi_color: cat.color,
+        aqi_bg: cat.bg,
+        aqi_border: cat.border,
+        hasActual,
+        actual_aqi: actualAqi,
+      };
+    });
+  }, [forecastData, historicalRecords]);
+
+  // Current hour boundary timestamp (ms)
+  const currentHourMs = useMemo(() => {
+    const d = new Date(currentTime);
+    d.setMinutes(0, 0, 0, 0);
+    return d.getTime();
+  }, [currentTime]);
+
+  const { visibleForecastTimelineItems, passedForecastItems } = useMemo(() => {
+    if (!processedForecastItems || processedForecastItems.length === 0) {
+      return { visibleForecastTimelineItems: [], passedForecastItems: [] };
+    }
+
+    const passed = [];
+    const upcoming = [];
+
+    processedForecastItems.forEach((item) => {
+      if (!item.forecast_for_time) {
+        upcoming.push(item);
+        return;
+      }
+      const itemTime = new Date(item.forecast_for_time).getTime();
+      if (isNaN(itemTime)) {
+        upcoming.push(item);
+      } else if (itemTime < currentHourMs) {
+        passed.push(item);
+      } else {
+        upcoming.push(item);
+      }
+    });
+
+    const visible = showPastHours ? processedForecastItems : (upcoming.length > 0 ? upcoming : processedForecastItems);
+    return { visibleForecastTimelineItems: visible, passedForecastItems: passed };
+  }, [processedForecastItems, currentHourMs, showPastHours]);
 
   // Derived values
   const aqiVal = aqiData?.cpcb_aqi ?? 0;
@@ -1078,6 +1297,172 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
             </div>
           </motion.div>
 
+        </div>
+
+        {/* ── Predictive Forecast (24h) Section matching user screenshot ── */}
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}>
+            <div>
+              <h2 style={{
+                fontSize: 22,
+                fontWeight: 700,
+                color: '#0f172a',
+                margin: 0,
+                letterSpacing: '-0.02em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}>
+                <Sparkles style={{ width: 22, height: 22, color: '#00bfa5' }} />
+                Predictive Forecast (24h)
+              </h2>
+              <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13 }}>
+                Node 1 24-hour horizon (t+1 → t+24) with expanding-lookback Seq2Seq LSTM and real-time telemetry sync.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {forecastLastUpdated && (
+                <span style={{ fontSize: 12.5, color: '#94a3b8' }}>
+                  Updated {getTimeAgo(forecastLastUpdated)}
+                </span>
+              )}
+              <button
+                onClick={() => fetchForecast(true)}
+                disabled={forecastLoading}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  backgroundColor: '#00bfa5',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '7px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: forecastLoading ? 'not-allowed' : 'pointer',
+                  opacity: forecastLoading ? 0.7 : 1,
+                  boxShadow: '0 2px 8px rgba(0, 191, 165, 0.25)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <RefreshCw style={{ width: 13, height: 13, animation: forecastLoading ? 'spin 0.8s linear infinite' : 'none' }} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 24-Hour Timeline Overview Card */}
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.94)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            borderRadius: 20,
+            padding: '20px 24px',
+            border: '1.5px solid #e2e8f0',
+            boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Clock size={18} color="#0ea5e9" /> 24-Hour Timeline Overview
+              </h3>
+
+              {passedForecastItems.length > 0 && (
+                <button
+                  onClick={() => setShowPastHours(!showPastHours)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: showPastHours ? '1px solid #0ea5e9' : '1px solid #cbd5e1',
+                    backgroundColor: showPastHours ? '#f0f9ff' : '#ffffff',
+                    color: showPastHours ? '#0369a1' : '#64748b',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <History size={13} />
+                  <span>{showPastHours ? `Showing All 24h (${processedForecastItems.length})` : `Show Past Hours (${passedForecastItems.length})`}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Horizontal Scroller for All 24-Hour Forecast Cards */}
+            <div style={{
+              display: 'flex',
+              gap: 12,
+              overflowX: 'auto',
+              paddingBottom: 10,
+              scrollbarWidth: 'thin',
+            }}>
+              {visibleForecastTimelineItems.length === 0 ? (
+                <div style={{ padding: '24px 0', color: '#94a3b8', fontSize: 13, textAlign: 'center', width: '100%' }}>
+                  {forecastLoading ? 'Loading 24-hour predictive forecast timeline...' : 'No forecast timeline items available at this time.'}
+                </div>
+              ) : (
+                visibleForecastTimelineItems.map((item) => (
+                  <div
+                    key={item.index}
+                    className="forecast-timeline-card"
+                    style={{
+                      flex: '0 0 110px',
+                      padding: '14px 12px',
+                      borderRadius: 14,
+                      border: `1.5px solid ${item.aqi_border || '#e2e8f0'}`,
+                      background: item.aqi_bg || '#ffffff',
+                      textAlign: 'center',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                    }}
+                  >
+                    <div className="forecast-timeline-hour" style={{ fontSize: 11.5, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>
+                      {item.display_hour}
+                    </div>
+                    <div className="forecast-timeline-aqi" style={{ fontSize: 24, fontWeight: 800, color: item.aqi_color, lineHeight: 1.1, fontFamily: 'var(--font-mono)' }}>
+                      {item.aqi}
+                    </div>
+                    <div className="forecast-timeline-category" style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: item.aqi_color,
+                      marginTop: 4,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
+                      {item.aqi_category}
+                    </div>
+                    <div className="forecast-timeline-actual" style={{
+                      marginTop: 8,
+                      paddingTop: 8,
+                      borderTop: '1px dashed #e2e8f0',
+                      fontSize: 10.5,
+                      color: item.hasActual ? '#0284c7' : '#94a3b8',
+                      fontWeight: 600,
+                    }}>
+                      {item.hasActual ? (
+                        <span>Act: <strong>{item.actual_aqi ?? '—'}</strong></span>
+                      ) : (
+                        <span>Pending</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
 
