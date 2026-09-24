@@ -6,7 +6,6 @@ import {
   Droplets,
   Wind,
   CloudRain,
-  Compass,
   RefreshCw,
   Clock,
   Sparkles,
@@ -928,62 +927,22 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               </span>
             </div>
 
-            {/* Primary Value + Compass Needle */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              margin: '22px 0',
-              zIndex: 1,
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{
-                    fontSize: 'clamp(46px, 5.5vw, 60px)',
-                    fontWeight: 900,
-                    lineHeight: 1,
-                    letterSpacing: '-0.04em',
-                    color: '#059669',
-                    fontFamily: 'var(--font-mono)',
-                  }}>
-                    {loading ? '--' : displayWind}
-                  </span>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: '#94a3b8' }}>
-                    {displayWindUnit}
-                  </span>
-                </div>
-
-
-              </div>
-
-              {/* Animated Compass Needle */}
-              <div style={{
-                position: 'relative',
-                width: 70,
-                height: 70,
-                borderRadius: '50%',
-                background: '#f8fafc',
-                border: '1.5px solid #cbd5e1',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
-              }}>
-                <span style={{ position: 'absolute', top: 3, fontSize: 9, fontWeight: 800, color: '#94a3b8' }}>N</span>
-                <span style={{ position: 'absolute', bottom: 3, fontSize: 9, fontWeight: 800, color: '#94a3b8' }}>S</span>
-                <span style={{ position: 'absolute', right: 4, fontSize: 9, fontWeight: 800, color: '#94a3b8' }}>E</span>
-                <span style={{ position: 'absolute', left: 4, fontSize: 9, fontWeight: 800, color: '#94a3b8' }}>W</span>
-                
-                <div style={{
-                  transform: `rotate(${parsedDir.deg}deg)`,
-                  transition: 'transform 1s cubic-bezier(0.16, 1, 0.3, 1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+            {/* Primary Value */}
+            <div style={{ margin: '22px 0', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{
+                  fontSize: 'clamp(46px, 5.5vw, 60px)',
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  letterSpacing: '-0.04em',
+                  color: '#059669',
+                  fontFamily: 'var(--font-mono)',
                 }}>
-                  <Compass style={{ width: 28, height: 28, color: '#059669' }} />
-                </div>
+                  {loading ? '--' : displayWind}
+                </span>
+                <span style={{ fontSize: 18, fontWeight: 700, color: '#94a3b8' }}>
+                  {displayWindUnit}
+                </span>
               </div>
             </div>
 
