@@ -8,34 +8,16 @@ import {
   CloudRain,
   Compass,
   RefreshCw,
-  Radio,
   CheckCircle2,
   AlertTriangle,
   Info,
-  Clock,
   ArrowUpRight,
   Sparkles,
-  ShieldCheck,
   ChevronRight,
   Activity,
   Layers
 } from 'lucide-react';
 import { getCloudLatest, getWeatherLatest, getTimeAgo, isSensorOnline } from '../api';
-
-// Helper to compute Indian Standard Time display
-const formatLocalTime = (ts) => {
-  if (!ts) return 'N/A';
-  const dt = new Date(ts);
-  if (isNaN(dt.getTime())) return String(ts);
-  return dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
-};
-
-const formatLocalDate = (ts) => {
-  if (!ts) return '';
-  const dt = new Date(ts);
-  if (isNaN(dt.getTime())) return '';
-  return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-};
 
 // Calculate Dew Point from Temperature (°C) and Humidity (%)
 const calcDewPoint = (temp, hum) => {
@@ -303,80 +285,14 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
       {/* ── Content Container ── */}
       <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-        {/* ── Top Header / Station Beacon ── */}
+        {/* ── Top Header Controls ── */}
         <div style={{
           display: 'flex',
-          flexWrap: 'wrap',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-          paddingBottom: 20,
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          justifyContent: 'flex-end',
+          gap: 12,
+          paddingBottom: 4,
         }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 12px',
-                borderRadius: 999,
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                background: 'rgba(0, 191, 165, 0.15)',
-                color: '#2dd4bf',
-                border: '1px solid rgba(45, 212, 191, 0.3)',
-                fontFamily: 'var(--font-mono)',
-              }}>
-                <Radio style={{ width: 12, height: 12 }} />
-                <span>Node 1 Live Stream</span>
-              </span>
-
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 10px',
-                borderRadius: 999,
-                fontSize: 11,
-                fontWeight: 600,
-                background: weatherOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)',
-                color: weatherOnline ? '#4ade80' : '#facc15',
-                border: `1px solid ${weatherOnline ? 'rgba(74, 222, 128, 0.3)' : 'rgba(250, 204, 21, 0.3)'}`,
-                fontFamily: 'var(--font-mono)',
-              }}>
-                <span style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  backgroundColor: weatherOnline ? '#22c55e' : '#eab308',
-                  boxShadow: weatherOnline ? '0 0 8px #22c55e' : '0 0 8px #eab308'
-                }} />
-                <span>{weatherOnline ? 'Weather Sensors Online' : 'Standby / Polling'}</span>
-              </span>
-            </div>
-
-            <h1 style={{
-              fontSize: 'clamp(22px, 3.2vw, 32px)',
-              fontWeight: 800,
-              letterSpacing: '-0.03em',
-              margin: 0,
-              background: 'linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}>
-              Atmospheric &amp; Air Quality Snapshot
-            </h1>
-            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Clock style={{ width: 14, height: 14, color: '#64748b' }} />
-              <span>Latest telemetry received at <strong>{formatLocalTime(weatherTimestamp || aqiTimestamp)}</strong> IST</span>
-              <span>•</span>
-              <span>{formatLocalDate(weatherTimestamp || aqiTimestamp)}</span>
-            </p>
-          </div>
-
           {/* Controls: Unit Toggles & Quick Refresh */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {/* Temp Unit Toggle */}
@@ -1178,35 +1094,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           </motion.div>
 
         </div>
-
-        {/* ── Summary Sensor Spec Strip ── */}
-        <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          padding: '14px 20px',
-          borderRadius: 16,
-          background: 'rgba(255, 255, 255, 0.03)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
-          fontSize: 12,
-          color: '#94a3b8',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ShieldCheck style={{ width: 16, height: 16, color: '#00bfa5' }} />
-            <span><strong>Multi-Sensor Telemetry Fusion</strong>: Optical laser scattering, calibrated electrochemical sensors, ultrasonic anemometer &amp; tipping-bucket rain gauge.</span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-            <span>AQI: <strong style={{ color: aqiInfo.color }}>{aqiVal}</strong></span>
-            <span>Temp: <strong style={{ color: '#fdba74' }}>{displayTemp}°{tempUnit}</strong></span>
-            <span>Hum: <strong style={{ color: '#7dd3fc' }}>{displayHumidity}%</strong></span>
-            <span>Wind: <strong style={{ color: '#6ee7b7' }}>{displayWind} {displayWindUnit}</strong></span>
-            <span>Rain: <strong style={{ color: isRaining ? '#38bdf8' : '#c7d2fe' }}>{displayRain} mm</strong></span>
-          </div>
-        </div>
-
       </div>
 
       <style>{`
