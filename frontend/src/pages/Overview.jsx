@@ -715,12 +715,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   °{tempUnit}
                 </span>
               </div>
-
-              {displayFeelsLike && (
-                <div style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
-                  Feels like: <strong style={{ color: '#0f172a' }}>{displayFeelsLike}°{tempUnit}</strong>
-                </div>
-              )}
             </div>
 
             {/* Thermometer scale track */}
@@ -836,11 +830,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 </span>
               </div>
 
-              {dewPoint != null && (
-                <div style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
-                  Dew Point: <strong style={{ color: '#0f172a' }}>{dewPoint}°C</strong>
-                </div>
-              )}
+
             </div>
 
             {/* Humidity Fill Bar */}
@@ -963,10 +953,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   </span>
                 </div>
 
-                <div style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
-                  Direction: <strong style={{ color: '#0f172a' }}>{parsedDir.text}</strong> ({parsedDir.deg}°)
-                  {windGust != null && <span> • Gust: <strong>{Number(windGust).toFixed(1)} {displayWindUnit}</strong></span>}
-                </div>
+
               </div>
 
               {/* Animated Compass Needle */}
@@ -1102,9 +1089,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 </span>
               </div>
 
-              <div style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
-                Precipitation Gauge: <strong style={{ color: '#0f172a' }}>{isRaining ? 'Rainfall detected' : '0.0 mm accumulated'}</strong>
-              </div>
+
             </div>
 
             {/* Liquid Level Indicator */}
