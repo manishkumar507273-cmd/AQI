@@ -26,7 +26,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY", os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISH
 # 1st table (Live AQI): AQI_LIVE_NODE1
 # 2nd table (Historical AQI): AQI_NODE1
 # 3rd table (Live Weather): WEATHER_LIVE_NODE1
-# 4th table (Historical Weather): WEATHER_NODE
+# 4th table (Historical Weather): WEATHER_NODE1
 TABLE_AQI_LIVE = "AQI_LIVE_NODE1"
 TABLE_AQI_HISTORICAL = "AQI_NODE1"
 TABLE_WEATHER_LIVE = "WEATHER_LIVE_NODE1"
@@ -358,7 +358,7 @@ async def get_cloud_history(limit: int = 96) -> List[Dict[str, Any]]:
     return generate_24h_15min_history([], limit=limit)
 
 async def get_weather_history(limit: int = 96) -> List[Dict[str, Any]]:
-    """Historical Weather Data: Fetches 4th table (WEATHER_NODE)"""
+    """Historical Weather Data: Fetches 4th table (WEATHER_NODE1)"""
     weather_hist_rows = await fetch_table_rows(TABLE_WEATHER_HISTORICAL, limit=limit)
     if weather_hist_rows:
         result = []
