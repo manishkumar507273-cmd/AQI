@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import Layout from './components/Layout';
 import LiveData from './pages/LiveData';
+import Overview from './pages/Overview';
 import Forecast from './pages/Forecast';
 import Historical from './pages/Historical';
 import { getCloudLatest } from './api';
@@ -89,6 +90,10 @@ export default function App() {
           activeSubTab={activeTab}
           onSubTabChange={setActiveTab}
         />
+      )}
+
+      {activeNav === 'overview' && (
+        <Overview refreshKey={refreshKey} selectedStation={selectedStation} />
       )}
 
       {activeNav === 'forecast' && (

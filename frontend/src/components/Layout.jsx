@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wind, LineChart, Database, Radio, Menu, X } from 'lucide-react';
+import { Wind, LineChart, Database, Radio, Menu, X, Sparkles } from 'lucide-react';
 import WindCanvas from './WindCanvas';
 
 export const STATIONS = [
@@ -24,19 +24,14 @@ export default function Layout({
   const isWeather = activeTab === 'weather' && activeNav === 'home';
 
   const getCurrentNavTab = () => {
+    if (activeNav === 'overview') return 'overview';
     if (activeNav === 'historical') return 'historical';
     if (activeNav === 'forecast') return 'forecast';
     return 'live';
   };
 
   const handleTopTabClick = (tabId) => {
-    if (tabId === 'live') {
-      onNavChange('live');
-    } else if (tabId === 'forecast') {
-      onNavChange('forecast');
-    } else if (tabId === 'historical') {
-      onNavChange('historical');
-    }
+    onNavChange(tabId);
     setMobileMenuOpen(false);
   };
 
@@ -45,6 +40,7 @@ export default function Layout({
 
   const NAV_ITEMS = [
     { id: 'live', label: 'Live Data Stream', icon: Radio },
+    { id: 'overview', label: 'Atmosphere Snapshot', icon: Sparkles },
     { id: 'historical', label: 'Analytics Archive', icon: Database },
     { id: 'forecast', label: 'Predictive Forecast', icon: LineChart },
   ];
@@ -330,6 +326,7 @@ export default function Layout({
       <nav className="mobile-bottom-nav">
         {[
           { id: 'live', label: 'Live Stream', icon: Radio },
+          { id: 'overview', label: 'Snapshot', icon: Sparkles },
           { id: 'forecast', label: 'Forecast', icon: LineChart },
           { id: 'historical', label: 'Archive', icon: Database },
         ].map((tab) => {
