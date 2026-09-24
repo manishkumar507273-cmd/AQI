@@ -6,6 +6,7 @@ import {
   Droplets,
   Wind,
   CloudRain,
+  ShieldCheck,
   RefreshCw,
   Clock,
   Sparkles,
@@ -1078,6 +1079,45 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
             </div>
           </motion.div>
 
+        </div>
+
+        {/* ── Multi-Sensor Telemetry Fusion Strip ── */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          padding: '16px 22px',
+          borderRadius: 20,
+          background: 'rgba(255, 255, 255, 0.94)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1.5px solid #e2e8f0',
+          boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)',
+          zIndex: 1,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <ShieldCheck style={{ width: 17, height: 17, color: '#00bfa5', flexShrink: 0 }} />
+            <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.4 }}>
+              <strong style={{ color: '#0f172a' }}>Multi-Sensor Telemetry Fusion</strong>: Optical laser scattering, calibrated electrochemical sensors, ultrasonic anemometer &amp; tipping-bucket rain gauge.
+            </div>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 20,
+            flexWrap: 'wrap',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 13,
+            paddingLeft: 26,
+            color: '#64748b',
+          }}>
+            <span>AQI: <strong style={{ color: aqiCategory.color }}>{loading ? '--' : aqiVal}</strong></span>
+            <span>Temp: <strong style={{ color: '#ea580c' }}>{loading ? '--' : `${displayTemp}°${tempUnit}`}</strong></span>
+            <span>Hum: <strong style={{ color: '#0284c7' }}>{loading ? '--' : `${displayHumidity}%`}</strong></span>
+            <span>Wind: <strong style={{ color: '#059669' }}>{loading ? '--' : `${displayWind} ${displayWindUnit}`}</strong></span>
+            <span>Rain: <strong style={{ color: isRaining ? '#0284c7' : '#4f46e5' }}>{loading ? '--' : `${displayRain} mm`}</strong></span>
+          </div>
         </div>
 
       </div>
