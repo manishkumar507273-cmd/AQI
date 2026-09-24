@@ -1,31 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Sparkles,
   RefreshCw,
   Clock,
-  History,
   AlertCircle,
-  TrendingUp,
   Table as TableIcon,
   LineChart as LineChartIcon,
-  ShieldCheck,
-  CheckCircle2,
   Sliders,
-  ChevronRight,
-  Info,
-  ArrowLeftRight,
-  Database,
-  HeartPulse,
-  Sun,
-  Wind,
-  Compass,
-  Zap,
-  Filter,
-  Eye,
-  Activity,
-  Layers,
-  Search
+  ArrowLeftRight
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -37,7 +20,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ReferenceLine
 } from 'recharts';
 import { getAqiForecast, getCloudHistory, getTimeAgo, getCachedData } from '../api';
@@ -136,15 +118,8 @@ export default function Forecast({ refreshKey }) {
   const [activeParam, setActiveParam] = useState('aqi');
   const [activeView, setActiveView] = useState('timeline'); // 'timeline' | 'chart' | 'table'
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
-  const [showComparison, setShowComparison] = useState(true);
-  const [showPastHours, setShowPastHours] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
-
-  // Periodically refresh current time every 30s to dynamically remove elapsed hours
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 30000);
-    return () => clearInterval(timer);
-  }, []);
+  const [showComparison, setShowComparison] = useState(false);
 
   const isFetchingRef = useRef(false);
 
@@ -193,22 +168,10 @@ export default function Forecast({ refreshKey }) {
     }
   };
 
+  // Refresh current time and forecast only on mount or manual refresh
   useEffect(() => {
+    setCurrentTime(new Date());
     fetchForecastAndHistory(false);
-    // Poll forecast periodically every 60 seconds (hourly forecasts do not change every 5 seconds)
-    const timer = setInterval(() => fetchForecastAndHistory(false), 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // When live sensor telemetry refreshes (every ~5s), update historical actuals without disturbing 24h forecast
-  useEffect(() => {
-    if (refreshKey > 0) {
-      getCloudHistory(100).then(res => {
-        if (Array.isArray(res.data?.history)) {
-          setHistoricalRecords(res.data.history);
-        }
-      }).catch(() => {});
-    }
   }, [refreshKey]);
 
   // Process forecast items with dynamic CPCB calculation and match with historical readings
@@ -346,40 +309,7 @@ export default function Forecast({ refreshKey }) {
     };
   }, [processedItems]);
 
-  // Current hour boundary timestamp (ms)
-  const currentHourMs = useMemo(() => {
-    const d = new Date(currentTime);
-    d.setMinutes(0, 0, 0, 0);
-    return d.getTime();
-  }, [currentTime]);
-
-  // Separate passed/elapsed hours from upcoming forecast slots
-  const { visibleTimelineItems, passedItems } = useMemo(() => {
-    if (!processedItems || processedItems.length === 0) {
-      return { visibleTimelineItems: [], passedItems: [] };
-    }
-
-    const passed = [];
-    const upcoming = [];
-
-    processedItems.forEach((item) => {
-      if (!item.iso_time) {
-        upcoming.push(item);
-        return;
-      }
-      const itemTime = new Date(item.iso_time).getTime();
-      if (isNaN(itemTime)) {
-        upcoming.push(item);
-      } else if (itemTime < currentHourMs) {
-        passed.push(item);
-      } else {
-        upcoming.push(item);
-      }
-    });
-
-    const visible = showPastHours ? processedItems : (upcoming.length > 0 ? upcoming : processedItems);
-    return { visibleTimelineItems: visible, passedItems: passed };
-  }, [processedItems, currentHourMs, showPastHours]);
+  const visibleTimelineItems = processedItems;
 
   // Active inspected slot defaults smoothly to first visible upcoming hour
   const activeSlot = useMemo(() => {
@@ -509,28 +439,6 @@ export default function Forecast({ refreshKey }) {
               </h3>
             </div>
 
-            {passedItems.length > 0 && (
-              <button
-                onClick={() => setShowPastHours(!showPastHours)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  border: showPastHours ? '1px solid #0ea5e9' : '1px solid #cbd5e1',
-                  backgroundColor: showPastHours ? '#f0f9ff' : '#ffffff',
-                  color: showPastHours ? '#0369a1' : '#64748b',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <History size={13} />
-                <span>{showPastHours ? `Hide Elapsed Hours (${passedItems.length})` : `Show Past Hours (${passedItems.length})`}</span>
-              </button>
-            )}
           </div>
 
           {/* Horizontal Scroller Cards */}

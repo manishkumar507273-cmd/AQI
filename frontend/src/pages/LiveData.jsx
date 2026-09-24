@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Activity, CloudSun, Sparkles } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Activity, CloudSun } from 'lucide-react';
 import Dashboard from './Dashboard';
 import Weather from './Weather';
-import Overview from './Overview';
 
 export default function LiveData({
   cloudData,
@@ -47,10 +46,10 @@ export default function LiveData({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '9px clamp(12px, 3.5vw, 24px)',
+              padding: '9px 24px',
               borderRadius: 999,
               border: 'none',
-              fontSize: 'clamp(12px, 3vw, 14px)',
+              fontSize: 14,
               fontWeight: 700,
               fontFamily: 'var(--font-sans)',
               cursor: 'pointer',
@@ -75,10 +74,8 @@ export default function LiveData({
               />
             )}
             <Activity style={{ width: 17, height: 17, zIndex: 1 }} />
-            <span style={{ zIndex: 1 }}>
-              <span className="desktop-only-inline">AQI Dashboard</span>
-              <span className="mobile-only-inline">Air Quality</span>
-            </span>
+            <span style={{ zIndex: 1 }} className="desktop-only-inline">AQI Live Telemetry</span>
+            <span style={{ zIndex: 1 }} className="mobile-only-inline">AQI</span>
           </button>
 
           <button
@@ -89,10 +86,10 @@ export default function LiveData({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '9px clamp(12px, 3.5vw, 24px)',
+              padding: '9px 24px',
               borderRadius: 999,
               border: 'none',
-              fontSize: 'clamp(12px, 3vw, 14px)',
+              fontSize: 14,
               fontWeight: 700,
               fontFamily: 'var(--font-sans)',
               cursor: 'pointer',
@@ -117,84 +114,47 @@ export default function LiveData({
               />
             )}
             <CloudSun style={{ width: 17, height: 17, zIndex: 1 }} />
-            <span style={{ zIndex: 1 }}>
-              <span className="desktop-only-inline">Weather Telemetry</span>
-              <span className="mobile-only-inline">Weather</span>
-            </span>
-          </button>
-
-          <button
-            onClick={() => setSubTab('overview')}
-            className="subtab-pill-btn"
-            style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '9px clamp(12px, 3.5vw, 24px)',
-              borderRadius: 999,
-              border: 'none',
-              fontSize: 'clamp(12px, 3vw, 14px)',
-              fontWeight: 700,
-              fontFamily: 'var(--font-sans)',
-              cursor: 'pointer',
-              backgroundColor: 'transparent',
-              color: currentSubTab === 'overview' ? '#ffffff' : '#64748b',
-              transition: 'color 0.15s ease',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {currentSubTab === 'overview' && (
-              <motion.div
-                layoutId="liveSubTabPill"
-                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  backgroundColor: '#00bfa5',
-                  borderRadius: 999,
-                  boxShadow: '0 4px 14px rgba(0, 191, 165, 0.35)',
-                  zIndex: 0,
-                }}
-              />
-            )}
-            <Sparkles style={{ width: 17, height: 17, zIndex: 1 }} />
-            <span style={{ zIndex: 1 }}>
-              <span className="desktop-only-inline">Atmosphere Snapshot</span>
-              <span className="mobile-only-inline">Snapshot</span>
-            </span>
+            <span style={{ zIndex: 1 }} className="desktop-only-inline">Weather Live Telemetry</span>
+            <span style={{ zIndex: 1 }} className="mobile-only-inline">Weather</span>
           </button>
         </div>
+
       </div>
 
       {/* Render Selected View */}
-      {currentSubTab === 'aqi' && (
-        <Dashboard
-          cloudData={cloudData}
-          cloudLoading={cloudLoading}
-          cloudError={cloudError}
-          onDataLoad={onDataLoad}
-          refreshKey={refreshKey}
-          selectedStation={selectedStation}
-        />
-      )}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={currentSubTab}
+          initial={{ opacity: 0, y: 8, filter: 'blur(3px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, y: -6, filter: 'blur(3px)' }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          style={{ width: '100%' }}
+        >
+          {currentSubTab === 'aqi' && (
+            <Dashboard
+              cloudData={cloudData}
+              cloudLoading={cloudLoading}
+              cloudError={cloudError}
+              onDataLoad={onDataLoad}
+              refreshKey={refreshKey}
+              selectedStation={selectedStation}
+            />
+          )}
 
-      {currentSubTab === 'weather' && (
-        <Weather
-          cloudData={cloudData}
-          cloudLoading={cloudLoading}
-          cloudError={cloudError}
-          refreshKey={refreshKey}
-          selectedStation={selectedStation}
-        />
-      )}
+          {currentSubTab === 'weather' && (
+            <Weather
+              cloudData={cloudData}
+              cloudLoading={cloudLoading}
+              cloudError={cloudError}
+              refreshKey={refreshKey}
+              selectedStation={selectedStation}
+            />
+          )}
 
-      {currentSubTab === 'overview' && (
-        <Overview
-          refreshKey={refreshKey}
-          selectedStation={selectedStation}
-        />
-      )}
+
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }

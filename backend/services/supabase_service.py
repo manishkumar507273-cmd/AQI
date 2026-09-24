@@ -1,6 +1,9 @@
 import os
+import asyncio
 import httpx
 import math
+import csv
+import io
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
@@ -144,16 +147,6 @@ def format_supabase_reading(raw: Dict[str, Any]) -> Dict[str, Any]:
     wg = raw.get("wind_gust") or raw.get("gust") or raw.get("wind_gust_kmh") or raw.get("gust_speed")
     rg = raw.get("rain_gauge") if "rain_gauge" in raw else (raw.get("rain") or raw.get("rain_gauge_mm") or raw.get("rainfall"))
 
-    raw_id = raw.get("id") or 1
-    if ws is None:
-        ws = round(7.2 + ((cpcb_aqi + raw_id) % 9) * 1.1, 1)
-    if wd is None:
-        wd = round((135 + ((cpcb_aqi + raw_id) * 7.5)) % 360, 0)
-    if wg is None:
-        wg = round(ws * 1.35, 1)
-    if rg is None:
-        rg = 0.0
-
     return {
         "id": raw.get("id"),
         "timestamp": raw.get("created_at") or raw.get("timestamp_hour") or raw.get("timestamp"),
@@ -190,7 +183,7 @@ async def fetch_table_rows(table_name: str, limit: int = 100) -> List[Dict[str, 
     client = get_http_client()
     # AQI_NODE1 uses timestamp_hour column, whereas live tables use created_at
     order_col = "timestamp_hour" if ("NODE1" in table_name and "LIVE" not in table_name) else "created_at"
-    url = f"{get_table_url(table_name)}?order={order_col}.desc&limit={limit}"
+    url = f"{get_table_url(table_name)}?order={order_col}.desc.nullslast&limit={limit}"
     
     try:
         response = await client.get(url, headers=HEADERS)
@@ -292,9 +285,14 @@ def generate_24h_15min_history(data: List[Dict[str, Any]], limit: int = 96) -> L
 
 async def get_latest_aqi_live_reading() -> Optional[Dict[str, Any]]:
     """AQI Page Data: Fetches strictly from 1st table (AQI_LIVE_NODE1) including its own onboard temperature and humidity"""
-    aqi_live_rows = await fetch_table_rows(TABLE_AQI_LIVE, limit=1)
+    aqi_live_rows = await fetch_table_rows(TABLE_AQI_LIVE, limit=5)
     if aqi_live_rows:
-        return format_supabase_reading(aqi_live_rows[0])
+        valid_rows = [
+            r for r in aqi_live_rows
+            if (r.get("created_at") or r.get("timestamp_hour") or r.get("timestamp"))
+        ]
+        raw = valid_rows[0] if valid_rows else aqi_live_rows[0]
+        return format_supabase_reading(raw)
     return None
 
 async def get_latest_cloud_reading() -> Optional[Dict[str, Any]]:
@@ -303,15 +301,19 @@ async def get_latest_cloud_reading() -> Optional[Dict[str, Any]]:
     if aqi_reading:
         return aqi_reading
     
-    # Fallback if no cloud records found
+    # Fallback to keep prediction and historical baseline alive if no cloud records found
     history = generate_24h_15min_history([], limit=1)
     return history[-1] if history else None
 
 async def get_latest_weather_live_reading() -> Optional[Dict[str, Any]]:
     """Fetches latest live weather record directly from 3rd table (WEATHER_LIVE_NODE1)"""
-    weather_live_rows = await fetch_table_rows(TABLE_WEATHER_LIVE, limit=1)
+    weather_live_rows = await fetch_table_rows(TABLE_WEATHER_LIVE, limit=5)
     if weather_live_rows:
-        raw = weather_live_rows[0]
+        valid_rows = [
+            r for r in weather_live_rows 
+            if (r.get("created_at") or r.get("timestamp_hour") or r.get("timestamp"))
+        ]
+        raw = valid_rows[0] if valid_rows else weather_live_rows[0]
         return {
             "id": raw.get("id"),
             "timestamp": raw.get("created_at") or raw.get("timestamp_hour") or raw.get("timestamp"),
@@ -358,7 +360,7 @@ async def get_cloud_history(limit: int = 96) -> List[Dict[str, Any]]:
     return generate_24h_15min_history([], limit=limit)
 
 async def get_weather_history(limit: int = 96) -> List[Dict[str, Any]]:
-    """Historical Weather Data: Fetches 4th table (WEATHER_NODE1)"""
+    """Historical Weather Data: Fetches 4th table (WEATHER_NODE1) directly from Supabase"""
     weather_hist_rows = await fetch_table_rows(TABLE_WEATHER_HISTORICAL, limit=limit)
     if weather_hist_rows:
         result = []
@@ -377,5 +379,147 @@ async def get_weather_history(limit: int = 96) -> List[Dict[str, Any]]:
             })
         return result
     return []
+
+async def fetch_dataset_range(table_name: str, year: int, month: Optional[int] = None) -> List[Dict[str, Any]]:
+    """
+    Fetches all historical records for a specified year or month from Supabase.
+    Automatically handles PostgREST pagination (1000 rows/page) to ensure the complete dataset is fetched.
+    """
+    client = get_http_client()
+    if month:
+        start_date = f"{year}-{month:02d}-01T00:00:00"
+        if month == 12:
+            end_date = f"{year+1}-01-01T00:00:00"
+        else:
+            end_date = f"{year}-{month+1:02d}-01T00:00:00"
+    else:
+        start_date = f"{year}-01-01T00:00:00"
+        end_date = f"{year+1}-01-01T00:00:00"
+
+    all_rows = []
+    offset = 0
+    batch_size = 1000
+    order_col = "timestamp_hour" if ("NODE1" in table_name and "LIVE" not in table_name) else "created_at"
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        while True:
+            url = (
+                f"{get_table_url(table_name)}?"
+                f"{order_col}=gte.{start_date}&"
+                f"{order_col}=lt.{end_date}&"
+                f"order={order_col}.asc&"
+                f"limit={batch_size}&"
+                f"offset={offset}"
+            )
+            try:
+                r = await client.get(url, headers=HEADERS)
+                if r.status_code == 200:
+                    data = r.json()
+                    if not isinstance(data, list) or len(data) == 0:
+                        break
+                    all_rows.extend(data)
+                    if len(data) < batch_size:
+                        break
+                    offset += batch_size
+                else:
+                    break
+            except Exception as e:
+                print(f"Error fetching dataset range for {table_name}: {e}")
+                break
+
+    return all_rows
+
+def format_dataset_csv(rows: List[Dict[str, Any]], category: str) -> str:
+    """
+    Formats Supabase historical rows into clean CSV string.
+    Only shows values that exist in Supabase (empty if null, no fake fallbacks).
+    """
+    out = io.StringIO()
+    writer = csv.writer(out)
+
+    if category == "aqi":
+        writer.writerow(['Date', 'Time', 'AQI', 'Temperature (°C)', 'Humidity (%)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO2 (µg/m³)', 'O3 (µg/m³)'])
+        for r in rows:
+            ts = str(r.get('timestamp_hour') or r.get('created_at') or '')
+            try:
+                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                d_str = dt.strftime('%d-%m-%Y')
+                t_str = dt.strftime('%I:%M%p').lower().lstrip('0')
+            except Exception:
+                d_str = ts
+                t_str = ''
+            temp = f"{float(r['temperature']):.1f}" if r.get('temperature') is not None else ''
+            hum = f"{float(r['humidity']):.1f}" if r.get('humidity') is not None else ''
+            p25 = f"{float(r.get('pm2.5') or r.get('pm25')):.3f}" if (r.get('pm2.5') is not None or r.get('pm25') is not None) else ''
+            p10 = f"{float(r['pm10']):.3f}" if r.get('pm10') is not None else ''
+            co = f"{float(r['co']):.3f}" if r.get('co') is not None else ''
+            no2 = f"{float(r['no2']):.3f}" if r.get('no2') is not None else ''
+            o3 = f"{float(r['o3']):.3f}" if r.get('o3') is not None else ''
+            aqi = round(r['cpcb_aqi']) if r.get('cpcb_aqi') is not None else ''
+            writer.writerow([d_str, t_str, aqi, temp, hum, p25, p10, co, no2, o3])
+    else:
+        writer.writerow(['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'])
+        for r in rows:
+            ts = str(r.get('timestamp_hour') or r.get('created_at') or '')
+            try:
+                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                d_str = dt.strftime('%d-%m-%Y')
+                t_str = dt.strftime('%I:%M%p').lower().lstrip('0')
+            except Exception:
+                d_str = ts
+                t_str = ''
+            temp = f"{float(r['temperature']):.1f}" if r.get('temperature') is not None else ''
+            hum = f"{float(r['humidity']):.1f}" if r.get('humidity') is not None else ''
+            ws = f"{float(r['wind_speed']):.3f}" if r.get('wind_speed') is not None else ''
+            wg = f"{float(r['wind_gust']):.3f}" if r.get('wind_gust') is not None else ''
+            wd = str(r.get('wind_direction') or '')
+            rg = f"{float(r.get('rain_gauge') if 'rain_gauge' in r else r.get('rain')):.3f}" if (r.get('rain_gauge') is not None or r.get('rain') is not None) else ''
+            writer.writerow([d_str, t_str, temp, hum, ws, wg, wd, rg])
+
+    return out.getvalue()
+
+async def fetch_available_periods(table_name: str) -> Dict[int, List[int]]:
+    """
+    Returns a dictionary mapping available years to the list of months that have data in Supabase.
+    Example: { 2026: [8, 9] }
+    """
+    order_col = "timestamp_hour" if ("NODE1" in table_name and "LIVE" not in table_name) else "created_at"
+    periods: Dict[int, set] = {}
+    offset = 0
+    batch = 1000
+
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        while True:
+            url = f"{get_table_url(table_name)}?select={order_col}&order={order_col}.asc&limit={batch}&offset={offset}"
+            try:
+                r = await client.get(url, headers=HEADERS)
+                if r.status_code == 200:
+                    data = r.json()
+                    if not isinstance(data, list) or len(data) == 0:
+                        break
+                    for row in data:
+                        ts = str(row.get(order_col) or "")
+                        if len(ts) >= 7:
+                            try:
+                                y = int(ts[:4])
+                                m = int(ts[5:7])
+                                if y >= 2026 and 1 <= m <= 12:
+                                    if y not in periods:
+                                        periods[y] = set()
+                                    periods[y].add(m)
+                            except ValueError:
+                                pass
+                    if len(data) < batch:
+                        break
+                    offset += batch
+                else:
+                    break
+            except Exception as e:
+                print(f"Error fetching periods for {table_name}: {e}")
+                break
+
+    return {y: sorted(list(m_set)) for y, m_set in sorted(periods.items())}
+
+
 
 

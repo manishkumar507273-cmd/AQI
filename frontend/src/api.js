@@ -231,11 +231,13 @@ export const getCloudLatest = async () => {
     const headers = getNoCacheHeaders();
 
     // 1st Table (Live AQI): AQI_LIVE_NODE1 - strictly fetches telemetry & temperature from AQI_LIVE_NODE1
-    const res = await axios.get(`${getTableRestUrl(TABLE_AQI_LIVE)}?order=created_at.desc&limit=1`, { headers })
+    const res = await axios.get(`${getTableRestUrl(TABLE_AQI_LIVE)}?order=created_at.desc.nullslast&limit=1`, { headers })
       .catch(() => axios.get(`${getTableRestUrl(TABLE_AQI_LIVE)}?limit=1`, { headers }));
 
     if (res.data && res.data[0]) {
-      const formatted = formatRawReading(res.data[0]);
+      const validRows = (res.data || []).filter(r => r && (r.created_at || r.timestamp || r.timestamp_hour));
+      const raw = validRows[0] || res.data[0];
+      const formatted = formatRawReading(raw);
       if (formatted) {
         setCachedData('CACHE_CLOUD_LATEST', formatted);
         return { data: { status: 'success', data: formatted } };
@@ -259,7 +261,7 @@ export const getCloudLiveHistory = async (limit = 50) => {
   try {
     const headers = getNoCacheHeaders();
 
-    const res = await axios.get(`${getTableRestUrl(TABLE_AQI_LIVE)}?order=created_at.desc&limit=${limit}`, { headers })
+    const res = await axios.get(`${getTableRestUrl(TABLE_AQI_LIVE)}?order=created_at.desc.nullslast&limit=${limit}`, { headers })
       .catch(() => axios.get(`${getTableRestUrl(TABLE_AQI_LIVE)}?limit=${limit}`, { headers }));
 
     const list = Array.isArray(res.data) ? res.data : [];
@@ -292,11 +294,12 @@ export const getWeatherLatest = async () => {
   const cached = getCachedData('CACHE_WEATHER_LATEST');
   try {
     const headers = getNoCacheHeaders();
-    const res = await axios.get(`${getTableRestUrl(TABLE_WEATHER_LIVE)}?order=created_at.desc&limit=1`, { headers })
+    const res = await axios.get(`${getTableRestUrl(TABLE_WEATHER_LIVE)}?order=created_at.desc.nullslast&limit=1`, { headers })
       .catch(() => axios.get(`${getTableRestUrl(TABLE_WEATHER_LIVE)}?limit=1`, { headers }));
 
-    if (res.data && res.data[0]) {
-      const raw = res.data[0];
+    const validRows = (res.data || []).filter(r => r && (r.created_at || r.timestamp || r.timestamp_hour));
+    if (validRows.length > 0) {
+      const raw = validRows[0];
       const data = {
         id: raw.id,
         timestamp: raw.created_at || raw.timestamp_hour || raw.timestamp,
@@ -328,13 +331,13 @@ export const getCloudWeatherLiveHistory = async (limit = 50) => {
   try {
     const headers = getNoCacheHeaders();
 
-    const res = await axios.get(`${getTableRestUrl(TABLE_WEATHER_LIVE)}?order=created_at.desc&limit=${limit}`, { headers })
+    const res = await axios.get(`${getTableRestUrl(TABLE_WEATHER_LIVE)}?order=created_at.desc.nullslast&limit=${limit}`, { headers })
       .catch(() => axios.get(`${getTableRestUrl(TABLE_WEATHER_LIVE)}?limit=${limit}`, { headers }));
 
     const list = Array.isArray(res.data) ? res.data : [];
-    const history = list.map((raw) => {
-      if (!raw) return null;
-      return {
+    const history = list
+      .filter(r => r && (r.created_at || r.timestamp || r.timestamp_hour))
+      .map((raw) => ({
         id: raw.id,
         timestamp: raw.created_at || raw.timestamp_hour || raw.timestamp,
         temperature: raw.temperature,
@@ -343,8 +346,7 @@ export const getCloudWeatherLiveHistory = async (limit = 50) => {
         wind_gust: raw.wind_gust ?? raw.gust,
         wind_direction: raw.wind_direction,
         rain_gauge: raw.rain_gauge ?? raw.rain
-      };
-    }).filter(Boolean);
+      }));
 
     if (history.length > 0) {
       setCachedData('CACHE_WEATHER_LIVE_HISTORY', history);
@@ -718,6 +720,192 @@ export const getAqiComparison = async (historyLimit = 48, force = false) => {
   }
 };
 
+export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026, month = null }) => {
+  // 1. Try FastAPI backend endpoint first
+  try {
+    const monthParam = (month && month !== 'all') ? `&month=${month}` : '';
+    const url = `/cloud/export-dataset?category=${category}&year=${year}${monthParam}`;
+    const res = await api.get(url, { responseType: 'blob', timeout: 60000 });
+    
+    // Extract filename from header if present
+    const disposition = res.headers['content-disposition'] || '';
+    let filename = '';
+    const match = disposition.match(/filename=["']?([^"']+)["']?/);
+    if (match && match[1]) {
+      filename = match[1];
+    } else {
+      const monthPart = (month && month !== 'all') ? `_${String(month).padStart(2, '0')}` : '_Full_Year';
+      filename = `${category === 'aqi' ? 'AQI' : 'Weather'}_Historical_Dataset_${year}${monthPart}.csv`;
+    }
+
+    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+
+    const rowsCount = res.headers['x-dataset-rows'] ? Number(res.headers['x-dataset-rows']) : null;
+    return { success: true, filename, count: rowsCount };
+  } catch (err) {
+    if (err.response?.status === 404) {
+      let detail = 'No data recorded for this period in database.';
+      try {
+        if (err.response.data instanceof Blob) {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed.detail) detail = parsed.detail;
+        } else if (err.response.data?.detail) {
+          detail = err.response.data.detail;
+        }
+      } catch (_) {}
+      throw new Error(detail);
+    }
+    console.warn('Backend dataset export fallback to direct client pagination:', err?.message || err);
+  }
+
+  // 2. Client-side fallback: fetch directly from Supabase with pagination
+  try {
+    const tableName = category === 'aqi' ? TABLE_AQI_HISTORICAL : TABLE_WEATHER_HISTORICAL;
+    let startDate = `${year}-01-01T00:00:00`;
+    let endDate = `${year + 1}-01-01T00:00:00`;
+
+    if (month && month !== 'all') {
+      const mNum = Number(month);
+      startDate = `${year}-${String(mNum).padStart(2, '0')}-01T00:00:00`;
+      if (mNum === 12) {
+        endDate = `${year + 1}-01-01T00:00:00`;
+      } else {
+        endDate = `${year}-${String(mNum + 1).padStart(2, '0')}-01T00:00:00`;
+      }
+    }
+
+    const headers = getNoCacheHeaders();
+    let allRows = [];
+    let offset = 0;
+    const batchSize = 1000;
+
+    while (true) {
+      const fetchUrl = `${getTableRestUrl(tableName)}?timestamp_hour=gte.${startDate}&timestamp_hour=lt.${endDate}&order=timestamp_hour.asc&limit=${batchSize}&offset=${offset}`;
+      const res = await axios.get(fetchUrl, { headers });
+      const data = Array.isArray(res.data) ? res.data : [];
+      if (data.length === 0) break;
+      allRows.push(...data);
+      if (data.length < batchSize) break;
+      offset += batchSize;
+    }
+
+    if (allRows.length === 0) {
+      throw new Error(`No ${category.toUpperCase()} records exist in database for this period.`);
+    }
+
+    // Format CSV
+    let headersArr = [];
+    let rowsArr = [];
+
+    if (category === 'aqi') {
+      headersArr = ['Date', 'Time', 'AQI', 'Temperature (°C)', 'Humidity (%)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO2 (µg/m³)', 'O3 (µg/m³)'];
+      rowsArr = allRows.map((r) => {
+        const ts = r.timestamp_hour || r.created_at || '';
+        let dStr = ts;
+        let tStr = '';
+        if (ts) {
+          const dt = new Date(ts);
+          if (!isNaN(dt.getTime())) {
+            const d = String(dt.getDate()).padStart(2, '0');
+            const m = String(dt.getMonth() + 1).padStart(2, '0');
+            const y = dt.getFullYear();
+            dStr = `${d}-${m}-${y}`;
+            let h = dt.getHours();
+            const ampm = h >= 12 ? 'pm' : 'am';
+            h = h % 12;
+            h = h ? h : 12;
+            const min = String(dt.getMinutes()).padStart(2, '0');
+            tStr = `${h}:${min}${ampm}`;
+          }
+        }
+        return [
+          dStr,
+          tStr,
+          r.cpcb_aqi != null && !isNaN(Number(r.cpcb_aqi)) ? Math.round(Number(r.cpcb_aqi)) : '',
+          r.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '',
+          r.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '',
+          (r['pm2.5'] != null || r.pm25 != null) ? Number(r['pm2.5'] ?? r.pm25).toFixed(3) : '',
+          r.pm10 != null && !isNaN(Number(r.pm10)) ? Number(r.pm10).toFixed(3) : '',
+          r.co != null && !isNaN(Number(r.co)) ? Number(r.co).toFixed(3) : '',
+          r.no2 != null && !isNaN(Number(r.no2)) ? Number(r.no2).toFixed(3) : '',
+          r.o3 != null && !isNaN(Number(r.o3)) ? Number(r.o3).toFixed(3) : ''
+        ];
+      });
+    } else {
+      headersArr = ['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'];
+      rowsArr = allRows.map((r) => {
+        const ts = r.timestamp_hour || r.created_at || '';
+        let dStr = ts;
+        let tStr = '';
+        if (ts) {
+          const dt = new Date(ts);
+          if (!isNaN(dt.getTime())) {
+            const d = String(dt.getDate()).padStart(2, '0');
+            const m = String(dt.getMonth() + 1).padStart(2, '0');
+            const y = dt.getFullYear();
+            dStr = `${d}-${m}-${y}`;
+            let h = dt.getHours();
+            const ampm = h >= 12 ? 'pm' : 'am';
+            h = h % 12;
+            h = h ? h : 12;
+            const min = String(dt.getMinutes()).padStart(2, '0');
+            tStr = `${h}:${min}${ampm}`;
+          }
+        }
+        return [
+          dStr,
+          tStr,
+          r.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '',
+          r.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '',
+          r.wind_speed != null && !isNaN(Number(r.wind_speed)) ? Number(r.wind_speed).toFixed(3) : '',
+          r.wind_gust != null && !isNaN(Number(r.wind_gust)) ? Number(r.wind_gust).toFixed(3) : '',
+          r.wind_direction != null ? String(r.wind_direction) : '',
+          (r.rain_gauge != null || r.rain != null) ? Number(r.rain_gauge ?? r.rain).toFixed(3) : ''
+        ];
+      });
+    }
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headersArr.join(','), ...rowsArr.map(e => e.join(','))].join('\n');
+    const monthPart = (month && month !== 'all') ? `_${String(month).padStart(2, '0')}` : '_Full_Year';
+    const filename = `${category === 'aqi' ? 'AQI' : 'Weather'}_Historical_Dataset_${year}${monthPart}.csv`;
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.href = encodedUri;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    return { success: true, filename, count: allRows.length };
+  } catch (clientErr) {
+    console.error('Failed to export dataset:', clientErr);
+    throw clientErr;
+  }
+};
+
+export const getAvailablePeriods = async (category = 'aqi') => {
+  try {
+    const res = await api.get(`/cloud/available-periods?category=${category}`, { timeout: 15000 });
+    if (res.data?.status === 'success' && res.data.periods) {
+      return res.data;
+    }
+  } catch (err) {
+    console.warn('Backend available-periods fetch error, fallback to client computation:', err?.message || err);
+  }
+  return null;
+};
+
 export default api;
+
+
 
 

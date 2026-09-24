@@ -61,7 +61,7 @@ def send_email_alert(subject: str, html_content: str, text_content: str, recipie
 def get_latest_node_reading(table_name: str) -> Optional[Dict[str, Any]]:
     """Fetches the newest record from the given live table."""
     headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
-    url = f"{SUPABASE_URL}/rest/v1/{table_name}?order=created_at.desc&limit=1"
+    url = f"{SUPABASE_URL}/rest/v1/{table_name}?order=created_at.desc.nullslast&limit=1"
     try:
         with httpx.Client(timeout=10.0) as client:
             res = client.get(url, headers=headers)

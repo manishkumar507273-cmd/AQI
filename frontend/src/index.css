@@ -674,6 +674,15 @@ img, svg, video, canvas {
     display: flex !important;
   }
 
+  @media (max-width: 420px) {
+    .mobile-live-badge span:last-child {
+      display: none !important;
+    }
+    .mobile-live-badge {
+      padding: 6px !important;
+    }
+  }
+
   /* 12. Native Mobile Bottom Navigation Bar */
   .mobile-bottom-nav {
     display: flex !important;

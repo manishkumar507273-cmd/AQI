@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getWeatherLatest, getCloudWeatherLiveHistory, getCachedData, isSensorOnline, getTimeAgo } from '../api';
-import { Cpu, ExternalLink, X, Droplets, Wind, CloudRain, Compass, ChevronRight, Info, HeartPulse, ShieldAlert, Users, CheckCircle2, AlertTriangle, Thermometer, Table, RefreshCw, Layers, TrendingUp } from 'lucide-react';
+import { ExternalLink, X, Info, HeartPulse, AlertTriangle, Table, RefreshCw } from 'lucide-react';
 import sht45SensorImg from '../assets/sht45_sensor.png';
 import windSpeedSensorImg from '../assets/wind_speed_sensor.png';
 import windDirSensorImg from '../assets/wind_dir_sensor.png';
@@ -76,7 +76,7 @@ const parseWindDir = (val) => {
     return { deg, abbr: item.abbr, name: item.name, label: item.name };
   }
 
-  const match = s.match(/([A-Za-z\-]+)/);
+  const match = s.match(/([A-Za-z-]+)/);
   const clean = match ? match[1].toLowerCase().replace(/[\s_-]+/g, '') : s.toLowerCase().replace(/[\s_-]+/g, '');
   if (COMPASS_MAP[clean]) {
     const { deg, abbr, name } = COMPASS_MAP[clean];
@@ -335,24 +335,25 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
     };
 
     fetchWeatherData();
-    const interval = setInterval(fetchWeatherData, 5000);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
     };
   }, [refreshKey, selectedStation]);
 
   // Strictly get latest telemetry from WEATHER_LIVE_NODE1
-  const latestRow = liveHistory?.[0];
-  const latestTimestamp = weatherLive?.timestamp || latestRow?.timestamp;
+  const validHistory = Array.isArray(liveHistory)
+    ? liveHistory.filter(r => r && (r.timestamp || r.created_at) && r.timestamp !== 'null')
+    : [];
+  const latestRow = validHistory[0] || liveHistory?.[0];
+  const latestTimestamp = (weatherLive?.timestamp && weatherLive.timestamp !== 'null') ? weatherLive.timestamp : latestRow?.timestamp;
   const isOnline = selectedStation === 'station-1' && isSensorOnline(latestTimestamp, 5);
   const timeAgoStr = getTimeAgo(latestTimestamp);
 
   const temperature = weatherLive?.temperature ?? latestRow?.temperature ?? null;
   const humidity    = weatherLive?.humidity    ?? latestRow?.humidity    ?? null;
   const windSpeed   = weatherLive?.wind_speed  ?? latestRow?.wind_speed  ?? null;
-  const windGust    = weatherLive?.wind_gust   ?? latestRow?.wind_gust   ?? (windSpeed != null ? Number((Number(windSpeed) * 1.35).toFixed(3)) : null);
+  const windGust    = weatherLive?.wind_gust   ?? latestRow?.wind_gust   ?? null;
   const windDir     = weatherLive?.wind_direction ?? latestRow?.wind_direction ?? null;
   const rainGauge   = weatherLive?.rain_gauge  ?? latestRow?.rain_gauge  ?? null;
 
@@ -753,7 +754,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
 
                     const rowGust = row.wind_gust != null 
                       ? Number(row.wind_gust) 
-                      : (row.wind_speed != null ? Number((Number(row.wind_speed) * 1.35).toFixed(3)) : null);
+                      : null;
 
                     return (
                       <tr

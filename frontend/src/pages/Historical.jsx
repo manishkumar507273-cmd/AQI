@@ -12,10 +12,31 @@ import {
   Download,
   Info,
   TrendingUp,
-  BarChart2
+  BarChart2,
+  CheckCircle2,
+  FileSpreadsheet
 } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { getCloudHistory, getCloudWeatherHistory, getCachedData } from '../api';
+import { getCloudHistory, getCloudWeatherHistory, getCachedData, downloadHistoricalDataset, getAvailablePeriods } from '../api';
+import { logUserActivity } from '../firebase';
+import { useAuth } from '../context/AuthContext';
+
+const START_YEAR = 2026;
+
+const ALL_MONTHS = [
+  { value: 1, label: '01 - January' },
+  { value: 2, label: '02 - February' },
+  { value: 3, label: '03 - March' },
+  { value: 4, label: '04 - April' },
+  { value: 5, label: '05 - May' },
+  { value: 6, label: '06 - June' },
+  { value: 7, label: '07 - July' },
+  { value: 8, label: '08 - August' },
+  { value: 9, label: '09 - September' },
+  { value: 10, label: '10 - October' },
+  { value: 11, label: '11 - November' },
+  { value: 12, label: '12 - December' },
+];
 
 const AQI_PARAMS = [
   { key: 'cpcb_aqi', label: 'AQI', unit: '', color: '#00bfa5' },
@@ -183,7 +204,7 @@ const parseWindDir = (val) => {
     return { deg, abbr: item.abbr, name: item.name, label: item.name };
   }
 
-  const match = s.match(/([A-Za-z\-]+)/);
+  const match = s.match(/([A-Za-z-]+)/);
   const clean = match ? match[1].toLowerCase().replace(/[\s_-]+/g, '') : s.toLowerCase().replace(/[\s_-]+/g, '');
   if (COMPASS_MAP[clean]) {
     const { deg, abbr, name } = COMPASS_MAP[clean];
@@ -197,6 +218,16 @@ const getCompassDir = (val) => {
   if (val == null) return '';
   const parsed = parseWindDir(val);
   return parsed ? parsed.name : String(val);
+};
+
+const getRowParamValue = (row, paramKey) => {
+  if (!row) return null;
+  if (paramKey === 'wind_direction') {
+    const p = parseWindDir(row.wind_direction);
+    return p?.deg ?? null;
+  }
+  const val = row[paramKey];
+  return (val != null && !isNaN(Number(val))) ? Number(val) : null;
 };
 
 const formatDDMMYYYY = (date) => {
@@ -288,6 +319,7 @@ const getCycleBounds = (dateStr, subTab = 'aqi') => {
 };
 
 export default function Historical({ refreshKey, selectedStation = 'station-1' }) {
+  const { currentUser } = useAuth();
   const [subTab, setSubTab] = useState('aqi'); // 'aqi' or 'weather'
   const [rows, setRows] = useState(() => {
     if (selectedStation !== 'station-1') return [];
@@ -315,6 +347,112 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
     }
     return formatYYYYMMDD(new Date());
   });
+
+  const [serverPeriods, setServerPeriods] = useState(null);
+
+  // Fetch verified active periods with data from database
+  useEffect(() => {
+    let isMounted = true;
+    getAvailablePeriods(subTab).then((res) => {
+      if (isMounted && res?.periods) {
+        setServerPeriods(res.periods);
+      }
+    });
+    return () => { isMounted = false; };
+  }, [subTab, refreshKey]);
+
+  // Dynamically computes available years from 2026 forward
+  const availableYears = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    let maxDataYear = START_YEAR;
+
+    if (serverPeriods) {
+      const serverYears = Object.keys(serverPeriods).map(Number).filter(y => !isNaN(y));
+      if (serverYears.length > 0) {
+        maxDataYear = Math.max(maxDataYear, ...serverYears);
+      }
+    }
+
+    if (Array.isArray(rows)) {
+      for (const r of rows) {
+        const ts = r.timestamp || r.timestamp_hour || r.created_at;
+        if (ts) {
+          const y = new Date(ts).getFullYear();
+          if (!isNaN(y) && y > maxDataYear) {
+            maxDataYear = y;
+          }
+        }
+      }
+    }
+    const endYear = Math.max(START_YEAR, currentYear, maxDataYear);
+    const years = [];
+    for (let y = START_YEAR; y <= endYear; y++) {
+      years.push(y);
+    }
+    return years;
+  }, [rows, serverPeriods]);
+
+  const [selectedDatasetYear, setSelectedDatasetYear] = useState(() => {
+    const currentYear = new Date().getFullYear();
+    return currentYear >= 2026 ? currentYear : 2026;
+  });
+
+  // Compute active months for the currently selected year (strictly only months with data)
+  const availableMonthsForYear = useMemo(() => {
+    if (serverPeriods && serverPeriods[selectedDatasetYear]) {
+      return serverPeriods[selectedDatasetYear];
+    }
+    const monthsSet = new Set();
+    if (Array.isArray(rows)) {
+      for (const r of rows) {
+        const ts = r.timestamp || r.timestamp_hour || r.created_at;
+        if (ts && ts.length >= 7) {
+          const y = parseInt(ts.slice(0, 4), 10);
+          const m = parseInt(ts.slice(5, 7), 10);
+          if (y === selectedDatasetYear && m >= 1 && m <= 12) {
+            monthsSet.add(m);
+          }
+        }
+      }
+    }
+    return Array.from(monthsSet).sort((a, b) => a - b);
+  }, [serverPeriods, selectedDatasetYear, rows]);
+
+  // Dynamic period options: ONLY lists months that actually contain data in database
+  const periodOptions = useMemo(() => {
+    const options = [];
+
+    if (availableMonthsForYear.length > 0) {
+      options.push({
+        value: 'all',
+        label: `Complete Year ${selectedDatasetYear} (${availableMonthsForYear.length} Active Month${availableMonthsForYear.length > 1 ? 's' : ''})`
+      });
+    }
+
+    for (const mNum of availableMonthsForYear) {
+      const monthObj = ALL_MONTHS.find(m => m.value === mNum);
+      if (monthObj) {
+        options.push(monthObj);
+      }
+    }
+
+    return options;
+  }, [availableMonthsForYear, selectedDatasetYear]);
+
+  const [selectedDatasetMonth, setSelectedDatasetMonth] = useState('all'); // 'all' or 1..12
+
+  // Sync selected month if previous selection has no data in current year
+  useEffect(() => {
+    if (periodOptions.length > 0) {
+      const isValid = periodOptions.some(opt => opt.value === selectedDatasetMonth);
+      if (!isValid) {
+        setSelectedDatasetMonth(periodOptions[0].value);
+      }
+    }
+  }, [periodOptions, selectedDatasetMonth]);
+
+  const [isDownloadingDataset, setIsDownloadingDataset] = useState(false);
+  const [datasetDownloadStatus, setDatasetDownloadStatus] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -376,11 +514,9 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
     };
 
     fetchHistoryData(true);
-    const interval = setInterval(() => fetchHistoryData(false), 30000);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
     };
   }, [refreshKey, selectedStation, subTab]);
 
@@ -435,9 +571,8 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
     if (!cycleBounds.start || !cycleBounds.end) return null;
     
     const values = filteredRows
-      .map(r => r[activeParamKey])
-      .filter(v => v != null && !isNaN(Number(v)))
-      .map(Number);
+      .map(r => getRowParamValue(r, activeParamKey))
+      .filter(v => v != null && !isNaN(Number(v)));
 
     const aqiValues = filteredRows
       .map(r => r.cpcb_aqi)
@@ -559,12 +694,10 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
 
       const hasData = !!matchingRecord;
       let paramVal = 0;
-      if (hasData && matchingRecord[activeParamKey] != null) {
-        if (activeParamKey === 'wind_direction') {
-          const p = parseWindDir(matchingRecord.wind_direction);
-          paramVal = p?.deg ?? 0;
-        } else if (!isNaN(Number(matchingRecord[activeParamKey]))) {
-          paramVal = Number(matchingRecord[activeParamKey]);
+      if (hasData) {
+        const calculated = getRowParamValue(matchingRecord, activeParamKey);
+        if (calculated != null) {
+          paramVal = calculated;
         }
       }
 
@@ -619,7 +752,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
           r?.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '',
           r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '',
           r?.wind_speed != null && !isNaN(Number(r.wind_speed)) ? Number(r.wind_speed).toFixed(3) : '',
-          r?.wind_gust != null && !isNaN(Number(r.wind_gust)) ? Number(r.wind_gust).toFixed(3) : (r?.wind_speed != null ? (Number(r.wind_speed) * 1.35).toFixed(3) : ''),
+          r?.wind_gust != null && !isNaN(Number(r.wind_gust)) ? Number(r.wind_gust).toFixed(3) : '',
           r?.wind_direction != null ? getCompassDir(r.wind_direction) : '',
           r?.rain_gauge != null && !isNaN(Number(r.rain_gauge)) ? Number(r.rain_gauge).toFixed(3) : ''
         ];
@@ -635,6 +768,42 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Bulk Dataset Download for full year or specific month
+  const handleDownloadDataset = async () => {
+    setIsDownloadingDataset(true);
+    setDatasetDownloadStatus(null);
+    try {
+      const monthVal = selectedDatasetMonth === 'all' ? null : Number(selectedDatasetMonth);
+      const res = await downloadHistoricalDataset({
+        category: subTab,
+        year: Number(selectedDatasetYear),
+        month: monthVal
+      });
+      if (currentUser) {
+        logUserActivity(currentUser, 'dataset_download', {
+          category: subTab,
+          year: Number(selectedDatasetYear),
+          month: monthVal,
+          filename: res.filename,
+          recordCount: res.count
+        });
+      }
+      setDatasetDownloadStatus({
+        type: 'success',
+        text: `Downloaded ${res.filename}${res.count != null ? ` (${res.count} records)` : ''}`
+      });
+      setTimeout(() => setDatasetDownloadStatus(null), 6000);
+    } catch (err) {
+      setDatasetDownloadStatus({
+        type: 'error',
+        text: err?.message || 'Download failed. Please check connection and try again.'
+      });
+      setTimeout(() => setDatasetDownloadStatus(null), 6000);
+    } finally {
+      setIsDownloadingDataset(false);
+    }
   };
 
   return (
@@ -1351,10 +1520,154 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
               }}
             >
               <Download style={{ width: 14, height: 14, color: '#00bfa5' }} />
-              <span className="desktop-only-inline">Export CSV ({day24HourData.length} Rows)</span>
-              <span className="mobile-only-inline">CSV</span>
+              <span className="desktop-only-inline">Export Day CSV ({day24HourData.length} Rows)</span>
+              <span className="mobile-only-inline">Day CSV</span>
             </button>
           </div>
+        </div>
+
+        {/* ── Bulk Dataset Download Bar (Complete Year / Month) ── */}
+        <div style={{
+          padding: '12px 24px',
+          backgroundColor: '#f8fafc',
+          borderBottom: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+              <FileSpreadsheet style={{ width: 17, height: 17, color: '#00bfa5' }} />
+              <span>Bulk Dataset Download:</span>
+            </div>
+
+            {/* Year Selector (2026 and forward dynamically) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Year:</label>
+              <select
+                value={selectedDatasetYear}
+                onChange={(e) => setSelectedDatasetYear(Number(e.target.value))}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  border: '1.5px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  color: '#0f172a',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  fontFamily: 'var(--font-mono)'
+                }}
+              >
+                {availableYears.map((yr) => (
+                  <option key={yr} value={yr}>
+                    {yr}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Month Selector (Only months that actually contain data in database) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Period:</label>
+              <select
+                value={selectedDatasetMonth}
+                onChange={(e) => setSelectedDatasetMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                disabled={periodOptions.length === 0}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  border: '1.5px solid #cbd5e1',
+                  backgroundColor: periodOptions.length === 0 ? '#f1f5f9' : '#ffffff',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: periodOptions.length === 0 ? '#94a3b8' : '#0f172a',
+                  cursor: periodOptions.length === 0 ? 'not-allowed' : 'pointer',
+                  outline: 'none',
+                  fontFamily: 'var(--font-sans)'
+                }}
+              >
+                {periodOptions.length === 0 ? (
+                  <option value="" disabled>
+                    No recorded data for {selectedDatasetYear}
+                  </option>
+                ) : (
+                  periodOptions.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            {/* Download Dataset Button */}
+            <button
+              onClick={handleDownloadDataset}
+              disabled={isDownloadingDataset || periodOptions.length === 0}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: '6px 18px',
+                borderRadius: 999,
+                border: 'none',
+                backgroundColor: (isDownloadingDataset || periodOptions.length === 0) ? '#94a3b8' : '#00bfa5',
+                color: '#ffffff',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: (isDownloadingDataset || periodOptions.length === 0) ? 'not-allowed' : 'pointer',
+                boxShadow: (isDownloadingDataset || periodOptions.length === 0) ? 'none' : '0 2px 10px rgba(0, 191, 165, 0.28)',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {isDownloadingDataset ? (
+                <>
+                  <RefreshCw style={{ width: 13, height: 13, animation: 'spin 1s linear infinite' }} />
+                  <span>Preparing Dataset...</span>
+                </>
+              ) : periodOptions.length === 0 ? (
+                <>
+                  <Download style={{ width: 14, height: 14 }} />
+                  <span>No Records in {selectedDatasetYear}</span>
+                </>
+              ) : (
+                <>
+                  <Download style={{ width: 14, height: 14 }} />
+                  <span>
+                    Download {subTab === 'aqi' ? 'AQI' : 'Weather'}{' '}
+                    {selectedDatasetMonth === 'all'
+                      ? `Year ${selectedDatasetYear}`
+                      : ALL_MONTHS.find((m) => m.value === selectedDatasetMonth)?.label || 'Month'}{' '}
+                    Dataset
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Success / Error notification badge */}
+          {datasetDownloadStatus && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              padding: '4px 12px',
+              borderRadius: 8,
+              backgroundColor: datasetDownloadStatus.type === 'success' ? '#ecfdf5' : '#fef2f2',
+              color: datasetDownloadStatus.type === 'success' ? '#047857' : '#b91c1c',
+              border: `1px solid ${datasetDownloadStatus.type === 'success' ? '#a7f3d0' : '#fecaca'}`,
+            }}>
+              {datasetDownloadStatus.type === 'success' && <CheckCircle2 style={{ width: 14, height: 14 }} />}
+              <span>{datasetDownloadStatus.text}</span>
+            </div>
+          )}
         </div>
 
         <div className="table-responsive-wrapper" style={{ maxHeight: 440 }}>
@@ -1427,7 +1740,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#ea580c' : '#94a3b8', fontWeight: 600 }}>{r?.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#4f46e5' : '#94a3b8', fontWeight: 600 }}>{r?.wind_speed != null && !isNaN(Number(r.wind_speed)) ? Number(r.wind_speed).toFixed(3) : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#8b5cf6' : '#94a3b8', fontWeight: 600 }}>{r?.wind_gust != null && !isNaN(Number(r.wind_gust)) ? Number(r.wind_gust).toFixed(3) : (r?.wind_speed != null && !isNaN(Number(r.wind_speed)) ? (Number(r.wind_speed) * 1.35).toFixed(3) : '-')}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData && r?.wind_gust != null ? '#8b5cf6' : '#94a3b8', fontWeight: 600 }}>{r?.wind_gust != null && !isNaN(Number(r.wind_gust)) ? Number(r.wind_gust).toFixed(3) : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-sans)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{r?.wind_direction != null ? getCompassDir(r.wind_direction) : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.rain_gauge != null && !isNaN(Number(r.rain_gauge)) ? Number(r.rain_gauge).toFixed(3) : '-'}</td>
                         </>

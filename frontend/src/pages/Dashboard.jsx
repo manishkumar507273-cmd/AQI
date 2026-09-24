@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, Table, RefreshCw, X, CheckCircle2, AlertTriangle, Users, ShieldAlert, Info, HeartPulse, Factory, Cpu, ExternalLink, TrendingUp, Activity, Layers, ArrowDownRight, ArrowUpRight } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { AlertCircle, Table, RefreshCw, X, CheckCircle2, AlertTriangle, ShieldAlert, Info, HeartPulse, ExternalLink, TrendingUp, Activity, Layers, ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { getCloudLatest, getCloudLiveHistory, getCachedData, isSensorOnline, getTimeAgo } from '../api';
 import sensirionSensorImg from '../assets/sensirion_sensor.png';
 import mq131SensorImg from '../assets/mq131_sensor.png';
@@ -487,7 +487,6 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
     };
 
     fetchLiveHistory();
-    const historyInterval = setInterval(fetchLiveHistory, 5000);
 
     if (cloudData) {
       const cloud = cloudData;
@@ -566,7 +565,6 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
 
     return () => {
       isMounted = false;
-      clearInterval(historyInterval);
     };
   }, [cloudData, cloudError, refreshKey, selectedStation]);
 

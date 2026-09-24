@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Gauge,
   Thermometer,
@@ -9,28 +9,23 @@ import {
   RefreshCw,
   Clock,
   Sparkles,
-  History,
-  ArrowUpRight,
   Sun,
-  Activity
+  Moon,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   getCloudLatest,
   getWeatherLatest,
   getTimeAgo,
-  isSensorOnline,
   getAqiForecast,
   getCloudHistory,
   getCachedData
 } from '../api';
 
-// Format time for timestamp display
-const formatLocalTime = (ts) => {
-  if (!ts) return 'N/A';
-  const dt = new Date(ts);
-  if (isNaN(dt.getTime())) return String(ts);
-  return dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
-};
+// Format helper ensuring exact decimal precision across telemetry pages
+const fmt = (val, d = 3) =>
+  val != null && !isNaN(Number(val)) ? Number(val).toFixed(d) : null;
 
 // Calculate Dew Point from Temperature (°C) and Humidity (%)
 const calcDewPoint = (temp, hum) => {
@@ -54,37 +49,6 @@ const calcFeelsLike = (temp, hum) => {
   return Number(Math.max(temp, hiC).toFixed(1));
 };
 
-// Compass heading parser
-const parseDirection = (dir) => {
-  if (dir == null) return { deg: 0, text: 'N' };
-  if (typeof dir === 'number') return { deg: dir % 360, text: `${Math.round(dir)}°` };
-  const d = String(dir).trim().toLowerCase();
-  const map = {
-    'north': 0, 'n': 0,
-    'northeast': 45, 'ne': 45,
-    'east': 90, 'e': 90,
-    'southeast': 135, 'se': 135,
-    'south': 180, 's': 180,
-    'southwest': 225, 'sw': 225,
-    'west': 270, 'w': 270,
-    'northwest': 315, 'nw': 315,
-  };
-  const deg = map[d] != null ? map[d] : (!isNaN(Number(d)) ? Number(d) : 0);
-  return { deg, text: String(dir).toUpperCase() };
-};
-
-// Beaufort wind scale helper
-const getBeaufortRating = (kmh) => {
-  if (kmh == null) return { level: 0, label: 'Calm', desc: 'Still air' };
-  const k = Number(kmh);
-  if (k < 2) return { level: 0, label: 'Calm', desc: 'Still air' };
-  if (k < 6) return { level: 1, label: 'Light Air', desc: 'Smoke drift' };
-  if (k < 12) return { level: 2, label: 'Light Breeze', desc: 'Leaves rustle' };
-  if (k < 20) return { level: 3, label: 'Gentle Breeze', desc: 'Twigs in motion' };
-  if (k < 29) return { level: 4, label: 'Moderate Breeze', desc: 'Dust raised' };
-  if (k < 39) return { level: 5, label: 'Fresh Breeze', desc: 'Small trees sway' };
-  return { level: 6, label: 'Strong Breeze', desc: 'Large branches sway' };
-};
 
 // CPCB India Breakpoints Table: [C_lo, C_hi, I_lo, I_hi]
 const CPCB_BREAKPOINTS = {
@@ -159,7 +123,7 @@ const getForecastAqiCategory = (val) => {
   return { label: 'Severe', color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe', text: '#5b21b6' };
 };
 
-export default function Overview({ refreshKey = 0, selectedStation = 'station-1' }) {
+export default function Overview({ refreshKey = 0, selectedStation = 'station-1', onNavigate }) {
   const [aqiData, setAqiData] = useState(null);
   const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -173,8 +137,52 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   const [historicalRecords, setHistoricalRecords] = useState([]);
   const [forecastLoading, setForecastLoading] = useState(() => !getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
   const [forecastLastUpdated, setForecastLastUpdated] = useState(null);
-  const [showPastHours, setShowPastHours] = useState(true); // Default TRUE to show ALL 24 hours
   const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  // Ultra-Smooth Drag & Horizontal Mouse-Wheel Scrolling
+  const timelineScrollerRef = useRef(null);
+  const [isDraggingTimeline, setIsDraggingTimeline] = useState(false);
+  const dragStartX = useRef(0);
+  const dragScrollLeft = useRef(0);
+
+  useEffect(() => {
+    const el = timelineScrollerRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      // Direct 1:1 wheel scroll without queuing sluggish animations
+      if (Math.abs(e.deltaY) > 0 && !e.shiftKey) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY * 1.1;
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const handleMouseDownTimeline = (e) => {
+    if (!timelineScrollerRef.current) return;
+    setIsDraggingTimeline(true);
+    dragStartX.current = e.pageX - timelineScrollerRef.current.offsetLeft;
+    dragScrollLeft.current = timelineScrollerRef.current.scrollLeft;
+  };
+
+  const handleMouseLeaveOrUpTimeline = () => {
+    setIsDraggingTimeline(false);
+  };
+
+  const handleMouseMoveTimeline = (e) => {
+    if (!isDraggingTimeline || !timelineScrollerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - timelineScrollerRef.current.offsetLeft;
+    const walk = (x - dragStartX.current) * 1.3;
+    timelineScrollerRef.current.scrollLeft = dragScrollLeft.current - walk;
+  };
+
+  const scrollTimeline = (direction) => {
+    if (!timelineScrollerRef.current) return;
+    const offset = direction === 'left' ? -260 : 260;
+    timelineScrollerRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+  };
 
   // Fetch telemetry from both tables
   const fetchData = async (isManual = false) => {
@@ -201,8 +209,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(() => fetchData(false), 5000);
-    return () => clearInterval(interval);
   }, [refreshKey, selectedStation]);
 
   // Fetch 24-Hour AI Predictive Forecast and Historical Actuals
@@ -238,18 +244,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
   useEffect(() => {
     fetchForecast(false);
-    const timer = setInterval(() => fetchForecast(false), 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    if (refreshKey > 0) {
-      getCloudHistory(100).then(res => {
-        if (Array.isArray(res.data?.history)) {
-          setHistoricalRecords(res.data.history);
-        }
-      }).catch(() => {});
-    }
   }, [refreshKey]);
 
   // Process 24-Hour Forecast Items
@@ -285,10 +279,14 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
       const hasActual = !!matchingActual;
       const actualAqi = hasActual && matchingActual.cpcb_aqi != null ? Number(matchingActual.cpcb_aqi) : null;
 
+      const hourNum = !isNaN(dt.getTime()) ? dt.getHours() : 12;
+      const isDaytime = hourNum >= 6 && hourNum < 18;
+
       return {
         ...item,
         index,
         display_hour: hourStr,
+        isDaytime,
         aqi: maxSub,
         aqi_category: cat.label,
         aqi_color: cat.color,
@@ -300,39 +298,8 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
     });
   }, [forecastData, historicalRecords]);
 
-  // Current hour boundary timestamp (ms)
-  const currentHourMs = useMemo(() => {
-    const d = new Date(currentTime);
-    d.setMinutes(0, 0, 0, 0);
-    return d.getTime();
-  }, [currentTime]);
+  const visibleForecastTimelineItems = processedForecastItems;
 
-  const { visibleForecastTimelineItems, passedForecastItems } = useMemo(() => {
-    if (!processedForecastItems || processedForecastItems.length === 0) {
-      return { visibleForecastTimelineItems: [], passedForecastItems: [] };
-    }
-
-    const passed = [];
-    const upcoming = [];
-
-    processedForecastItems.forEach((item) => {
-      if (!item.forecast_for_time) {
-        upcoming.push(item);
-        return;
-      }
-      const itemTime = new Date(item.forecast_for_time).getTime();
-      if (isNaN(itemTime)) {
-        upcoming.push(item);
-      } else if (itemTime < currentHourMs) {
-        passed.push(item);
-      } else {
-        upcoming.push(item);
-      }
-    });
-
-    const visible = showPastHours ? processedForecastItems : (upcoming.length > 0 ? upcoming : processedForecastItems);
-    return { visibleForecastTimelineItems: visible, passedForecastItems: passed };
-  }, [processedForecastItems, currentHourMs, showPastHours]);
 
   // Derived values
   const aqiVal = aqiData?.cpcb_aqi ?? 0;
@@ -349,30 +316,30 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   const rawTemp = weatherData?.temperature;
   const rawHum = weatherData?.humidity;
   const rawWind = weatherData?.wind_speed;
-  const rawRain = weatherData?.rain_gauge ?? 0.0;
+  const rawRain = weatherData?.rain_gauge;
   const windDirRaw = weatherData?.wind_direction;
   const windGust = weatherData?.wind_gust;
 
   const displayTemp = rawTemp != null
-    ? (tempUnit === 'F' ? ((rawTemp * 9 / 5) + 32).toFixed(1) : Number(rawTemp).toFixed(1))
-    : '28.8';
-  const feelsLike = rawTemp != null ? calcFeelsLike(Number(rawTemp), Number(rawHum ?? 60)) : null;
+    ? (tempUnit === 'F' ? ((rawTemp * 9 / 5) + 32).toFixed(1) : (fmt(rawTemp, 1) ?? Number(rawTemp).toFixed(1)))
+    : '--';
+  const feelsLike = (rawTemp != null && rawHum != null) ? calcFeelsLike(Number(rawTemp), Number(rawHum)) : null;
   const displayFeelsLike = feelsLike != null
     ? (tempUnit === 'F' ? ((feelsLike * 9 / 5) + 32).toFixed(1) : feelsLike)
     : null;
 
-  const displayHumidity = rawHum != null ? Number(rawHum).toFixed(1) : '85.2';
-  const dewPoint = calcDewPoint(Number(rawTemp ?? 28), Number(rawHum ?? 85));
+  const displayHumidity = rawHum != null ? (fmt(rawHum, 1) ?? Number(rawHum).toFixed(1)) : '--';
+  const dewPoint = (rawTemp != null && rawHum != null) ? calcDewPoint(Number(rawTemp), Number(rawHum)) : null;
 
   const displayWind = rawWind != null
-    ? (windUnit === 'ms' ? (Number(rawWind) / 3.6).toFixed(1) : Number(rawWind).toFixed(1))
-    : '3.5';
+    ? (windUnit === 'ms' ? (Number(rawWind) / 3.6).toFixed(3) : (fmt(rawWind, 3) ?? Number(rawWind).toFixed(3)))
+    : '--';
   const displayWindUnit = windUnit === 'ms' ? 'm/s' : 'km/h';
-  const parsedDir = parseDirection(windDirRaw);
-  const beaufort = getBeaufortRating(rawWind);
+  const windKmh = rawWind != null ? Number(rawWind) : null;
+  const windStatus = windKmh != null ? (windKmh > 15 ? 'Breezy' : (windKmh > 2 ? 'Gentle' : 'Light')) : 'Calm';
 
-  const displayRain = rawRain != null ? Number(rawRain).toFixed(1) : '0.0';
-  const isRaining = Number(rawRain) > 0;
+  const displayRain = rawRain != null ? (fmt(rawRain, 3) ?? Number(rawRain).toFixed(3)) : '--';
+  const isRaining = rawRain != null && Number(rawRain) > 0;
 
   // ══════════════════════════════════════════════════════════════════════════
   // Dynamic Environmental Animation System (Light Atmospheric Theme)
@@ -500,7 +467,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   const strokeDashoffset = 283 - (283 * aqiPercent) / 100;
 
   return (
-    <div style={{
+    <div className="overview-page-root" style={{
       position: 'relative',
       minHeight: '85vh',
       borderRadius: 24,
@@ -559,104 +526,109 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
       {/* ── Content Container ── */}
       <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* ── Minimalist Top Right Toolbar (Only unit toggles & refresh) ── */}
-        <div style={{
+        {/* ── Overview Unit Toggles & Live Refresh ── */}
+        <div className="overview-toolbar" style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
           gap: 10,
           flexWrap: 'wrap',
+          marginBottom: 4,
         }}>
-          {/* Temperature Unit Toggle */}
-          <div style={{
-            display: 'flex',
-            backgroundColor: '#ffffff',
-            borderRadius: 999,
-            padding: 3,
-            border: '1px solid #cbd5e1',
-            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
-          }}>
-            <button
-              onClick={() => setTempUnit('C')}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: 'none',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                backgroundColor: tempUnit === 'C' ? '#00bfa5' : 'transparent',
-                color: tempUnit === 'C' ? '#ffffff' : '#64748b',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              °C
-            </button>
-            <button
-              onClick={() => setTempUnit('F')}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: 'none',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                backgroundColor: tempUnit === 'F' ? '#00bfa5' : 'transparent',
-                color: tempUnit === 'F' ? '#ffffff' : '#64748b',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              °F
-            </button>
-          </div>
+          {/* Temperature & Wind Unit Toggles Container */}
+          <div className="overview-toolbar-units" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Temperature Unit Toggle */}
+            <div style={{
+              display: 'flex',
+              backgroundColor: '#ffffff',
+              borderRadius: 999,
+              padding: 3,
+              border: '1px solid #cbd5e1',
+              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+            }}>
+              <button
+                onClick={() => setTempUnit('C')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backgroundColor: tempUnit === 'C' ? '#00bfa5' : 'transparent',
+                  color: tempUnit === 'C' ? '#ffffff' : '#64748b',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                °C
+              </button>
+              <button
+                onClick={() => setTempUnit('F')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backgroundColor: tempUnit === 'F' ? '#00bfa5' : 'transparent',
+                  color: tempUnit === 'F' ? '#ffffff' : '#64748b',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                °F
+              </button>
+            </div>
 
-          {/* Wind Unit Toggle */}
-          <div style={{
-            display: 'flex',
-            backgroundColor: '#ffffff',
-            borderRadius: 999,
-            padding: 3,
-            border: '1px solid #cbd5e1',
-            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
-          }}>
-            <button
-              onClick={() => setWindUnit('kmh')}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: 'none',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                backgroundColor: windUnit === 'kmh' ? '#0284c7' : 'transparent',
-                color: windUnit === 'kmh' ? '#ffffff' : '#64748b',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              km/h
-            </button>
-            <button
-              onClick={() => setWindUnit('ms')}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: 'none',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                backgroundColor: windUnit === 'ms' ? '#0284c7' : 'transparent',
-                color: windUnit === 'ms' ? '#ffffff' : '#64748b',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              m/s
-            </button>
+            {/* Wind Unit Toggle */}
+            <div style={{
+              display: 'flex',
+              backgroundColor: '#ffffff',
+              borderRadius: 999,
+              padding: 3,
+              border: '1px solid #cbd5e1',
+              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+            }}>
+              <button
+                onClick={() => setWindUnit('kmh')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backgroundColor: windUnit === 'kmh' ? '#0284c7' : 'transparent',
+                  color: windUnit === 'kmh' ? '#ffffff' : '#64748b',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                km/h
+              </button>
+              <button
+                onClick={() => setWindUnit('ms')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backgroundColor: windUnit === 'ms' ? '#0284c7' : 'transparent',
+                  color: windUnit === 'ms' ? '#ffffff' : '#64748b',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                m/s
+              </button>
+            </div>
           </div>
 
           {/* Refresh Button */}
           <button
             onClick={() => fetchData(true)}
             disabled={isRefreshing}
+            className="overview-refresh-btn"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -678,136 +650,105 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           </button>
         </div>
 
-        {/* ── 5 Core Telemetry Cards in Harmonious Light Palette ── */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: 20,
-        }}>
+        {/* ── 5 Core Telemetry Cards in Harmonious, Compact Light Palette ── */}
+        <div className="overview-grid">
 
-          {/* ════════ CARD 1: CPCB AIR QUALITY INDEX (HERO) ════════ */}
+          {/* ════════ CARD 1: AIR QUALITY INDEX ════════ */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.05 }}
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            transition={{ duration: 0.25, delay: 0.04 }}
+            className="overview-core-card"
             style={{
-              background: 'rgba(255, 255, 255, 0.94)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: `1.5px solid ${aqiCategory.border}`,
-              borderRadius: 24,
-              padding: '26px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              position: 'relative',
-              overflow: 'hidden',
-              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
+              borderColor: `${aqiCategory.color}40`,
             }}
           >
-            {/* Soft Ambient Radial Corner Glow */}
+            {/* Top vibrant gradient accent line */}
             <div style={{
               position: 'absolute',
-              top: -30,
-              right: -30,
-              width: 130,
-              height: 130,
-              borderRadius: '50%',
-              backgroundColor: `${aqiCategory.color}18`,
-              filter: 'blur(30px)',
-              pointerEvents: 'none',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: `linear-gradient(90deg, ${aqiCategory.color}, #06b6d4)`,
             }} />
 
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 14,
+            {/* Header: Icon + Title + Status Pill */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div className="overview-card-icon" style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
                   backgroundColor: aqiCategory.bg,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: aqiCategory.color,
-                  border: `1.5px solid ${aqiCategory.border}`,
+                  border: `1px solid ${aqiCategory.border}`,
                 }}>
-                  <Gauge style={{ width: 22, height: 22 }} />
+                  <Gauge style={{ width: 15, height: 15 }} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
-                    Air Quality Index
-                  </h3>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
-                    CPCB INDIA STANDARD
-                  </span>
+                  <h4 className="overview-card-title" style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0f172a', lineHeight: 1.15 }}>
+                    Air Quality
+                  </h4>
                 </div>
               </div>
 
-              {/* Category Pill */}
-              <span style={{
-                padding: '4px 12px',
+              <span className="overview-card-badge" style={{
+                padding: '2px 7px',
                 borderRadius: 999,
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: 700,
                 backgroundColor: aqiCategory.bg,
                 color: aqiCategory.text,
                 border: `1px solid ${aqiCategory.border}`,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
               }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: aqiCategory.color }} />
                 {aqiCategory.label}
               </span>
             </div>
 
-            {/* Central Score + SVG Radial Dial */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              margin: '22px 0',
-              zIndex: 1,
-            }}>
+            {/* Main Value + Creative Mini Radial Arc Dial */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 0' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{
-                    fontSize: 'clamp(46px, 5.5vw, 60px)',
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                  <span className="overview-card-val" style={{
+                    fontSize: 32,
                     fontWeight: 900,
                     lineHeight: 1,
-                    letterSpacing: '-0.04em',
+                    letterSpacing: '-0.03em',
                     color: aqiCategory.color,
                     fontFamily: 'var(--font-mono)',
                   }}>
                     {loading ? '--' : aqiVal}
                   </span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: '#94a3b8' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
                     / 500
                   </span>
                 </div>
-                <div style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
-                  Dominant: <strong style={{ color: '#0f172a' }}>{aqiData?.dominant_pollutant || 'O₃ / PM2.5'}</strong>
+                <div style={{ marginTop: 3, fontSize: 10, color: '#64748b' }}>
+                  Dominant: <strong style={{ color: '#0f172a' }}>{aqiData?.dominant_pollutant || 'O₃'}</strong>
                 </div>
               </div>
 
-              {/* Clean Radial Progress Graphic */}
-              <div style={{ position: 'relative', width: 92, height: 92, flexShrink: 0 }}>
-                <svg width="92" height="92" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
+              {/* Creative Mini Circular Dial */}
+              <div className="overview-card-dial" style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
+                <svg width="44" height="44" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
+                  <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" strokeWidth="12" />
                   <circle
                     cx="50"
                     cy="50"
-                    r="45"
-                    fill="none"
-                    stroke="#f1f5f9"
-                    strokeWidth="9"
-                  />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="45"
+                    r="38"
                     fill="none"
                     stroke={aqiCategory.color}
-                    strokeWidth="9"
-                    strokeDasharray="283"
-                    strokeDashoffset={strokeDashoffset}
+                    strokeWidth="12"
+                    strokeDasharray="238.7"
+                    strokeDashoffset={238.7 - (238.7 * Math.min(100, Math.max(0, (aqiVal / 500) * 100))) / 100}
                     strokeLinecap="round"
                     style={{ transition: 'stroke-dashoffset 0.8s ease' }}
                   />
@@ -818,475 +759,493 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 13,
+                  fontSize: 10,
                   fontWeight: 800,
                   fontFamily: 'var(--font-mono)',
                   color: aqiCategory.color,
                 }}>
-                  {Math.round(aqiPercent)}%
+                  {Math.round(Math.min(100, (aqiVal / 500) * 100))}%
                 </div>
               </div>
             </div>
 
-            {/* Health snippet */}
-            <div style={{
-              padding: '11px 14px',
-              borderRadius: 14,
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              fontSize: 12,
-              color: '#475569',
-              lineHeight: 1.4,
-              zIndex: 1,
-            }}>
-              {aqiVal <= 50 && '✅ Minimal impact. Air quality is clean and healthy for all outdoor activities.'}
-              {aqiVal > 50 && aqiVal <= 100 && '🌿 Minor breathing discomfort to sensitive individuals with respiratory issues.'}
-              {aqiVal > 100 && aqiVal <= 200 && '⚠️ Noticeable discomfort to people with asthma, heart, or lung diseases.'}
-              {aqiVal > 200 && '🚨 Air pollution is elevated. Limit prolonged strenuous outdoor exertion.'}
+            {/* Micro AQI Progress Bar with Calibrated Range Scale */}
+            <div style={{ marginTop: 'auto', paddingTop: 8 }}>
+              <div style={{
+                height: 5,
+                borderRadius: 999,
+                background: '#f1f5f9',
+                overflow: 'hidden',
+                position: 'relative',
+                marginBottom: 4,
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.min(100, Math.max(4, (aqiVal / 500) * 100))}%`,
+                  background: `linear-gradient(90deg, #10b981 0%, ${aqiCategory.color} 100%)`,
+                  borderRadius: 999,
+                  transition: 'width 0.8s ease',
+                }} />
+              </div>
+              <div className="overview-bar-scale">
+                <span>0</span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span>100</span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span>500</span>
+              </div>
             </div>
           </motion.div>
 
-          {/* ════════ CARD 2: AMBIENT TEMPERATURE (FROM WEATHER NODE1) ════════ */}
+          {/* ════════ CARD 2: AMBIENT TEMPERATURE ════════ */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.1 }}
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            transition={{ duration: 0.25, delay: 0.08 }}
+            className="overview-core-card"
             style={{
-              background: 'rgba(255, 255, 255, 0.94)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1.5px solid #fed7aa',
-              borderRadius: 24,
-              padding: '26px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              position: 'relative',
-              overflow: 'hidden',
-              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
+              borderColor: '#fed7aa',
             }}
           >
-            {/* Top orange glow */}
+            {/* Top vibrant gradient accent line */}
             <div style={{
               position: 'absolute',
-              top: -30,
-              right: -30,
-              width: 130,
-              height: 130,
-              borderRadius: '50%',
-              backgroundColor: 'rgba(249, 115, 22, 0.12)',
-              filter: 'blur(30px)',
-              pointerEvents: 'none',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: 'linear-gradient(90deg, #ea580c, #facc15)',
             }} />
 
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 14,
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div className="overview-card-icon" style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
                   backgroundColor: '#fff7ed',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#ea580c',
-                  border: '1.5px solid #fed7aa',
+                  border: '1px solid #fed7aa',
                 }}>
-                  <Thermometer style={{ width: 22, height: 22 }} />
+                  <Thermometer style={{ width: 15, height: 15 }} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
+                  <h4 className="overview-card-title" style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0f172a', lineHeight: 1.15 }}>
                     Temperature
-                  </h3>
+                  </h4>
                 </div>
               </div>
 
-              <span style={{
-                padding: '4px 10px',
+              <span className="overview-card-badge" style={{
+                padding: '2px 7px',
                 borderRadius: 999,
-                fontSize: 11.5,
+                fontSize: 10,
                 fontWeight: 700,
                 backgroundColor: '#fff7ed',
                 color: '#c2410c',
                 border: '1px solid #fed7aa',
               }}>
-                {Number(displayTemp) > 30 ? 'Warm' : (Number(displayTemp) < 22 ? 'Cool' : 'Pleasant')}
+                {displayTemp !== '--' ? (Number(displayTemp) > 30 ? 'Warm' : (Number(displayTemp) < 22 ? 'Cool' : 'Pleasant')) : '—'}
               </span>
             </div>
 
-            {/* Primary Value */}
-            <div style={{ margin: '22px 0', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{
-                  fontSize: 'clamp(46px, 5.5vw, 60px)',
+            {/* Main Value + Creative Thermo Glyphs */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                <span className="overview-card-val" style={{
+                  fontSize: 32,
                   fontWeight: 900,
                   lineHeight: 1,
-                  letterSpacing: '-0.04em',
+                  letterSpacing: '-0.03em',
                   color: '#ea580c',
                   fontFamily: 'var(--font-mono)',
                 }}>
                   {loading ? '--' : displayTemp}
                 </span>
-                <span style={{ fontSize: 26, fontWeight: 700, color: '#94a3b8' }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
                   °{tempUnit}
                 </span>
               </div>
+
+              {/* Secondary Telemetry: Feels Like */}
+              {displayFeelsLike != null && (
+                <div className="overview-sub-badge" style={{
+                  background: '#fff7ed',
+                  border: '1px solid #fed7aa',
+                  color: '#ea580c',
+                }}>
+                  Feels {displayFeelsLike}°{tempUnit}
+                </div>
+              )}
             </div>
 
-            {/* Thermometer scale track */}
-            <div style={{ zIndex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 6 }}>
-                <span>Cool 15°C</span>
-                <span>Moderate 28°C</span>
-                <span>Warm 40°C</span>
-              </div>
+            {/* Micro Thermal Progress Bar with Range Scale */}
+            <div style={{ marginTop: 'auto', paddingTop: 8 }}>
               <div style={{
-                height: 8,
+                height: 5,
                 borderRadius: 999,
                 background: '#f1f5f9',
                 overflow: 'hidden',
                 position: 'relative',
+                marginBottom: 4,
               }}>
                 <div style={{
                   height: '100%',
-                  width: `${Math.min(100, Math.max(5, ((Number(rawTemp ?? 28) - 10) / 35) * 100))}%`,
+                  width: `${rawTemp != null ? Math.min(100, Math.max(5, ((Number(rawTemp) - 10) / 35) * 100)) : 0}%`,
                   background: 'linear-gradient(90deg, #38bdf8 0%, #facc15 50%, #ea580c 100%)',
                   borderRadius: 999,
                   transition: 'width 0.8s ease',
                 }} />
               </div>
+              <div className="overview-bar-scale">
+                <span>{tempUnit === 'F' ? '59°' : '15°'}</span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span>{tempUnit === 'F' ? '82°' : '28°'}</span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span>{tempUnit === 'F' ? '104°' : '40°'}</span>
+              </div>
             </div>
           </motion.div>
 
-          {/* ════════ CARD 3: RELATIVE HUMIDITY (FROM WEATHER NODE1) ════════ */}
+          {/* ════════ CARD 3: RELATIVE HUMIDITY ════════ */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.15 }}
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            transition={{ duration: 0.25, delay: 0.12 }}
+            className="overview-core-card"
             style={{
-              background: 'rgba(255, 255, 255, 0.94)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1.5px solid #bae6fd',
-              borderRadius: 24,
-              padding: '26px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              position: 'relative',
-              overflow: 'hidden',
-              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
+              borderColor: '#bae6fd',
             }}
           >
-            {/* Top sky blue glow */}
+            {/* Top vibrant gradient accent line */}
             <div style={{
               position: 'absolute',
-              top: -30,
-              right: -30,
-              width: 130,
-              height: 130,
-              borderRadius: '50%',
-              backgroundColor: 'rgba(14, 165, 233, 0.12)',
-              filter: 'blur(30px)',
-              pointerEvents: 'none',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: 'linear-gradient(90deg, #0284c7, #38bdf8)',
             }} />
 
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 14,
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div className="overview-card-icon" style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
                   backgroundColor: '#f0f9ff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#0284c7',
-                  border: '1.5px solid #bae6fd',
+                  border: '1px solid #bae6fd',
                 }}>
-                  <Droplets style={{ width: 22, height: 22 }} />
+                  <Droplets style={{ width: 15, height: 15 }} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
+                  <h4 className="overview-card-title" style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0f172a', lineHeight: 1.15 }}>
                     Humidity
-                  </h3>
+                  </h4>
                 </div>
               </div>
 
-              <span style={{
-                padding: '4px 10px',
+              <span className="overview-card-badge" style={{
+                padding: '2px 7px',
                 borderRadius: 999,
-                fontSize: 11.5,
+                fontSize: 10,
                 fontWeight: 700,
                 backgroundColor: '#e0f2fe',
                 color: '#0369a1',
                 border: '1px solid #bae6fd',
               }}>
-                {Number(displayHumidity) > 75 ? 'Humid' : (Number(displayHumidity) < 40 ? 'Dry' : 'Comfortable')}
+                {displayHumidity !== '--' ? (Number(displayHumidity) > 75 ? 'Humid' : (Number(displayHumidity) < 40 ? 'Dry' : 'Comfort')) : '—'}
               </span>
             </div>
 
-            {/* Primary Value */}
-            <div style={{ margin: '22px 0', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{
-                  fontSize: 'clamp(46px, 5.5vw, 60px)',
+            {/* Main Value + Creative Wave Moisture Pill */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                <span className="overview-card-val" style={{
+                  fontSize: 32,
                   fontWeight: 900,
                   lineHeight: 1,
-                  letterSpacing: '-0.04em',
+                  letterSpacing: '-0.03em',
                   color: '#0284c7',
                   fontFamily: 'var(--font-mono)',
                 }}>
                   {loading ? '--' : displayHumidity}
                 </span>
-                <span style={{ fontSize: 26, fontWeight: 700, color: '#94a3b8' }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
                   %
                 </span>
               </div>
 
-
+              {/* Secondary Telemetry: Dew Point */}
+              {dewPoint != null && (
+                <div className="overview-sub-badge" style={{
+                  background: '#f0f9ff',
+                  border: '1px solid #bae6fd',
+                  color: '#0284c7',
+                }}>
+                  Dew {tempUnit === 'F' ? ((dewPoint * 9 / 5) + 32).toFixed(1) : dewPoint}°{tempUnit}
+                </div>
+              )}
             </div>
 
-            {/* Humidity Fill Bar */}
-            <div style={{ zIndex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 6 }}>
-                <span>Dry 20%</span>
-                <span>Ideal 50%</span>
-                <span>Humid 90%</span>
-              </div>
+            {/* Micro Humidity Liquid Bar with Range Scale */}
+            <div style={{ marginTop: 'auto', paddingTop: 8 }}>
               <div style={{
-                height: 8,
+                height: 5,
                 borderRadius: 999,
                 background: '#f1f5f9',
                 overflow: 'hidden',
                 position: 'relative',
+                marginBottom: 4,
               }}>
                 <div style={{
                   height: '100%',
-                  width: `${Math.min(100, Math.max(5, Number(displayHumidity)))}%`,
+                  width: `${displayHumidity !== '--' ? Math.min(100, Math.max(5, Number(displayHumidity))) : 0}%`,
                   background: 'linear-gradient(90deg, #38bdf8 0%, #0284c7 100%)',
                   borderRadius: 999,
                   transition: 'width 0.8s ease',
                 }} />
               </div>
+              <div className="overview-bar-scale">
+                <span>20% Dry</span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span>55%</span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span>90% Humid</span>
+              </div>
             </div>
           </motion.div>
 
-          {/* ════════ CARD 4: WIND SPEED & DIRECTION (FROM WEATHER NODE1) ════════ */}
+          {/* ════════ CARD 4: WIND SPEED ════════ */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.2 }}
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            transition={{ duration: 0.25, delay: 0.16 }}
+            className="overview-core-card"
             style={{
-              background: 'rgba(255, 255, 255, 0.94)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1.5px solid #a7f3d0',
-              borderRadius: 24,
-              padding: '26px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              position: 'relative',
-              overflow: 'hidden',
-              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
+              borderColor: '#a7f3d0',
             }}
           >
-            {/* Top green/emerald glow */}
+            {/* Top vibrant gradient accent line */}
             <div style={{
               position: 'absolute',
-              top: -30,
-              right: -30,
-              width: 130,
-              height: 130,
-              borderRadius: '50%',
-              backgroundColor: 'rgba(16, 185, 129, 0.12)',
-              filter: 'blur(30px)',
-              pointerEvents: 'none',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: 'linear-gradient(90deg, #059669, #10b981)',
             }} />
 
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 14,
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div className="overview-card-icon" style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
                   backgroundColor: '#ecfdf5',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#059669',
-                  border: '1.5px solid #a7f3d0',
+                  border: '1px solid #a7f3d0',
                 }}>
-                  <Wind style={{ width: 22, height: 22 }} />
+                  <Wind style={{ width: 15, height: 15 }} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
+                  <h4 className="overview-card-title" style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0f172a', lineHeight: 1.15 }}>
                     Wind Speed
-                  </h3>
+                  </h4>
                 </div>
               </div>
 
-              <span style={{
-                padding: '4px 10px',
+              <span className="overview-card-badge" style={{
+                padding: '2px 7px',
                 borderRadius: 999,
-                fontSize: 11.5,
+                fontSize: 10,
                 fontWeight: 700,
                 backgroundColor: '#ecfdf5',
                 color: '#047857',
                 border: '1px solid #a7f3d0',
               }}>
-                {beaufort.label}
+                {windStatus}
               </span>
             </div>
 
-            {/* Primary Value */}
-            <div style={{ margin: '22px 0', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{
-                  fontSize: 'clamp(46px, 5.5vw, 60px)',
+            {/* Main Value + Creative Breeze Equalizer Bars */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                <span className="overview-card-val" style={{
+                  fontSize: 32,
                   fontWeight: 900,
                   lineHeight: 1,
-                  letterSpacing: '-0.04em',
+                  letterSpacing: '-0.03em',
                   color: '#059669',
                   fontFamily: 'var(--font-mono)',
                 }}>
                   {loading ? '--' : displayWind}
                 </span>
-                <span style={{ fontSize: 18, fontWeight: 700, color: '#94a3b8' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>
                   {displayWindUnit}
                 </span>
               </div>
+
+              {/* Creative 4-Bar Breeze Intensity Equalizer */}
+              <div className="overview-wind-equalizer" style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 16 }}>
+                {[1, 2, 3, 4].map((barIdx) => {
+                  const active = windKmh != null && windKmh >= barIdx * 2.5;
+                  return (
+                    <div
+                      key={barIdx}
+                      style={{
+                        width: 3.5,
+                        height: 5 + barIdx * 3,
+                        borderRadius: 2,
+                        backgroundColor: active ? '#059669' : '#e2e8f0',
+                        transition: 'background-color 0.3s ease',
+                      }}
+                    />
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Description */}
-            <div style={{
-              padding: '9px 12px',
-              borderRadius: 12,
-              background: '#f8fafc',
-              fontSize: 12,
-              color: '#64748b',
-              border: '1px solid #e2e8f0',
-              zIndex: 1,
-            }}>
-              Beaufort Force {beaufort.level}: {beaufort.desc}
+            {/* Micro Wind Progress Bar with Range Scale */}
+            <div style={{ marginTop: 'auto', paddingTop: 8 }}>
+              <div style={{
+                height: 5,
+                borderRadius: 999,
+                background: '#f1f5f9',
+                overflow: 'hidden',
+                position: 'relative',
+                marginBottom: 4,
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${displayWind !== '--' ? Math.min(100, Math.max(4, (Number(displayWind) / (windUnit === 'ms' ? 8.3 : 30)) * 100)) : 0}%`,
+                  background: 'linear-gradient(90deg, #34d399 0%, #059669 100%)',
+                  borderRadius: 999,
+                  transition: 'width 0.8s ease',
+                }} />
+              </div>
+              <div className="overview-bar-scale">
+                <span>0</span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span>{windUnit === 'ms' ? '4.2' : '15'}</span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span>{windUnit === 'ms' ? '8.3 m/s' : '30 km/h'}</span>
+              </div>
             </div>
           </motion.div>
 
-          {/* ════════ CARD 5: RAINFALL (FROM WEATHER NODE1) ════════ */}
+          {/* ════════ CARD 5: RAINFALL ════════ */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.25 }}
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            transition={{ duration: 0.25, delay: 0.2 }}
+            className="overview-core-card"
             style={{
-              background: 'rgba(255, 255, 255, 0.94)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: isRaining ? '1.5px solid #38bdf8' : '1.5px solid #c7d2fe',
-              borderRadius: 24,
-              padding: '26px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              position: 'relative',
-              overflow: 'hidden',
-              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
+              borderColor: isRaining ? '#7dd3fc' : '#c7d2fe',
             }}
           >
-            {/* Top indigo/sky glow */}
+            {/* Top vibrant gradient accent line */}
             <div style={{
               position: 'absolute',
-              top: -30,
-              right: -30,
-              width: 130,
-              height: 130,
-              borderRadius: '50%',
-              backgroundColor: isRaining ? 'rgba(56, 189, 248, 0.15)' : 'rgba(99, 102, 241, 0.12)',
-              filter: 'blur(30px)',
-              pointerEvents: 'none',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: isRaining
+                ? 'linear-gradient(90deg, #0284c7, #38bdf8)'
+                : 'linear-gradient(90deg, #6366f1, #818cf8)',
             }} />
 
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 14,
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div className="overview-card-icon" style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
                   backgroundColor: isRaining ? '#f0f9ff' : '#eef2ff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: isRaining ? '#0284c7' : '#4f46e5',
-                  border: isRaining ? '1.5px solid #bae6fd' : '1.5px solid #c7d2fe',
+                  border: isRaining ? '1px solid #bae6fd' : '1px solid #c7d2fe',
                 }}>
-                  <CloudRain style={{ width: 22, height: 22 }} />
+                  <CloudRain style={{ width: 15, height: 15 }} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
+                  <h4 className="overview-card-title" style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0f172a', lineHeight: 1.15 }}>
                     Rainfall
-                  </h3>
+                  </h4>
                 </div>
               </div>
 
-              <span style={{
-                padding: '4px 10px',
+              <span className="overview-card-badge" style={{
+                padding: '2px 7px',
                 borderRadius: 999,
-                fontSize: 11.5,
+                fontSize: 10,
                 fontWeight: 700,
                 backgroundColor: isRaining ? '#e0f2fe' : '#eef2ff',
                 color: isRaining ? '#0369a1' : '#4338ca',
                 border: isRaining ? '1px solid #bae6fd' : '1px solid #c7d2fe',
               }}>
-                {isRaining ? '🌧️ Active Rain' : 'Dry / Clear'}
+                {rawRain == null ? '—' : (isRaining ? '🌧️ Rain' : 'Dry')}
               </span>
             </div>
 
-            {/* Primary Value */}
-            <div style={{ margin: '22px 0', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{
-                  fontSize: 'clamp(46px, 5.5vw, 60px)',
+            {/* Main Value + Creative Precipitation Pill */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                <span className="overview-card-val" style={{
+                  fontSize: 32,
                   fontWeight: 900,
                   lineHeight: 1,
-                  letterSpacing: '-0.04em',
+                  letterSpacing: '-0.03em',
                   color: isRaining ? '#0284c7' : '#4f46e5',
                   fontFamily: 'var(--font-mono)',
                 }}>
                   {loading ? '--' : displayRain}
                 </span>
-                <span style={{ fontSize: 20, fontWeight: 700, color: '#94a3b8' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>
                   mm
                 </span>
               </div>
 
-
+              {/* Secondary Telemetry: Precipitation State */}
+              <div className="overview-sub-badge" style={{
+                background: isRaining ? '#e0f2fe' : '#eef2ff',
+                border: `1px solid ${isRaining ? '#bae6fd' : '#c7d2fe'}`,
+                color: isRaining ? '#0369a1' : '#4338ca',
+              }}>
+                {isRaining ? 'Precipitating' : 'No Rain'}
+              </div>
             </div>
 
-            {/* Liquid Level Indicator */}
-            <div style={{ zIndex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 6 }}>
-                <span>Dry</span>
-                <span>Moderate 15mm</span>
-                <span>Heavy 50mm</span>
-              </div>
+            {/* Micro Rain Progress Bar with Range Scale */}
+            <div style={{ marginTop: 'auto', paddingTop: 8 }}>
               <div style={{
-                height: 8,
+                height: 5,
                 borderRadius: 999,
                 background: '#f1f5f9',
                 overflow: 'hidden',
                 position: 'relative',
+                marginBottom: 4,
               }}>
                 <div style={{
                   height: '100%',
-                  width: `${Math.min(100, Math.max(isRaining ? 15 : 2, (Number(displayRain) / 50) * 100))}%`,
+                  width: `${displayRain !== '--' ? Math.min(100, Math.max(isRaining ? 15 : 2, (Number(displayRain) / 50) * 100)) : 0}%`,
                   background: isRaining
                     ? 'linear-gradient(90deg, #38bdf8 0%, #0284c7 100%)'
                     : 'linear-gradient(90deg, #818cf8 0%, #4f46e5 100%)',
@@ -1294,23 +1253,30 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   transition: 'width 0.8s ease',
                 }} />
               </div>
+              <div className="overview-bar-scale">
+                <span>Dry</span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span>15mm</span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span>50mm</span>
+              </div>
             </div>
           </motion.div>
 
         </div>
 
-        {/* ── Predictive Forecast (24h) Section matching user screenshot ── */}
-        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Header */}
-          <div style={{
+        {/* ── Bespoke Atmospheric 24-Hour Predictive Horizon ── */}
+        <div className="overview-forecast-section" style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Distinctive Ambient Header */}
+          <div className="overview-forecast-header" style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: 'wrap',
             gap: 12,
           }}>
-            <div>
-              <h2 style={{
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <h2 className="overview-forecast-title" style={{
                 fontSize: 22,
                 fontWeight: 700,
                 color: '#0f172a',
@@ -1318,145 +1284,213 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 letterSpacing: '-0.02em',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
+                gap: 9,
               }}>
                 <Sparkles style={{ width: 22, height: 22, color: '#00bfa5' }} />
                 Predictive Forecast (24h)
               </h2>
-              <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13 }}>
-                Node 1 24-hour horizon (t+1 → t+24) with expanding-lookback Seq2Seq LSTM and real-time telemetry sync.
-              </p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {forecastLastUpdated && (
-                <span style={{ fontSize: 12.5, color: '#94a3b8' }}>
+                <span className="overview-forecast-updated" style={{ fontSize: 12, color: '#94a3b8' }}>
                   Updated {getTimeAgo(forecastLastUpdated)}
                 </span>
               )}
+
               <button
                 onClick={() => fetchForecast(true)}
                 disabled={forecastLoading}
+                className="overview-forecast-refresh"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 7,
-                  backgroundColor: '#00bfa5',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 10,
+                  backgroundColor: '#ffffff',
+                  color: '#0f172a',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 12,
                   padding: '7px 14px',
                   fontSize: 12.5,
                   fontWeight: 600,
                   cursor: forecastLoading ? 'not-allowed' : 'pointer',
                   opacity: forecastLoading ? 0.7 : 1,
-                  boxShadow: '0 2px 8px rgba(0, 191, 165, 0.25)',
+                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
                   transition: 'all 0.15s ease',
                 }}
               >
-                <RefreshCw style={{ width: 13, height: 13, animation: forecastLoading ? 'spin 0.8s linear infinite' : 'none' }} />
+                <RefreshCw style={{ width: 13, height: 13, color: '#00bfa5', animation: forecastLoading ? 'spin 0.8s linear infinite' : 'none' }} />
                 <span>Refresh</span>
               </button>
             </div>
           </div>
 
-          {/* 24-Hour Timeline Overview Card */}
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.94)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            borderRadius: 20,
-            padding: '20px 24px',
+          {/* 24-Hour Horizon Track Card */}
+          <div className="overview-forecast-card" style={{
+            background: '#ffffff',
+            borderRadius: 22,
+            padding: '22px 24px',
             border: '1.5px solid #e2e8f0',
-            boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
+            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)',
+            position: 'relative',
+            overflow: 'hidden',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={18} color="#0ea5e9" /> 24-Hour Timeline Overview
-              </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Clock size={17} color="#0ea5e9" />
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                  24-Hour Timeline Horizon
+                </h3>
+              </div>
 
-              {passedForecastItems.length > 0 && (
-                <button
-                  onClick={() => setShowPastHours(!showPastHours)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '6px 12px',
-                    borderRadius: 999,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    border: showPastHours ? '1px solid #0ea5e9' : '1px solid #cbd5e1',
-                    backgroundColor: showPastHours ? '#f0f9ff' : '#ffffff',
-                    color: showPastHours ? '#0369a1' : '#64748b',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <History size={13} />
-                  <span>{showPastHours ? `Showing All 24h (${processedForecastItems.length})` : `Show Past Hours (${passedForecastItems.length})`}</span>
-                </button>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                {/* Smooth Scroll Navigation Arrows */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => scrollTimeline('left')}
+                    title="Scroll left"
+                    aria-label="Scroll left"
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: '#475569',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                    }}
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollTimeline('right')}
+                    title="Scroll right"
+                    aria-label="Scroll right"
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: '#475569',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                    }}
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Horizontal Scroller for All 24-Hour Forecast Cards */}
-            <div style={{
-              display: 'flex',
-              gap: 12,
-              overflowX: 'auto',
-              paddingBottom: 10,
-              scrollbarWidth: 'thin',
-            }}>
+            {/* Horizontal Scroller for Unique Atmospheric Horizon Cards */}
+            <div
+              ref={timelineScrollerRef}
+              onMouseDown={handleMouseDownTimeline}
+              onMouseUp={handleMouseLeaveOrUpTimeline}
+              onMouseLeave={handleMouseLeaveOrUpTimeline}
+              onMouseMove={handleMouseMoveTimeline}
+              className={`overview-timeline-scroller ${isDraggingTimeline ? 'is-dragging' : ''}`}
+            >
               {visibleForecastTimelineItems.length === 0 ? (
-                <div style={{ padding: '24px 0', color: '#94a3b8', fontSize: 13, textAlign: 'center', width: '100%' }}>
-                  {forecastLoading ? 'Loading 24-hour predictive forecast timeline...' : 'No forecast timeline items available at this time.'}
+                <div style={{ padding: '28px 0', color: '#94a3b8', fontSize: 13, textAlign: 'center', width: '100%' }}>
+                  {forecastLoading ? 'Synthesizing 24-hour predictive forecast timeline...' : 'No forecast timeline items available at this time.'}
                 </div>
               ) : (
                 visibleForecastTimelineItems.map((item) => (
                   <div
                     key={item.index}
-                    className="forecast-timeline-card"
+                    className="overview-timeline-card"
                     style={{
-                      flex: '0 0 110px',
-                      padding: '14px 12px',
-                      borderRadius: 14,
                       border: `1.5px solid ${item.aqi_border || '#e2e8f0'}`,
                       background: item.aqi_bg || '#ffffff',
-                      textAlign: 'center',
-                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
                     }}
                   >
-                    <div className="forecast-timeline-hour" style={{ fontSize: 11.5, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>
-                      {item.display_hour}
+                    {/* Top Daylight / Night Pill */}
+                    <div className="overview-timeline-hour" style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '3px 8px',
+                      borderRadius: 999,
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#475569',
+                      marginBottom: 10,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                    }}>
+                      {item.isDaytime ? (
+                        <Sun style={{ width: 11, height: 11, color: '#f59e0b' }} />
+                      ) : (
+                        <Moon style={{ width: 11, height: 11, color: '#6366f1' }} />
+                      )}
+                      <span>{item.display_hour}</span>
                     </div>
-                    <div className="forecast-timeline-aqi" style={{ fontSize: 24, fontWeight: 800, color: item.aqi_color, lineHeight: 1.1, fontFamily: 'var(--font-mono)' }}>
-                      {item.aqi}
+
+                    {/* Central Glowing AQI Badge Ring */}
+                    <div className="overview-timeline-circle" style={{
+                      width: 58,
+                      height: 58,
+                      borderRadius: '50%',
+                      background: '#ffffff',
+                      border: `2.5px solid ${item.aqi_color}`,
+                      boxShadow: `0 0 10px ${item.aqi_color}30`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '2px 0 8px',
+                      transform: 'translateZ(0)',
+                    }}>
+                      <span className="overview-timeline-aqi" style={{
+                        fontSize: 22,
+                        fontWeight: 900,
+                        lineHeight: 1,
+                        color: item.aqi_color,
+                        fontFamily: 'var(--font-mono)',
+                      }}>
+                        {item.aqi}
+                      </span>
                     </div>
-                    <div className="forecast-timeline-category" style={{
+
+                    {/* Category Label */}
+                    <span className="overview-timeline-category" style={{
                       fontSize: 11,
                       fontWeight: 700,
                       color: item.aqi_color,
-                      marginTop: 4,
+                      marginBottom: 8,
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                     }}>
                       {item.aqi_category}
-                    </div>
-                    <div className="forecast-timeline-actual" style={{
-                      marginTop: 8,
-                      paddingTop: 8,
-                      borderTop: '1px dashed #e2e8f0',
-                      fontSize: 10.5,
-                      color: item.hasActual ? '#0284c7' : '#94a3b8',
+                    </span>
+
+                    {/* Micro Weather / Sensor Telemetry Pill */}
+                    <div className="overview-timeline-pill" style={{
+                      padding: '3px 8px',
+                      borderRadius: 999,
+                      background: 'rgba(255, 255, 255, 0.85)',
+                      fontSize: 10,
                       fontWeight: 600,
+                      color: '#64748b',
+                      border: '1px solid rgba(226, 232, 240, 0.9)',
+                      whiteSpace: 'nowrap',
                     }}>
-                      {item.hasActual ? (
-                        <span>Act: <strong>{item.actual_aqi ?? '—'}</strong></span>
-                      ) : (
-                        <span>Pending</span>
-                      )}
+                      {item.hasActual ? `Act: ${item.actual_aqi ?? '—'}` : (item.temperature_c != null ? `${fmt(item.temperature_c, 1)}°C${item.humidity_pct != null ? ` • ${fmt(item.humidity_pct, 1)}%` : ''}` : 'Projected')}
                     </div>
                   </div>
                 ))
@@ -1477,6 +1511,310 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           0% { opacity: 0.4; transform: scale(0.96) translate(0, 0); }
           50% { opacity: 0.7; transform: scale(1.04) translate(-10px, 10px); }
           100% { opacity: 0.4; transform: scale(0.96) translate(0, 0); }
+        }
+
+        /* ── 24-Hour Horizon Track Smooth Performance Styles ── */
+        .overview-timeline-scroller {
+          display: flex;
+          gap: 12px;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding-bottom: 12px;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior-x: contain;
+          will-change: scroll-position;
+          cursor: grab;
+          user-select: none;
+          -webkit-user-select: none;
+          scrollbar-width: thin;
+          scrollbar-color: #cbd5e1 #f1f5f9;
+        }
+        .overview-timeline-scroller.is-dragging {
+          cursor: grabbing !important;
+          scroll-behavior: auto !important;
+        }
+        .overview-timeline-scroller.is-dragging .overview-timeline-card {
+          cursor: grabbing !important;
+          pointer-events: none !important;
+        }
+        .overview-timeline-scroller::-webkit-scrollbar {
+          height: 6px;
+        }
+        .overview-timeline-scroller::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 999px;
+        }
+        .overview-timeline-scroller::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 999px;
+          transition: background 0.15s ease;
+        }
+        .overview-timeline-scroller::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+
+        .overview-timeline-card {
+          flex: 0 0 116px;
+          padding: 16px 12px;
+          border-radius: 18px;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+          transform: translateZ(0);
+          will-change: transform;
+          transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+          cursor: grab;
+          user-select: none;
+        }
+        .overview-timeline-card:hover {
+          transform: translateY(-4px) translateZ(0);
+          box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08) !important;
+        }
+
+        /* ── Compact & Balanced 5-Card Telemetry Grid ── */
+        .overview-grid {
+          display: grid !important;
+          grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+          gap: 12px !important;
+          margin-bottom: 8px !important;
+        }
+        .overview-core-card {
+          background: #ffffff;
+          border-radius: 16px;
+          padding: 13px 13px 12px;
+          border: 1.5px solid #e2e8f0;
+          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+          position: relative;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          min-height: 136px;
+          box-sizing: border-box;
+          transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .overview-core-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07) !important;
+        }
+
+        .overview-bar-scale {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 9.5px;
+          font-weight: 700;
+          color: #94a3b8;
+          font-family: var(--font-mono);
+          line-height: 1;
+          margin-top: 4px;
+        }
+
+        .overview-sub-badge {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          padding: 2.5px 7px;
+          border-radius: 6px;
+          font-size: 10px;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+
+        /* ── Comprehensive Mobile Optimization ── */
+        @media (max-width: 1100px) {
+          .overview-grid {
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important;
+            gap: 10px !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .overview-page-root {
+            padding: 14px 12px !important;
+            border-radius: 18px !important;
+            min-height: auto !important;
+          }
+          .overview-forecast-card {
+            padding: 16px 14px !important;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .overview-page-root {
+            padding: 10px 8px !important;
+            border-radius: 16px !important;
+          }
+          .overview-toolbar {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            width: 100% !important;
+            gap: 6px !important;
+            margin-bottom: 2px !important;
+          }
+          .overview-toolbar-units {
+            display: flex !important;
+            gap: 5px !important;
+          }
+          .overview-toolbar-units button {
+            padding: 4px 8px !important;
+            font-size: 11.5px !important;
+          }
+          .overview-refresh-btn {
+            padding: 5px 10px !important;
+            font-size: 11.5px !important;
+          }
+          .overview-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+            margin-bottom: 6px !important;
+          }
+          .overview-grid > *:first-child {
+            grid-column: span 2 !important;
+          }
+          .overview-core-card {
+            padding: 10px 10px 10px !important;
+            min-height: 122px !important;
+            border-radius: 14px !important;
+          }
+          .overview-card-icon {
+            width: 24px !important;
+            height: 24px !important;
+            border-radius: 7px !important;
+          }
+          .overview-card-icon svg {
+            width: 13px !important;
+            height: 13px !important;
+          }
+          .overview-card-title {
+            font-size: 12px !important;
+          }
+          .overview-card-badge {
+            font-size: 9.5px !important;
+            padding: 2px 6px !important;
+            letter-spacing: -0.01em !important;
+          }
+          .overview-card-val {
+            font-size: 26px !important;
+          }
+          .overview-card-dial {
+            width: 38px !important;
+            height: 38px !important;
+          }
+          .overview-card-dial svg {
+            width: 38px !important;
+            height: 38px !important;
+          }
+          .overview-card-dial div {
+            font-size: 9px !important;
+          }
+          .overview-forecast-section {
+            margin-top: 8px !important;
+            gap: 10px !important;
+          }
+          .overview-forecast-header {
+            gap: 8px !important;
+          }
+          .overview-forecast-title {
+            font-size: 17px !important;
+          }
+          .overview-forecast-title svg {
+            width: 18px !important;
+            height: 18px !important;
+          }
+          .overview-forecast-updated {
+            font-size: 11px !important;
+          }
+          .overview-forecast-refresh {
+            padding: 5px 10px !important;
+            font-size: 11.5px !important;
+            border-radius: 10px !important;
+          }
+          .overview-forecast-card {
+            padding: 12px 10px !important;
+            border-radius: 16px !important;
+          }
+          .overview-timeline-scroller {
+            gap: 8px !important;
+            padding-bottom: 8px !important;
+            -webkit-overflow-scrolling: touch !important;
+            scroll-snap-type: x proximity !important;
+            touch-action: pan-x pan-y !important;
+          }
+          .overview-timeline-card {
+            flex: 0 0 94px !important;
+            padding: 10px 6px !important;
+            border-radius: 14px !important;
+            scroll-snap-align: start !important;
+          }
+          .overview-timeline-hour {
+            font-size: 9.5px !important;
+            padding: 2px 6px !important;
+            margin-bottom: 6px !important;
+          }
+          .overview-timeline-circle {
+            width: 44px !important;
+            height: 44px !important;
+            margin: 2px 0 6px !important;
+            border-width: 2px !important;
+          }
+          .overview-timeline-aqi {
+            font-size: 17px !important;
+          }
+          .overview-timeline-category {
+            font-size: 9.5px !important;
+            margin-bottom: 6px !important;
+          }
+          .overview-timeline-pill {
+            font-size: 8.5px !important;
+            padding: 2px 5px !important;
+          }
+        }
+
+        /* ── Standard Phones (< 480px) ── */
+        @media (max-width: 480px) {
+          .overview-sub-badge {
+            font-size: 8.5px !important;
+            padding: 1.5px 4px !important;
+          }
+          .overview-bar-scale {
+            font-size: 8px !important;
+          }
+          .overview-card-val {
+            font-size: 23px !important;
+          }
+          .overview-core-card {
+            min-height: 112px !important;
+            padding: 9px 8px 9px !important;
+          }
+          .overview-toolbar-units button {
+            padding: 3px 6px !important;
+            font-size: 11px !important;
+          }
+          .overview-refresh-btn {
+            padding: 4px 8px !important;
+            font-size: 11px !important;
+          }
+          .overview-forecast-title {
+            font-size: 15.5px !important;
+          }
+        }
+
+        /* ── Ultra-compact Phones (< 360px) ── */
+        @media (max-width: 360px) {
+          .overview-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .overview-grid > *:first-child {
+            grid-column: span 1 !important;
+          }
+          .overview-core-card {
+            min-height: 110px !important;
+          }
         }
       `}</style>
     </div>
