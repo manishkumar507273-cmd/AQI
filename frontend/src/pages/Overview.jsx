@@ -8,16 +8,21 @@ import {
   CloudRain,
   Compass,
   RefreshCw,
-  CheckCircle2,
-  AlertTriangle,
-  Info,
-  ArrowUpRight,
+  Clock,
   Sparkles,
-  ChevronRight,
-  Activity,
-  Layers
+  ArrowUpRight,
+  Sun,
+  Activity
 } from 'lucide-react';
 import { getCloudLatest, getWeatherLatest, getTimeAgo, isSensorOnline } from '../api';
+
+// Format time for timestamp display
+const formatLocalTime = (ts) => {
+  if (!ts) return 'N/A';
+  const dt = new Date(ts);
+  if (isNaN(dt.getTime())) return String(ts);
+  return dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
+};
 
 // Calculate Dew Point from Temperature (°C) and Humidity (%)
 const calcDewPoint = (temp, hum) => {
@@ -41,7 +46,7 @@ const calcFeelsLike = (temp, hum) => {
   return Number(Math.max(temp, hiC).toFixed(1));
 };
 
-// Compass heading to degrees
+// Compass heading parser
 const parseDirection = (dir) => {
   if (dir == null) return { deg: 0, text: 'N' };
   if (typeof dir === 'number') return { deg: dir % 360, text: `${Math.round(dir)}°` };
@@ -62,15 +67,15 @@ const parseDirection = (dir) => {
 
 // Beaufort wind scale helper
 const getBeaufortRating = (kmh) => {
-  if (kmh == null) return { level: 0, label: 'Calm', desc: 'Smoke rises vertically' };
+  if (kmh == null) return { level: 0, label: 'Calm', desc: 'Still air' };
   const k = Number(kmh);
-  if (k < 2) return { level: 0, label: 'Calm', desc: 'Still air, smoke rises straight up' };
-  if (k < 6) return { level: 1, label: 'Light Air', desc: 'Direction shown by smoke drift' };
-  if (k < 12) return { level: 2, label: 'Light Breeze', desc: 'Wind felt on exposed face, leaves rustle' };
-  if (k < 20) return { level: 3, label: 'Gentle Breeze', desc: 'Leaves and small twigs in constant motion' };
-  if (k < 29) return { level: 4, label: 'Moderate Breeze', desc: 'Raises dust and small loose branches move' };
-  if (k < 39) return { level: 5, label: 'Fresh Breeze', desc: 'Small trees in leaf begin to sway' };
-  return { level: 6, label: 'Strong Breeze', desc: 'Large branches in motion; umbrellas used with difficulty' };
+  if (k < 2) return { level: 0, label: 'Calm', desc: 'Still air' };
+  if (k < 6) return { level: 1, label: 'Light Air', desc: 'Smoke drift' };
+  if (k < 12) return { level: 2, label: 'Light Breeze', desc: 'Leaves rustle' };
+  if (k < 20) return { level: 3, label: 'Gentle Breeze', desc: 'Twigs in motion' };
+  if (k < 29) return { level: 4, label: 'Moderate Breeze', desc: 'Dust raised' };
+  if (k < 39) return { level: 5, label: 'Fresh Breeze', desc: 'Small trees sway' };
+  return { level: 6, label: 'Strong Breeze', desc: 'Large branches sway' };
 };
 
 export default function Overview({ refreshKey = 0, selectedStation = 'station-1' }) {
@@ -78,7 +83,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastFetched, setLastFetched] = useState(null);
   const [tempUnit, setTempUnit] = useState('C'); // 'C' | 'F'
   const [windUnit, setWindUnit] = useState('kmh'); // 'kmh' | 'ms'
   const canvasRef = useRef(null);
@@ -98,7 +102,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
       if (weatherRes.status === 'fulfilled' && weatherRes.value?.data?.data) {
         setWeatherData(weatherRes.value.data.data);
       }
-      setLastFetched(new Date());
     } catch (err) {
       console.error('Error fetching live overview data:', err);
     } finally {
@@ -115,11 +118,14 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
   // Derived values
   const aqiVal = aqiData?.cpcb_aqi ?? 0;
-  const aqiInfo = aqiData?.aqi_info || {
-    value: aqiVal,
-    label: aqiVal <= 50 ? 'Good' : (aqiVal <= 100 ? 'Satisfactory' : (aqiVal <= 200 ? 'Moderate' : 'Poor')),
-    color: aqiVal <= 50 ? '#16a34a' : (aqiVal <= 100 ? '#65a30d' : (aqiVal <= 200 ? '#d97706' : '#ea580c'))
-  };
+  const aqiCategory = useMemo(() => {
+    if (aqiVal <= 50) return { label: 'Good', color: '#16a34a', bg: '#f0fdf4', border: '#86efac', text: '#15803d' };
+    if (aqiVal <= 100) return { label: 'Satisfactory', color: '#65a30d', bg: '#f7fee7', border: '#bef264', text: '#3f6212' };
+    if (aqiVal <= 200) return { label: 'Moderate', color: '#d97706', bg: '#fffbeb', border: '#fde68a', text: '#92400e' };
+    if (aqiVal <= 300) return { label: 'Poor', color: '#ea580c', bg: '#fff7ed', border: '#fed7aa', text: '#9a3412' };
+    if (aqiVal <= 400) return { label: 'Very Poor', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', text: '#991b1b' };
+    return { label: 'Severe', color: '#9333ea', bg: '#faf5ff', border: '#e9d5ff', text: '#6b21a8' };
+  }, [aqiVal]);
 
   // Weather station readings (strictly from WEATHER_LIVE_NODE1)
   const rawTemp = weatherData?.temperature;
@@ -150,12 +156,10 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   const displayRain = rawRain != null ? Number(rawRain).toFixed(1) : '0.0';
   const isRaining = Number(rawRain) > 0;
 
-  const aqiTimestamp = aqiData?.timestamp;
-  const weatherTimestamp = weatherData?.timestamp;
-  const weatherOnline = isSensorOnline(weatherTimestamp, 5);
-  const aqiOnline = isSensorOnline(aqiTimestamp, 5);
-
-  // Dynamic Atmospheric Background Animation
+  // ══════════════════════════════════════════════════════════════════════════
+  // Dynamic Environmental Animation System (Light Atmospheric Theme)
+  // Renders breeze air streams, floating mist motes, sunbeams, and rain ripples
+  // ══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -169,46 +173,97 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
     handleResize();
     window.addEventListener('resize', handleResize);
 
-    // Particle system responding to wind and rain
-    const particleCount = isRaining ? 85 : 45;
-    const particles = Array.from({ length: particleCount }, () => ({
+    const windKmh = Number(rawWind ?? 3.5);
+    const speedFactor = Math.max(0.6, (windKmh / 10.0));
+
+    // Particle pool: breeze particles, mist motes, and raindrop ripples
+    const particles = Array.from({ length: 50 }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
-      length: isRaining ? 12 + Math.random() * 16 : 2 + Math.random() * 4,
-      speedX: (Number(rawWind ?? 3.5) / 3.6) * (Math.random() * 0.8 + 0.4),
-      speedY: isRaining ? 9 + Math.random() * 8 : (Math.random() - 0.5) * 0.4,
-      opacity: 0.15 + Math.random() * 0.35,
-      size: Math.random() * 2.5 + 1
+      radius: Math.random() * 3 + 1.5,
+      speedX: (0.4 + Math.random() * 0.8) * speedFactor,
+      speedY: (Math.random() - 0.5) * 0.3,
+      alpha: Math.random() * 0.25 + 0.1,
+      angle: Math.random() * Math.PI * 2,
+      waveFreq: Math.random() * 0.02 + 0.01,
+      waveAmp: Math.random() * 1.5 + 0.5,
     }));
+
+    // Wind Stream Ribbons flowing horizontally
+    const streamRibbons = Array.from({ length: 4 }, (_, i) => ({
+      y: (canvas.height / 5) * (i + 1) + (Math.random() - 0.5) * 40,
+      length: canvas.width * 0.45 + Math.random() * 100,
+      x: Math.random() * canvas.width,
+      speed: (1.2 + i * 0.4) * speedFactor,
+      thickness: 1.2 + Math.random() * 1.2,
+      opacity: 0.12 + Math.random() * 0.12,
+    }));
+
+    let tick = 0;
 
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      tick += 0.02;
 
-      // Render flowing atmosphere elements
+      // 1. Draw Organic Air Streams (Smooth Breezy Ribbons)
+      for (const rib of streamRibbons) {
+        ctx.beginPath();
+        const grad = ctx.createLinearGradient(rib.x, rib.y, rib.x + rib.length, rib.y);
+        grad.addColorStop(0, 'rgba(0, 191, 165, 0)');
+        grad.addColorStop(0.5, `rgba(14, 165, 233, ${rib.opacity})`);
+        grad.addColorStop(1, 'rgba(0, 191, 165, 0)');
+
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = rib.thickness;
+        ctx.lineCap = 'round';
+
+        ctx.moveTo(rib.x, rib.y);
+        for (let x = 0; x < rib.length; x += 20) {
+          const cy = rib.y + Math.sin((rib.x + x) * 0.01 + tick) * 8;
+          ctx.lineTo(rib.x + x, cy);
+        }
+        ctx.stroke();
+
+        rib.x += rib.speed;
+        if (rib.x > canvas.width + 100) {
+          rib.x = -rib.length - 50;
+          rib.y = (canvas.height / 5) * (Math.floor(Math.random() * 4) + 1);
+        }
+      }
+
+      // 2. Draw Floating Clean Air Motes / Droplets
       for (const p of particles) {
         ctx.beginPath();
+        p.angle += p.waveFreq;
+        const currentY = p.y + Math.sin(p.angle) * p.waveAmp;
+
         if (isRaining) {
-          // Rain streak
-          ctx.strokeStyle = `rgba(56, 189, 248, ${p.opacity * 0.8})`;
-          ctx.lineWidth = 1.5;
-          ctx.moveTo(p.x, p.y);
-          ctx.lineTo(p.x + p.speedX * 0.6, p.y + p.length);
+          // Rain streak mode
+          ctx.strokeStyle = `rgba(56, 189, 248, ${p.alpha * 1.5})`;
+          ctx.lineWidth = 1.6;
+          ctx.moveTo(p.x, currentY);
+          ctx.lineTo(p.x + p.speedX * 0.8, currentY + 12);
           ctx.stroke();
+          p.y += 9 + Math.random() * 4;
         } else {
-          // Ambient breezy particle
-          ctx.fillStyle = `rgba(0, 191, 165, ${p.opacity * 0.6})`;
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          // Ambient glowing mist particle
+          const particleGrad = ctx.createRadialGradient(p.x, currentY, 0, p.x, currentY, p.radius * 2);
+          particleGrad.addColorStop(0, `rgba(0, 191, 165, ${p.alpha})`);
+          particleGrad.addColorStop(0.7, `rgba(56, 189, 248, ${p.alpha * 0.6})`);
+          particleGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+          ctx.fillStyle = particleGrad;
+          ctx.arc(p.x, currentY, p.radius * 2, 0, Math.PI * 2);
           ctx.fill();
+          p.y += p.speedY;
         }
 
-        // Update position
-        p.x += Math.max(0.6, p.speedX * 0.6);
-        p.y += p.speedY;
+        p.x += p.speedX;
 
-        // Wrap around boundaries
-        if (p.x > canvas.width) p.x = 0;
-        if (p.y > canvas.height) p.y = 0;
-        if (p.y < 0) p.y = canvas.height;
+        // Boundary wrap
+        if (p.x > canvas.width + 20) p.x = -20;
+        if (p.y > canvas.height + 20) p.y = -20;
+        if (p.y < -20) p.y = canvas.height + 20;
       }
 
       animationFrameId = requestAnimationFrame(render);
@@ -229,16 +284,17 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   return (
     <div style={{
       position: 'relative',
-      minHeight: '88vh',
+      minHeight: '85vh',
       borderRadius: 24,
       overflow: 'hidden',
-      padding: 'clamp(16px, 3.5vw, 32px)',
-      background: 'linear-gradient(135deg, #090e17 0%, #0f172a 45%, #131d35 100%)',
-      color: '#ffffff',
-      boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
+      padding: 'clamp(16px, 3vw, 28px)',
+      background: 'radial-gradient(ellipse 120% 80% at 50% -10%, #e2e8f0 0%, #f1f5f9 60%, #e2e8f0 100%)',
+      color: '#0f172a',
       fontFamily: 'var(--font-sans)',
+      border: '1px solid #e2e8f0',
+      boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)',
     }}>
-      {/* ── Dynamic Ambient Canvas & Shifting Backdrop Glows ── */}
+      {/* ── Dynamic Ambient Canvas ── */}
       <canvas
         ref={canvasRef}
         style={{
@@ -246,166 +302,165 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           inset: 0,
           pointerEvents: 'none',
           zIndex: 1,
-          opacity: 0.85,
+          opacity: 0.9,
         }}
       />
 
-      {/* Floating Atmosphere Aura Spheres */}
+      {/* Floating Environmental Pastel Auras */}
       <div style={{
         position: 'absolute',
-        top: '-15%',
-        right: '-10%',
-        width: '55vw',
-        height: '55vw',
-        maxWidth: 600,
-        maxHeight: 600,
+        top: '-10%',
+        right: '-5%',
+        width: '45vw',
+        height: '45vw',
+        maxWidth: 500,
+        maxHeight: 500,
         borderRadius: '50%',
-        background: `radial-gradient(circle, ${aqiInfo.color}33 0%, rgba(15, 23, 42, 0) 70%)`,
-        filter: 'blur(70px)',
+        background: `radial-gradient(circle, ${aqiCategory.color}15 0%, rgba(241, 245, 249, 0) 70%)`,
+        filter: 'blur(60px)',
         pointerEvents: 'none',
         zIndex: 0,
-        animation: 'pulseGlow 8s ease-in-out infinite alternate',
+        animation: 'breathAtmosphere 10s ease-in-out infinite alternate',
       }} />
 
       <div style={{
         position: 'absolute',
-        bottom: '-15%',
-        left: '-10%',
-        width: '50vw',
-        height: '50vw',
-        maxWidth: 550,
-        maxHeight: 550,
+        bottom: '-10%',
+        left: '-5%',
+        width: '45vw',
+        height: '45vw',
+        maxWidth: 500,
+        maxHeight: 500,
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(14, 165, 233, 0.22) 0%, rgba(15, 23, 42, 0) 70%)',
-        filter: 'blur(70px)',
+        background: 'radial-gradient(circle, rgba(14, 165, 233, 0.12) 0%, rgba(241, 245, 249, 0) 70%)',
+        filter: 'blur(60px)',
         pointerEvents: 'none',
         zIndex: 0,
       }} />
 
       {/* ── Content Container ── */}
-      <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* ── Top Header Controls ── */}
+        {/* ── Minimalist Top Right Toolbar (Only unit toggles & refresh) ── */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          gap: 12,
-          paddingBottom: 4,
+          gap: 10,
+          flexWrap: 'wrap',
         }}>
-          {/* Controls: Unit Toggles & Quick Refresh */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {/* Temp Unit Toggle */}
-            <div style={{
-              display: 'flex',
-              backgroundColor: 'rgba(255, 255, 255, 0.06)',
-              borderRadius: 999,
-              padding: 3,
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-            }}>
-              <button
-                onClick={() => setTempUnit('C')}
-                style={{
-                  padding: '5px 11px',
-                  borderRadius: 999,
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backgroundColor: tempUnit === 'C' ? '#00bfa5' : 'transparent',
-                  color: tempUnit === 'C' ? '#0f172a' : '#94a3b8',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                °C
-              </button>
-              <button
-                onClick={() => setTempUnit('F')}
-                style={{
-                  padding: '5px 11px',
-                  borderRadius: 999,
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backgroundColor: tempUnit === 'F' ? '#00bfa5' : 'transparent',
-                  color: tempUnit === 'F' ? '#0f172a' : '#94a3b8',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                °F
-              </button>
-            </div>
-
-            {/* Wind Unit Toggle */}
-            <div style={{
-              display: 'flex',
-              backgroundColor: 'rgba(255, 255, 255, 0.06)',
-              borderRadius: 999,
-              padding: 3,
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-            }}>
-              <button
-                onClick={() => setWindUnit('kmh')}
-                style={{
-                  padding: '5px 11px',
-                  borderRadius: 999,
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backgroundColor: windUnit === 'kmh' ? '#0284c7' : 'transparent',
-                  color: windUnit === 'kmh' ? '#ffffff' : '#94a3b8',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                km/h
-              </button>
-              <button
-                onClick={() => setWindUnit('ms')}
-                style={{
-                  padding: '5px 11px',
-                  borderRadius: 999,
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backgroundColor: windUnit === 'ms' ? '#0284c7' : 'transparent',
-                  color: windUnit === 'ms' ? '#ffffff' : '#94a3b8',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                m/s
-              </button>
-            </div>
-
-            {/* Refresh Button */}
+          {/* Temperature Unit Toggle */}
+          <div style={{
+            display: 'flex',
+            backgroundColor: '#ffffff',
+            borderRadius: 999,
+            padding: 3,
+            border: '1px solid #cbd5e1',
+            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+          }}>
             <button
-              onClick={() => fetchData(true)}
-              disabled={isRefreshing}
+              onClick={() => setTempUnit('C')}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
+                padding: '4px 10px',
                 borderRadius: 999,
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                background: 'rgba(255, 255, 255, 0.07)',
-                color: '#ffffff',
+                border: 'none',
                 fontSize: 12,
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: 'pointer',
-                backdropFilter: 'blur(8px)',
-                transition: 'all 0.2s ease',
+                backgroundColor: tempUnit === 'C' ? '#00bfa5' : 'transparent',
+                color: tempUnit === 'C' ? '#ffffff' : '#64748b',
+                transition: 'all 0.15s ease',
               }}
             >
-              <RefreshCw style={{ width: 14, height: 14, animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none' }} />
-              <span>{isRefreshing ? 'Syncing...' : 'Live Refresh'}</span>
+              °C
+            </button>
+            <button
+              onClick={() => setTempUnit('F')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 999,
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                backgroundColor: tempUnit === 'F' ? '#00bfa5' : 'transparent',
+                color: tempUnit === 'F' ? '#ffffff' : '#64748b',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              °F
             </button>
           </div>
+
+          {/* Wind Unit Toggle */}
+          <div style={{
+            display: 'flex',
+            backgroundColor: '#ffffff',
+            borderRadius: 999,
+            padding: 3,
+            border: '1px solid #cbd5e1',
+            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+          }}>
+            <button
+              onClick={() => setWindUnit('kmh')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 999,
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                backgroundColor: windUnit === 'kmh' ? '#0284c7' : 'transparent',
+                color: windUnit === 'kmh' ? '#ffffff' : '#64748b',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              km/h
+            </button>
+            <button
+              onClick={() => setWindUnit('ms')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 999,
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                backgroundColor: windUnit === 'ms' ? '#0284c7' : 'transparent',
+                color: windUnit === 'ms' ? '#ffffff' : '#64748b',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              m/s
+            </button>
+          </div>
+
+          {/* Refresh Button */}
+          <button
+            onClick={() => fetchData(true)}
+            disabled={isRefreshing}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 12px',
+              borderRadius: 999,
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: '#334155',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <RefreshCw style={{ width: 13, height: 13, color: '#00bfa5', animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+            <span>{isRefreshing ? 'Updating...' : 'Live Refresh'}</span>
+          </button>
         </div>
 
-        {/* ── 5 Core Telemetry Cards ── */}
+        {/* ── 5 Core Telemetry Cards in Harmonious Light Palette ── */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
@@ -414,61 +469,59 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
           {/* ════════ CARD 1: CPCB AIR QUALITY INDEX (HERO) ════════ */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.05 }}
+            transition={{ duration: 0.35, delay: 0.05 }}
             whileHover={{ y: -4, transition: { duration: 0.2 } }}
             style={{
-              gridColumn: 'span 1',
-              minHeight: 280,
-              background: 'rgba(15, 23, 42, 0.72)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: `1.5px solid ${aqiInfo.color}44`,
-              borderRadius: 22,
-              padding: '24px 22px',
+              background: 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: `1.5px solid ${aqiCategory.border}`,
+              borderRadius: 24,
+              padding: '26px 24px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               position: 'relative',
               overflow: 'hidden',
-              boxShadow: `0 14px 34px rgba(0, 0, 0, 0.35), 0 0 24px ${aqiInfo.color}18`,
+              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
             }}
           >
-            {/* Soft background aura */}
+            {/* Soft Ambient Radial Corner Glow */}
             <div style={{
               position: 'absolute',
-              top: -40,
-              right: -40,
-              width: 140,
-              height: 140,
+              top: -30,
+              right: -30,
+              width: 130,
+              height: 130,
               borderRadius: '50%',
-              backgroundColor: `${aqiInfo.color}22`,
-              filter: 'blur(35px)',
+              backgroundColor: `${aqiCategory.color}18`,
+              filter: 'blur(30px)',
               pointerEvents: 'none',
             }} />
 
-            {/* Card Header */}
+            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  backgroundColor: `${aqiInfo.color}25`,
+                  width: 42,
+                  height: 42,
+                  borderRadius: 14,
+                  backgroundColor: aqiCategory.bg,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: aqiInfo.color,
-                  border: `1px solid ${aqiInfo.color}55`,
+                  color: aqiCategory.color,
+                  border: `1.5px solid ${aqiCategory.border}`,
                 }}>
-                  <Gauge style={{ width: 20, height: 20 }} />
+                  <Gauge style={{ width: 22, height: 22 }} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
                     Air Quality Index
                   </h3>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', letterSpacing: '0.04em' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
                     CPCB INDIA STANDARD
                   </span>
                 </div>
@@ -480,52 +533,52 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 borderRadius: 999,
                 fontSize: 12,
                 fontWeight: 700,
-                backgroundColor: `${aqiInfo.color}22`,
-                color: aqiInfo.color,
-                border: `1px solid ${aqiInfo.color}66`,
+                backgroundColor: aqiCategory.bg,
+                color: aqiCategory.text,
+                border: `1px solid ${aqiCategory.border}`,
               }}>
-                {aqiInfo.label}
+                {aqiCategory.label}
               </span>
             </div>
 
-            {/* Central Score + Radial Ring */}
+            {/* Central Score + SVG Radial Dial */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              margin: '18px 0',
+              margin: '22px 0',
               zIndex: 1,
             }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{
-                    fontSize: 'clamp(44px, 5.5vw, 56px)',
+                    fontSize: 'clamp(46px, 5.5vw, 60px)',
                     fontWeight: 900,
                     lineHeight: 1,
                     letterSpacing: '-0.04em',
-                    color: aqiInfo.color,
+                    color: aqiCategory.color,
                     fontFamily: 'var(--font-mono)',
                   }}>
                     {loading ? '--' : aqiVal}
                   </span>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#64748b' }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: '#94a3b8' }}>
                     / 500
                   </span>
                 </div>
-                <div style={{ marginTop: 8, fontSize: 12, color: '#cbd5e1' }}>
-                  Dominant: <strong style={{ color: '#ffffff' }}>{aqiData?.dominant_pollutant || 'O₃ / PM2.5'}</strong>
+                <div style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
+                  Dominant: <strong style={{ color: '#0f172a' }}>{aqiData?.dominant_pollutant || 'O₃ / PM2.5'}</strong>
                 </div>
               </div>
 
-              {/* Radial Progress Graphic */}
-              <div style={{ position: 'relative', width: 90, height: 90, flexShrink: 0 }}>
-                <svg width="90" height="90" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
+              {/* Clean Radial Progress Graphic */}
+              <div style={{ position: 'relative', width: 92, height: 92, flexShrink: 0 }}>
+                <svg width="92" height="92" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
                   <circle
                     cx="50"
                     cy="50"
                     r="45"
                     fill="none"
-                    stroke="rgba(255, 255, 255, 0.08)"
+                    stroke="#f1f5f9"
                     strokeWidth="9"
                   />
                   <circle
@@ -533,7 +586,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                     cy="50"
                     r="45"
                     fill="none"
-                    stroke={aqiInfo.color}
+                    stroke={aqiCategory.color}
                     strokeWidth="9"
                     strokeDasharray="283"
                     strokeDashoffset={strokeDashoffset}
@@ -547,10 +600,10 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: 800,
                   fontFamily: 'var(--font-mono)',
-                  color: aqiInfo.color,
+                  color: aqiCategory.color,
                 }}>
                   {Math.round(aqiPercent)}%
                 </div>
@@ -559,41 +612,41 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
             {/* Health snippet */}
             <div style={{
-              padding: '10px 14px',
-              borderRadius: 12,
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.06)',
+              padding: '11px 14px',
+              borderRadius: 14,
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
               fontSize: 12,
-              color: '#94a3b8',
+              color: '#475569',
               lineHeight: 1.4,
               zIndex: 1,
             }}>
-              {aqiVal <= 50 && '✅ Minimal impact. Air quality is considered satisfactory, and air pollution poses little or no risk.'}
-              {aqiVal > 50 && aqiVal <= 100 && '🌿 Minor breathing discomfort to sensitive people with lung or heart issues.'}
-              {aqiVal > 100 && aqiVal <= 200 && '⚠️ Breathing discomfort to the people with lungs, asthma and heart diseases.'}
-              {aqiVal > 200 && '🚨 Air quality is poor. Sensitive individuals should avoid prolonged outdoor exposure.'}
+              {aqiVal <= 50 && '✅ Minimal impact. Air quality is clean and healthy for all outdoor activities.'}
+              {aqiVal > 50 && aqiVal <= 100 && '🌿 Minor breathing discomfort to sensitive individuals with respiratory issues.'}
+              {aqiVal > 100 && aqiVal <= 200 && '⚠️ Noticeable discomfort to people with asthma, heart, or lung diseases.'}
+              {aqiVal > 200 && '🚨 Air pollution is elevated. Limit prolonged strenuous outdoor exertion.'}
             </div>
           </motion.div>
 
           {/* ════════ CARD 2: AMBIENT TEMPERATURE (FROM WEATHER NODE1) ════════ */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
+            transition={{ duration: 0.35, delay: 0.1 }}
             whileHover={{ y: -4, transition: { duration: 0.2 } }}
             style={{
-              background: 'rgba(15, 23, 42, 0.72)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: '1.5px solid rgba(249, 115, 22, 0.28)',
-              borderRadius: 22,
-              padding: '24px 22px',
+              background: 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1.5px solid #fed7aa',
+              borderRadius: 24,
+              padding: '26px 24px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               position: 'relative',
               overflow: 'hidden',
-              boxShadow: '0 14px 34px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.1)',
+              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
             }}
           >
             {/* Top orange glow */}
@@ -601,35 +654,35 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               position: 'absolute',
               top: -30,
               right: -30,
-              width: 120,
-              height: 120,
+              width: 130,
+              height: 130,
               borderRadius: '50%',
-              backgroundColor: 'rgba(249, 115, 22, 0.18)',
+              backgroundColor: 'rgba(249, 115, 22, 0.12)',
               filter: 'blur(30px)',
               pointerEvents: 'none',
             }} />
 
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                  width: 42,
+                  height: 42,
+                  borderRadius: 14,
+                  backgroundColor: '#fff7ed',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#fb923c',
-                  border: '1px solid rgba(249, 115, 22, 0.45)',
+                  color: '#ea580c',
+                  border: '1.5px solid #fed7aa',
                 }}>
-                  <Thermometer style={{ width: 20, height: 20 }} />
+                  <Thermometer style={{ width: 22, height: 22 }} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
                     Temperature
                   </h3>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', letterSpacing: '0.04em' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
                     WEATHER STATION NODE 1
                   </span>
                 </div>
@@ -640,57 +693,57 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 borderRadius: 999,
                 fontSize: 11.5,
                 fontWeight: 700,
-                backgroundColor: 'rgba(249, 115, 22, 0.15)',
-                color: '#fb923c',
-                border: '1px solid rgba(249, 115, 22, 0.35)',
+                backgroundColor: '#fff7ed',
+                color: '#c2410c',
+                border: '1px solid #fed7aa',
               }}>
                 {Number(displayTemp) > 30 ? 'Warm' : (Number(displayTemp) < 22 ? 'Cool' : 'Pleasant')}
               </span>
             </div>
 
             {/* Primary Value */}
-            <div style={{ margin: '20px 0', zIndex: 1 }}>
+            <div style={{ margin: '22px 0', zIndex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                 <span style={{
-                  fontSize: 'clamp(44px, 5.5vw, 56px)',
+                  fontSize: 'clamp(46px, 5.5vw, 60px)',
                   fontWeight: 900,
                   lineHeight: 1,
                   letterSpacing: '-0.04em',
-                  color: '#fdba74',
+                  color: '#ea580c',
                   fontFamily: 'var(--font-mono)',
                 }}>
                   {loading ? '--' : displayTemp}
                 </span>
-                <span style={{ fontSize: 24, fontWeight: 700, color: '#fb923c' }}>
+                <span style={{ fontSize: 26, fontWeight: 700, color: '#94a3b8' }}>
                   °{tempUnit}
                 </span>
               </div>
 
               {displayFeelsLike && (
-                <div style={{ marginTop: 8, fontSize: 13, color: '#cbd5e1' }}>
-                  Feels like: <strong style={{ color: '#ffffff' }}>{displayFeelsLike}°{tempUnit}</strong>
+                <div style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
+                  Feels like: <strong style={{ color: '#0f172a' }}>{displayFeelsLike}°{tempUnit}</strong>
                 </div>
               )}
             </div>
 
-            {/* Bottom Bar: Thermometer progress track */}
+            {/* Thermometer scale track */}
             <div style={{ zIndex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 5 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 6 }}>
                 <span>Cool 15°C</span>
                 <span>Moderate 28°C</span>
-                <span>Hot 40°C</span>
+                <span>Warm 40°C</span>
               </div>
               <div style={{
                 height: 8,
                 borderRadius: 999,
-                background: 'rgba(255, 255, 255, 0.08)',
+                background: '#f1f5f9',
                 overflow: 'hidden',
                 position: 'relative',
               }}>
                 <div style={{
                   height: '100%',
                   width: `${Math.min(100, Math.max(5, ((Number(rawTemp ?? 28) - 10) / 35) * 100))}%`,
-                  background: 'linear-gradient(90deg, #38bdf8 0%, #facc15 50%, #f97316 100%)',
+                  background: 'linear-gradient(90deg, #38bdf8 0%, #facc15 50%, #ea580c 100%)',
                   borderRadius: 999,
                   transition: 'width 0.8s ease',
                 }} />
@@ -700,59 +753,59 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
           {/* ════════ CARD 3: RELATIVE HUMIDITY (FROM WEATHER NODE1) ════════ */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.15 }}
+            transition={{ duration: 0.35, delay: 0.15 }}
             whileHover={{ y: -4, transition: { duration: 0.2 } }}
             style={{
-              background: 'rgba(15, 23, 42, 0.72)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: '1.5px solid rgba(14, 165, 233, 0.28)',
-              borderRadius: 22,
-              padding: '24px 22px',
+              background: 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1.5px solid #bae6fd',
+              borderRadius: 24,
+              padding: '26px 24px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               position: 'relative',
               overflow: 'hidden',
-              boxShadow: '0 14px 34px rgba(0, 0, 0, 0.35), 0 0 24px rgba(14, 165, 233, 0.1)',
+              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
             }}
           >
-            {/* Top cyan glow */}
+            {/* Top sky blue glow */}
             <div style={{
               position: 'absolute',
               top: -30,
               right: -30,
-              width: 120,
-              height: 120,
+              width: 130,
+              height: 130,
               borderRadius: '50%',
-              backgroundColor: 'rgba(14, 165, 233, 0.18)',
+              backgroundColor: 'rgba(14, 165, 233, 0.12)',
               filter: 'blur(30px)',
               pointerEvents: 'none',
             }} />
 
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  backgroundColor: 'rgba(14, 165, 233, 0.2)',
+                  width: 42,
+                  height: 42,
+                  borderRadius: 14,
+                  backgroundColor: '#f0f9ff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#38bdf8',
-                  border: '1px solid rgba(14, 165, 233, 0.45)',
+                  color: '#0284c7',
+                  border: '1.5px solid #bae6fd',
                 }}>
-                  <Droplets style={{ width: 20, height: 20 }} />
+                  <Droplets style={{ width: 22, height: 22 }} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
                     Humidity
                   </h3>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', letterSpacing: '0.04em' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
                     WEATHER STATION NODE 1
                   </span>
                 </div>
@@ -763,42 +816,42 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 borderRadius: 999,
                 fontSize: 11.5,
                 fontWeight: 700,
-                backgroundColor: 'rgba(14, 165, 233, 0.15)',
-                color: '#38bdf8',
-                border: '1px solid rgba(14, 165, 233, 0.35)',
+                backgroundColor: '#e0f2fe',
+                color: '#0369a1',
+                border: '1px solid #bae6fd',
               }}>
-                {Number(displayHumidity) > 75 ? 'Moist / Humid' : (Number(displayHumidity) < 40 ? 'Dry' : 'Comfortable')}
+                {Number(displayHumidity) > 75 ? 'Humid' : (Number(displayHumidity) < 40 ? 'Dry' : 'Comfortable')}
               </span>
             </div>
 
             {/* Primary Value */}
-            <div style={{ margin: '20px 0', zIndex: 1 }}>
+            <div style={{ margin: '22px 0', zIndex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                 <span style={{
-                  fontSize: 'clamp(44px, 5.5vw, 56px)',
+                  fontSize: 'clamp(46px, 5.5vw, 60px)',
                   fontWeight: 900,
                   lineHeight: 1,
                   letterSpacing: '-0.04em',
-                  color: '#7dd3fc',
+                  color: '#0284c7',
                   fontFamily: 'var(--font-mono)',
                 }}>
                   {loading ? '--' : displayHumidity}
                 </span>
-                <span style={{ fontSize: 24, fontWeight: 700, color: '#38bdf8' }}>
+                <span style={{ fontSize: 26, fontWeight: 700, color: '#94a3b8' }}>
                   %
                 </span>
               </div>
 
               {dewPoint != null && (
-                <div style={{ marginTop: 8, fontSize: 13, color: '#cbd5e1' }}>
-                  Dew Point: <strong style={{ color: '#ffffff' }}>{dewPoint}°C</strong>
+                <div style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
+                  Dew Point: <strong style={{ color: '#0f172a' }}>{dewPoint}°C</strong>
                 </div>
               )}
             </div>
 
             {/* Humidity Fill Bar */}
             <div style={{ zIndex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 5 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 6 }}>
                 <span>Dry 20%</span>
                 <span>Ideal 50%</span>
                 <span>Humid 90%</span>
@@ -806,14 +859,14 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               <div style={{
                 height: 8,
                 borderRadius: 999,
-                background: 'rgba(255, 255, 255, 0.08)',
+                background: '#f1f5f9',
                 overflow: 'hidden',
                 position: 'relative',
               }}>
                 <div style={{
                   height: '100%',
                   width: `${Math.min(100, Math.max(5, Number(displayHumidity)))}%`,
-                  background: 'linear-gradient(90deg, #0ea5e9 0%, #38bdf8 60%, #a5f3fc 100%)',
+                  background: 'linear-gradient(90deg, #38bdf8 0%, #0284c7 100%)',
                   borderRadius: 999,
                   transition: 'width 0.8s ease',
                 }} />
@@ -823,59 +876,59 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
           {/* ════════ CARD 4: WIND SPEED & DIRECTION (FROM WEATHER NODE1) ════════ */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.2 }}
+            transition={{ duration: 0.35, delay: 0.2 }}
             whileHover={{ y: -4, transition: { duration: 0.2 } }}
             style={{
-              background: 'rgba(15, 23, 42, 0.72)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: '1.5px solid rgba(16, 185, 129, 0.28)',
-              borderRadius: 22,
-              padding: '24px 22px',
+              background: 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1.5px solid #a7f3d0',
+              borderRadius: 24,
+              padding: '26px 24px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               position: 'relative',
               overflow: 'hidden',
-              boxShadow: '0 14px 34px rgba(0, 0, 0, 0.35), 0 0 24px rgba(16, 185, 129, 0.1)',
+              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
             }}
           >
-            {/* Top green glow */}
+            {/* Top green/emerald glow */}
             <div style={{
               position: 'absolute',
               top: -30,
               right: -30,
-              width: 120,
-              height: 120,
+              width: 130,
+              height: 130,
               borderRadius: '50%',
-              backgroundColor: 'rgba(16, 185, 129, 0.18)',
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
               filter: 'blur(30px)',
               pointerEvents: 'none',
             }} />
 
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                  width: 42,
+                  height: 42,
+                  borderRadius: 14,
+                  backgroundColor: '#ecfdf5',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#34d399',
-                  border: '1px solid rgba(16, 185, 129, 0.45)',
+                  color: '#059669',
+                  border: '1.5px solid #a7f3d0',
                 }}>
-                  <Wind style={{ width: 20, height: 20 }} />
+                  <Wind style={{ width: 22, height: 22 }} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
                     Wind Speed
                   </h3>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', letterSpacing: '0.04em' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
                     WEATHER STATION NODE 1
                   </span>
                 </div>
@@ -886,41 +939,41 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 borderRadius: 999,
                 fontSize: 11.5,
                 fontWeight: 700,
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                color: '#34d399',
-                border: '1px solid rgba(16, 185, 129, 0.35)',
+                backgroundColor: '#ecfdf5',
+                color: '#047857',
+                border: '1px solid #a7f3d0',
               }}>
                 {beaufort.label}
               </span>
             </div>
 
-            {/* Primary Value + Compass Icon */}
+            {/* Primary Value + Compass Needle */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              margin: '20px 0',
+              margin: '22px 0',
               zIndex: 1,
             }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{
-                    fontSize: 'clamp(44px, 5.5vw, 56px)',
+                    fontSize: 'clamp(46px, 5.5vw, 60px)',
                     fontWeight: 900,
                     lineHeight: 1,
                     letterSpacing: '-0.04em',
-                    color: '#6ee7b7',
+                    color: '#059669',
                     fontFamily: 'var(--font-mono)',
                   }}>
                     {loading ? '--' : displayWind}
                   </span>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: '#34d399' }}>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: '#94a3b8' }}>
                     {displayWindUnit}
                   </span>
                 </div>
 
-                <div style={{ marginTop: 8, fontSize: 12, color: '#cbd5e1' }}>
-                  Direction: <strong style={{ color: '#ffffff' }}>{parsedDir.text}</strong> ({parsedDir.deg}°)
+                <div style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
+                  Direction: <strong style={{ color: '#0f172a' }}>{parsedDir.text}</strong> ({parsedDir.deg}°)
                   {windGust != null && <span> • Gust: <strong>{Number(windGust).toFixed(1)} {displayWindUnit}</strong></span>}
                 </div>
               </div>
@@ -928,15 +981,16 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               {/* Animated Compass Needle */}
               <div style={{
                 position: 'relative',
-                width: 68,
-                height: 68,
+                width: 70,
+                height: 70,
                 borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1.5px solid rgba(255, 255, 255, 0.12)',
+                background: '#f8fafc',
+                border: '1.5px solid #cbd5e1',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
+                boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
               }}>
                 <span style={{ position: 'absolute', top: 3, fontSize: 9, fontWeight: 800, color: '#94a3b8' }}>N</span>
                 <span style={{ position: 'absolute', bottom: 3, fontSize: 9, fontWeight: 800, color: '#94a3b8' }}>S</span>
@@ -950,18 +1004,19 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}>
-                  <Compass style={{ width: 28, height: 28, color: '#34d399' }} />
+                  <Compass style={{ width: 28, height: 28, color: '#059669' }} />
                 </div>
               </div>
             </div>
 
             {/* Description */}
             <div style={{
-              padding: '8px 12px',
-              borderRadius: 10,
-              background: 'rgba(255, 255, 255, 0.04)',
-              fontSize: 11.5,
-              color: '#94a3b8',
+              padding: '9px 12px',
+              borderRadius: 12,
+              background: '#f8fafc',
+              fontSize: 12,
+              color: '#64748b',
+              border: '1px solid #e2e8f0',
               zIndex: 1,
             }}>
               Beaufort Force {beaufort.level}: {beaufort.desc}
@@ -970,61 +1025,59 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
           {/* ════════ CARD 5: RAINFALL (FROM WEATHER NODE1) ════════ */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.25 }}
+            transition={{ duration: 0.35, delay: 0.25 }}
             whileHover={{ y: -4, transition: { duration: 0.2 } }}
             style={{
-              background: 'rgba(15, 23, 42, 0.72)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: isRaining ? '1.5px solid #38bdf8' : '1.5px solid rgba(99, 102, 241, 0.28)',
-              borderRadius: 22,
-              padding: '24px 22px',
+              background: 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: isRaining ? '1.5px solid #38bdf8' : '1.5px solid #c7d2fe',
+              borderRadius: 24,
+              padding: '26px 24px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               position: 'relative',
               overflow: 'hidden',
-              boxShadow: isRaining
-                ? '0 14px 34px rgba(0, 0, 0, 0.4), 0 0 28px rgba(56, 189, 248, 0.25)'
-                : '0 14px 34px rgba(0, 0, 0, 0.35), 0 0 24px rgba(99, 102, 241, 0.1)',
+              boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
             }}
           >
-            {/* Top blue/indigo glow */}
+            {/* Top indigo/sky glow */}
             <div style={{
               position: 'absolute',
               top: -30,
               right: -30,
-              width: 120,
-              height: 120,
+              width: 130,
+              height: 130,
               borderRadius: '50%',
-              backgroundColor: isRaining ? 'rgba(56, 189, 248, 0.25)' : 'rgba(99, 102, 241, 0.18)',
+              backgroundColor: isRaining ? 'rgba(56, 189, 248, 0.15)' : 'rgba(99, 102, 241, 0.12)',
               filter: 'blur(30px)',
               pointerEvents: 'none',
             }} />
 
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  backgroundColor: isRaining ? 'rgba(56, 189, 248, 0.2)' : 'rgba(99, 102, 241, 0.2)',
+                  width: 42,
+                  height: 42,
+                  borderRadius: 14,
+                  backgroundColor: isRaining ? '#f0f9ff' : '#eef2ff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: isRaining ? '#38bdf8' : '#818cf8',
-                  border: isRaining ? '1px solid rgba(56, 189, 248, 0.5)' : '1px solid rgba(99, 102, 241, 0.45)',
+                  color: isRaining ? '#0284c7' : '#4f46e5',
+                  border: isRaining ? '1.5px solid #bae6fd' : '1.5px solid #c7d2fe',
                 }}>
-                  <CloudRain style={{ width: 20, height: 20 }} />
+                  <CloudRain style={{ width: 22, height: 22 }} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
                     Rainfall
                   </h3>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', letterSpacing: '0.04em' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
                     WEATHER STATION NODE 1
                   </span>
                 </div>
@@ -1035,48 +1088,48 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 borderRadius: 999,
                 fontSize: 11.5,
                 fontWeight: 700,
-                backgroundColor: isRaining ? 'rgba(56, 189, 248, 0.2)' : 'rgba(99, 102, 241, 0.15)',
-                color: isRaining ? '#38bdf8' : '#a5b4fc',
-                border: isRaining ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(99, 102, 241, 0.35)',
+                backgroundColor: isRaining ? '#e0f2fe' : '#eef2ff',
+                color: isRaining ? '#0369a1' : '#4338ca',
+                border: isRaining ? '1px solid #bae6fd' : '1px solid #c7d2fe',
               }}>
                 {isRaining ? '🌧️ Active Rain' : 'Dry / Clear'}
               </span>
             </div>
 
             {/* Primary Value */}
-            <div style={{ margin: '20px 0', zIndex: 1 }}>
+            <div style={{ margin: '22px 0', zIndex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{
-                  fontSize: 'clamp(44px, 5.5vw, 56px)',
+                  fontSize: 'clamp(46px, 5.5vw, 60px)',
                   fontWeight: 900,
                   lineHeight: 1,
                   letterSpacing: '-0.04em',
-                  color: isRaining ? '#38bdf8' : '#c7d2fe',
+                  color: isRaining ? '#0284c7' : '#4f46e5',
                   fontFamily: 'var(--font-mono)',
                 }}>
                   {loading ? '--' : displayRain}
                 </span>
-                <span style={{ fontSize: 18, fontWeight: 700, color: isRaining ? '#38bdf8' : '#818cf8' }}>
+                <span style={{ fontSize: 20, fontWeight: 700, color: '#94a3b8' }}>
                   mm
                 </span>
               </div>
 
-              <div style={{ marginTop: 8, fontSize: 12, color: '#cbd5e1' }}>
-                Precipitation Gauge: <strong style={{ color: '#ffffff' }}>{isRaining ? 'Rainfall detected' : '0.0 mm accumulated'}</strong>
+              <div style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
+                Precipitation Gauge: <strong style={{ color: '#0f172a' }}>{isRaining ? 'Rainfall detected' : '0.0 mm accumulated'}</strong>
               </div>
             </div>
 
-            {/* Liquid Tank Indicator */}
+            {/* Liquid Level Indicator */}
             <div style={{ zIndex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 5 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginBottom: 6 }}>
                 <span>Dry</span>
-                <span>Moderate (15mm)</span>
-                <span>Heavy (50mm)</span>
+                <span>Moderate 15mm</span>
+                <span>Heavy 50mm</span>
               </div>
               <div style={{
                 height: 8,
                 borderRadius: 999,
-                background: 'rgba(255, 255, 255, 0.08)',
+                background: '#f1f5f9',
                 overflow: 'hidden',
                 position: 'relative',
               }}>
@@ -1085,7 +1138,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   width: `${Math.min(100, Math.max(isRaining ? 15 : 2, (Number(displayRain) / 50) * 100))}%`,
                   background: isRaining
                     ? 'linear-gradient(90deg, #38bdf8 0%, #0284c7 100%)'
-                    : 'linear-gradient(90deg, #6366f1 0%, #818cf8 100%)',
+                    : 'linear-gradient(90deg, #818cf8 0%, #4f46e5 100%)',
                   borderRadius: 999,
                   transition: 'width 0.8s ease',
                 }} />
@@ -1094,6 +1147,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           </motion.div>
 
         </div>
+
       </div>
 
       <style>{`
@@ -1101,9 +1155,10 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        @keyframes pulseGlow {
-          from { opacity: 0.5; transform: scale(0.95); }
-          to { opacity: 0.85; transform: scale(1.05); }
+        @keyframes breathAtmosphere {
+          0% { opacity: 0.4; transform: scale(0.96) translate(0, 0); }
+          50% { opacity: 0.7; transform: scale(1.04) translate(-10px, 10px); }
+          100% { opacity: 0.4; transform: scale(0.96) translate(0, 0); }
         }
       `}</style>
     </div>
