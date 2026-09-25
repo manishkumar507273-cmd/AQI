@@ -72,7 +72,7 @@ export function AuthProvider({ children }) {
 
   const loginWithGoogle = async () => {
     const res = await fbLoginWithGoogle();
-    if (res) handleAuthSuccess(); // null on mobile redirect — handled by getRedirectResult
+    handleAuthSuccess();
     return res;
   };
 

@@ -736,38 +736,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   Dominant: <strong style={{ color: '#0f172a' }}>{aqiData?.dominant_pollutant || 'O₃'}</strong>
                 </div>
               </div>
-
-              {/* Creative Mini Circular Dial */}
-              <div className="overview-card-dial" style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
-                <svg width="44" height="44" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
-                  <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" strokeWidth="12" />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="38"
-                    fill="none"
-                    stroke={aqiCategory.color}
-                    strokeWidth="12"
-                    strokeDasharray="238.7"
-                    strokeDashoffset={238.7 - (238.7 * Math.min(100, Math.max(0, (aqiVal / 500) * 100))) / 100}
-                    strokeLinecap="round"
-                    style={{ transition: 'stroke-dashoffset 0.8s ease' }}
-                  />
-                </svg>
-                <div style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 10,
-                  fontWeight: 800,
-                  fontFamily: 'var(--font-mono)',
-                  color: aqiCategory.color,
-                }}>
-                  {Math.round(Math.min(100, (aqiVal / 500) * 100))}%
-                </div>
-              </div>
             </div>
 
             {/* Micro AQI Progress Bar with Calibrated Range Scale */}
@@ -871,17 +839,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   °{tempUnit}
                 </span>
               </div>
-
-              {/* Secondary Telemetry: Feels Like */}
-              {displayFeelsLike != null && (
-                <div className="overview-sub-badge" style={{
-                  background: '#fff7ed',
-                  border: '1px solid #fed7aa',
-                  color: '#ea580c',
-                }}>
-                  Feels {displayFeelsLike}°{tempUnit}
-                </div>
-              )}
             </div>
 
             {/* Micro Thermal Progress Bar with Range Scale */}
@@ -985,17 +942,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   %
                 </span>
               </div>
-
-              {/* Secondary Telemetry: Dew Point */}
-              {dewPoint != null && (
-                <div className="overview-sub-badge" style={{
-                  background: '#f0f9ff',
-                  border: '1px solid #bae6fd',
-                  color: '#0284c7',
-                }}>
-                  Dew {tempUnit === 'F' ? ((dewPoint * 9 / 5) + 32).toFixed(1) : dewPoint}°{tempUnit}
-                </div>
-              )}
             </div>
 
             {/* Micro Humidity Liquid Bar with Range Scale */}
@@ -1491,7 +1437,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                       border: '1px solid rgba(226, 232, 240, 0.9)',
                       whiteSpace: 'nowrap',
                     }}>
-                      {item.hasActual ? `AQI: ${item.actual_aqi ?? '—'}` : '—'}
+                      {item.hasActual ? `Act AQI: ${item.actual_aqi ?? '—'}` : '—'}
                     </div>
                   </div>
                 ))
