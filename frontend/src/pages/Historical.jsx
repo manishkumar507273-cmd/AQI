@@ -1115,7 +1115,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
 
                   {/* Pollutants Mini-Chips */}
                   {selectedDaySummary.hourCount > 0 && (
-                    <div className="filter-chips-container" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <div className="mobile-stats-grid" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       {selectedDaySummary.avgPm25 != null && (
                         <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '5px 9px', fontSize: 11 }}>
                           <span style={{ color: '#64748b', fontWeight: 600 }}>PM2.5: </span>
@@ -1151,7 +1151,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                 </div>
               ) : (
                 /* Weather Summary */
-                <div className="filter-chips-container" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div className="mobile-stats-grid" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
                     <span style={{ color: '#9a3412', fontWeight: 600 }}>Avg Temp: </span>
                     <strong style={{ color: '#ea580c', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgTemp != null ? `${selectedDaySummary.avgTemp}°C` : '-'}</strong>
