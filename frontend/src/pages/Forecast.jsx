@@ -309,7 +309,19 @@ export default function Forecast({ refreshKey }) {
     };
   }, [processedItems]);
 
-  const visibleTimelineItems = processedItems;
+  const visibleTimelineItems = useMemo(() => {
+    return processedItems.filter((item) => {
+      if (!item.iso_time) return true;
+      const itemTime = new Date(item.iso_time).getTime();
+      if (isNaN(itemTime)) return true;
+      
+      // Keep items where the time is >= the start of the current hour
+      const currentHourStart = new Date(currentTime);
+      currentHourStart.setMinutes(0, 0, 0);
+      
+      return itemTime >= currentHourStart.getTime();
+    });
+  }, [processedItems, currentTime]);
 
   // Active inspected slot defaults smoothly to first visible upcoming hour
   const activeSlot = useMemo(() => {

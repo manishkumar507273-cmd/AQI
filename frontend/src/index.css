@@ -633,6 +633,12 @@ img, svg, video, canvas {
     gap: 12px !important;
   }
 
+  /* Utility to stack items strictly on mobile */
+  .mobile-stack {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
   /* 10. Data Tables — compact, always horizontally scrollable */
   .table-responsive-wrapper {
     border-radius: 12px !important;
