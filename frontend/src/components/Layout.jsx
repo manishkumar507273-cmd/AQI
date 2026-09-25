@@ -611,37 +611,40 @@ export default function Layout({
       </main>
 
       {/* ─── Native Mobile Bottom Navigation Bar (<768px) ─── */}
-      <nav className="mobile-bottom-nav">
-        {[
-          { id: 'live', label: 'Live Stream', icon: Radio },
-          { id: 'forecast', label: 'Forecast', icon: LineChart },
-          { id: 'historical', label: 'Archive', icon: Database },
-        ].map((tab) => {
-          const isActive = currentTab === tab.id;
-          const Icon = tab.icon;
-          return (
-            <motion.button
-              key={tab.id}
-              onClick={() => handleNavItemClick(tab.id)}
-              whileTap={{ scale: 0.92 }}
-              className={`mobile-bottom-nav-item ${isActive ? 'active' : ''}`}
-              aria-label={tab.label}
-            >
-              <div className="mobile-bottom-nav-icon-wrap">
-                <Icon className="mobile-bottom-nav-icon" />
-                {isActive && (
-                  <motion.div
-                    layoutId="mobileBottomIndicator"
-                    className="mobile-bottom-nav-indicator"
-                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                  />
-                )}
-              </div>
-              <span className="mobile-bottom-nav-label">{tab.label}</span>
-            </motion.button>
-          );
-        })}
-      </nav>
+      {/* Only show bottom nav after sign-in; hide on the overview/landing page for guests */}
+      {(currentUser || isRegisteredUser || activeNav !== 'overview') && (
+        <nav className="mobile-bottom-nav">
+          {[
+            { id: 'live', label: 'Live Stream', icon: Radio },
+            { id: 'forecast', label: 'Forecast', icon: LineChart },
+            { id: 'historical', label: 'Archive', icon: Database },
+          ].map((tab) => {
+            const isActive = currentTab === tab.id;
+            const Icon = tab.icon;
+            return (
+              <motion.button
+                key={tab.id}
+                onClick={() => handleNavItemClick(tab.id)}
+                whileTap={{ scale: 0.92 }}
+                className={`mobile-bottom-nav-item ${isActive ? 'active' : ''}`}
+                aria-label={tab.label}
+              >
+                <div className="mobile-bottom-nav-icon-wrap">
+                  <Icon className="mobile-bottom-nav-icon" />
+                  {isActive && (
+                    <motion.div
+                      layoutId="mobileBottomIndicator"
+                      className="mobile-bottom-nav-indicator"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                </div>
+                <span className="mobile-bottom-nav-label">{tab.label}</span>
+              </motion.button>
+            );
+          })}
+        </nav>
+      )}
 
       {/* ─── Firebase Auth Modal ─── */}
       <AuthModal />

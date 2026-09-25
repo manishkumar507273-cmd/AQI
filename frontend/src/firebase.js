@@ -3,6 +3,8 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut as firebaseSignOut, 
@@ -47,6 +49,21 @@ export const rtdb = getDatabase(app);
 // Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+// Detect mobile browsers (redirect is faster/more reliable than popup on mobile)
+const isMobile = () =>
+  typeof window !== 'undefined' &&
+  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+// Handle redirect result on app init (completes mobile Google sign-in)
+if (typeof window !== 'undefined') {
+  getRedirectResult(getAuth()).then((result) => {
+    if (result?.user) {
+      syncUserProfile(result.user, { provider: 'google.com' }).catch(() => {});
+      logUserActivity(result.user, 'login', { method: 'google' }).catch(() => {});
+    }
+  }).catch(() => {});
+}
 
 // Initialize Analytics if supported
 export let analytics = null;
@@ -114,9 +131,14 @@ export const logUserActivity = async (user, action, details = {}) => {
 
 // Authentication Helper Functions (Fast & non-blocking)
 export const loginWithGoogle = async () => {
+  if (isMobile()) {
+    // On mobile: redirect is faster and avoids popup-blocked issues
+    await signInWithRedirect(auth, googleProvider);
+    return null; // page will reload; getRedirectResult() handles the result
+  }
+  // On desktop: popup is instant
   const result = await signInWithPopup(auth, googleProvider);
   if (result.user) {
-    // Background sync to RTDB without blocking modal resolution
     syncUserProfile(result.user, { provider: 'google.com' }).catch(() => {});
     logUserActivity(result.user, 'login', { method: 'google' }).catch(() => {});
   }

@@ -180,7 +180,8 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
   const scrollTimeline = (direction) => {
     if (!timelineScrollerRef.current) return;
-    const offset = direction === 'left' ? -260 : 260;
+    const cardWidth = 116 + 12; // card width + gap = one data point
+    const offset = direction === 'left' ? -cardWidth : cardWidth;
     timelineScrollerRef.current.scrollBy({ left: offset, behavior: 'smooth' });
   };
 
@@ -1490,7 +1491,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                       border: '1px solid rgba(226, 232, 240, 0.9)',
                       whiteSpace: 'nowrap',
                     }}>
-                      {item.hasActual ? `Act: ${item.actual_aqi ?? '—'}` : (item.temperature_c != null ? `${fmt(item.temperature_c, 1)}°C${item.humidity_pct != null ? ` • ${fmt(item.humidity_pct, 1)}%` : ''}` : 'Projected')}
+                      {item.hasActual ? `AQI: ${item.actual_aqi ?? '—'}` : '—'}
                     </div>
                   </div>
                 ))
