@@ -50,15 +50,17 @@ def get_http_client() -> httpx.AsyncClient:
         _CLIENT = httpx.AsyncClient(timeout=10.0, follow_redirects=True)
     return _CLIENT
 
-import joblib
-
-CALIBRATORS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "aqi_model_and_calibrators", "sensor_calibrators.pkl")
 _CALIBRATORS: Optional[Dict[str, Any]] = None
-if os.path.exists(CALIBRATORS_PATH):
-    try:
-        _CALIBRATORS = joblib.load(CALIBRATORS_PATH)
-    except Exception as e:
-        print(f"Warning loading sensor calibrators in supabase_service: {e}")
+try:
+    import joblib
+    CALIBRATORS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "aqi_model_and_calibrators", "sensor_calibrators.pkl")
+    if os.path.exists(CALIBRATORS_PATH):
+        try:
+            _CALIBRATORS = joblib.load(CALIBRATORS_PATH)
+        except Exception as e:
+            print(f"Warning loading sensor calibrators in supabase_service: {e}")
+except ImportError:
+    pass
 
 CPCB_BREAKPOINTS = {
     "pm25": [(0.0, 30.0, 0, 50), (30.0, 60.0, 51, 100), (60.0, 90.0, 101, 200), (90.0, 120.0, 201, 300), (120.0, 250.0, 301, 400), (250.0, 500.0, 401, 500)],
