@@ -79,6 +79,26 @@ def _calc_subindex(k: str, val: Optional[float]) -> float:
     c_lo, c_hi, i_lo, i_hi = tiers[-1]
     return round(min(500.0, max(0.0, ((i_hi - i_lo) / (c_hi - c_lo)) * (cp - c_lo) + i_lo)), 1)
 
+IST_TZ = timezone(timedelta(hours=5, minutes=30))
+
+def parse_to_ist_iso(ts_raw: Optional[str]) -> str:
+    """
+    Parses any Supabase timestamp string (UTC with +00:00 or Z) and accurately converts
+    it to Indian Standard Time (IST) in ISO format (YYYY-MM-DDTHH:MM:SS).
+    If the string is already without timezone (like AQI_NODE1 in IST), it preserves it as is.
+    """
+    if not ts_raw:
+        return ""
+    ts_str = str(ts_raw).strip()
+    try:
+        if "+00:00" in ts_str or ts_str.endswith("Z"):
+            dt_utc = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            dt_ist = dt_utc.astimezone(IST_TZ)
+            return dt_ist.strftime("%Y-%m-%dT%H:%M:%S")
+    except Exception:
+        pass
+    return ts_str.replace("+00:00", "").replace("Z", "")
+
 def get_table_url(table_name: str) -> str:
     return f"{BASE_URL}/rest/v1/{table_name}"
 
@@ -360,13 +380,13 @@ async def get_cloud_history(limit: int = 96) -> List[Dict[str, Any]]:
     return generate_24h_15min_history([], limit=limit)
 
 async def get_weather_history(limit: int = 96) -> List[Dict[str, Any]]:
-    """Historical Weather Data: Fetches 4th table (WEATHER_NODE1) directly from Supabase"""
+    """Historical Weather Data: Fetches 4th table (WEATHER_NODE1) directly from Supabase with IST timestamps"""
     weather_hist_rows = await fetch_table_rows(TABLE_WEATHER_HISTORICAL, limit=limit)
     if weather_hist_rows:
         result = []
         for raw in weather_hist_rows:
             raw_ts = str(raw.get("timestamp_hour") or raw.get("created_at") or raw.get("timestamp") or "")
-            clean_ts = raw_ts.replace("+00:00", "").replace("Z", "")
+            clean_ts = parse_to_ist_iso(raw_ts)
             result.append({
                 "id": clean_ts or raw.get("id"),
                 "timestamp": clean_ts,
@@ -462,7 +482,8 @@ def format_dataset_csv(rows: List[Dict[str, Any]], category: str) -> str:
         for r in rows:
             ts = str(r.get('timestamp_hour') or r.get('created_at') or '')
             try:
-                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                ist_iso = parse_to_ist_iso(ts)
+                dt = datetime.fromisoformat(ist_iso)
                 d_str = dt.strftime('%d-%m-%Y')
                 t_str = dt.strftime('%I:%M%p').lower().lstrip('0')
             except Exception:
