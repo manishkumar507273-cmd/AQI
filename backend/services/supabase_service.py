@@ -86,18 +86,27 @@ def parse_to_ist_iso(ts_raw: Optional[str]) -> str:
     Parses any Supabase timestamp string (UTC with +00:00 or Z) and accurately converts
     it to Indian Standard Time (IST) in ISO format (YYYY-MM-DDTHH:MM:SS).
     If the string is already without timezone (like AQI_NODE1 in IST), it preserves it as is.
+
+    IMPORTANT: Never strip +00:00/Z without converting — doing so turns UTC times
+    into naive strings identical to UTC, not IST (+5:30 offset is lost silently).
     """
     if not ts_raw:
         return ""
     ts_str = str(ts_raw).strip()
-    try:
-        if "+00:00" in ts_str or ts_str.endswith("Z"):
+
+    # UTC-marked string — always convert to IST
+    if "+00:00" in ts_str or ts_str.endswith("Z"):
+        try:
             dt_utc = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
             dt_ist = dt_utc.astimezone(IST_TZ)
             return dt_ist.strftime("%Y-%m-%dT%H:%M:%S")
-    except Exception:
-        pass
-    return ts_str.replace("+00:00", "").replace("Z", "")
+        except Exception:
+            # Conversion failed — return original WITH the UTC marker intact.
+            # NEVER strip +00:00/Z: that would silently display UTC time as IST.
+            return ts_str
+
+    # No timezone marker — assume already IST naive string, return as-is
+    return ts_str
 
 def get_table_url(table_name: str) -> str:
     return f"{BASE_URL}/rest/v1/{table_name}"
@@ -462,7 +471,8 @@ def format_dataset_csv(rows: List[Dict[str, Any]], category: str) -> str:
         for r in rows:
             ts = str(r.get('timestamp_hour') or r.get('created_at') or '')
             try:
-                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                ist_iso = parse_to_ist_iso(ts)
+                dt = datetime.fromisoformat(ist_iso)
                 d_str = dt.strftime('%d-%m-%Y')
                 t_str = dt.strftime('%I:%M%p').lower().lstrip('0')
             except Exception:

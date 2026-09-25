@@ -115,7 +115,7 @@ const calcSubindex = (paramKey, cp) => {
 // Invalidate stale local caches completely so only new model predictions render
 try {
   const v = localStorage.getItem('CALIBRATOR_CACHE_VERSION');
-  if (v !== '3.2.0') {
+  if (v !== '3.4.0') {
     localStorage.removeItem('CACHE_AQI_NODE1_FORECAST_24H');
     localStorage.removeItem('CACHE_AQI_LSTM_FORECAST_24H');
     localStorage.removeItem('CACHE_CLOUD_LATEST');
@@ -124,9 +124,50 @@ try {
     localStorage.removeItem('CACHE_AQI_COMPARISON');
     localStorage.removeItem('CACHE_AQI_FORECAST_REGISTRY');
     localStorage.removeItem('FORECAST_PREDICTIONS_REGISTRY');
-    localStorage.setItem('CALIBRATOR_CACHE_VERSION', '3.2.0');
+    localStorage.removeItem('CACHE_WEATHER_HISTORICAL');
+    localStorage.removeItem('CACHE_WEATHER_LIVE_HISTORY');
+    localStorage.removeItem('CACHE_WEATHER_LATEST');
+    localStorage.setItem('CALIBRATOR_CACHE_VERSION', '3.4.0');
   }
 } catch (e) {}
+
+/**
+ * Accurately parses UTC ISO timestamp strings (with +00:00 or Z) and translates them
+ * into Indian Standard Time (IST, UTC+5:30) in format YYYY-MM-DDTHH:MM:SS.
+ * If timestamp is already local without timezone (like AQI_NODE1), preserves it as is.
+ *
+ * IMPORTANT: Never strip +00:00/Z without converting — doing so turns UTC times
+ * into naive strings that JS will interpret as local time, displaying UTC values instead of IST.
+ */
+export const parseToIstIso = (tsRaw) => {
+  if (!tsRaw) return '';
+  const tsStr = String(tsRaw).trim();
+
+  // Already a UTC-marked string — always convert to IST
+  if (tsStr.includes('+00:00') || tsStr.endsWith('Z')) {
+    try {
+      const dt = new Date(tsStr);
+      if (!isNaN(dt.getTime())) {
+        const istOffsetMs = 5.5 * 60 * 60 * 1000;
+        const istDt = new Date(dt.getTime() + istOffsetMs);
+        const y = istDt.getUTCFullYear();
+        const m = String(istDt.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(istDt.getUTCDate()).padStart(2, '0');
+        const h = String(istDt.getUTCHours()).padStart(2, '0');
+        const min = String(istDt.getUTCMinutes()).padStart(2, '0');
+        const s = String(istDt.getUTCSeconds()).padStart(2, '0');
+        return `${y}-${m}-${d}T${h}:${min}:${s}`;
+      }
+    } catch (e) {}
+    // Parse failed — return original string with UTC marker intact so
+    // `new Date()` can still correctly apply the offset (shows IST via toLocaleTimeString).
+    // NEVER strip +00:00 or Z here: that would make the time display as UTC.
+    return tsStr;
+  }
+
+  // No timezone marker — assume already IST naive string, return as-is
+  return tsStr;
+};
 
 const formatRawReading = (raw) => {
   if (!raw) return null;
@@ -419,8 +460,9 @@ const formatHistoricalReading = (raw) => {
   if (!raw) return null;
   const base = formatRawReading(raw);
   if (!base) return null;
-  // Override timestamp: prefer timestamp_hour (canonical hour boundary) over created_at
-  base.timestamp = raw.timestamp_hour || raw.created_at || raw.timestamp;
+  // Override timestamp: prefer timestamp_hour (canonical hour boundary) over created_at, translated to IST
+  const rawTs = raw.timestamp_hour || raw.created_at || raw.timestamp;
+  base.timestamp = parseToIstIso(rawTs);
   return base;
 };
 
@@ -474,7 +516,7 @@ export const getCloudWeatherHistory = async (limit = 96) => {
     const history = list.map((raw) => {
       if (!raw) return null;
       const rawTs = raw.timestamp_hour || raw.created_at || raw.timestamp;
-      const cleanTs = typeof rawTs === 'string' ? rawTs.replace(/(\+00:00|Z)$/, '') : rawTs;
+      const cleanTs = parseToIstIso(rawTs);
       return {
         id: cleanTs || raw.id,
         timestamp: cleanTs,
@@ -870,7 +912,7 @@ export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026,
     if (category === 'aqi') {
       headersArr = ['Date', 'Time', 'AQI', 'Temperature (°C)', 'Humidity (%)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO2 (µg/m³)', 'O3 (µg/m³)'];
       rowsArr = allRows.map((r) => {
-        const ts = r.timestamp_hour || r.created_at || '';
+        const ts = parseToIstIso(r.timestamp_hour || r.created_at || '');
         let dStr = ts;
         let tStr = '';
         if (ts) {
@@ -904,7 +946,7 @@ export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026,
     } else {
       headersArr = ['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'];
       rowsArr = allRows.map((r) => {
-        const ts = r.timestamp_hour || r.created_at || '';
+        const ts = parseToIstIso(r.timestamp_hour || r.created_at || '');
         let dStr = ts;
         let tStr = '';
         if (ts) {

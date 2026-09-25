@@ -1,9 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wind, LineChart, Database, Radio, Menu, X, ArrowLeft, ArrowUpRight, LogOut, LogIn, UserCheck } from 'lucide-react';
 import WindCanvas from './WindCanvas';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './AuthModal';
+
+function UserAvatar({ user, size = 28, fontSize = 12.5 }) {
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [user?.photoURL]);
+
+  const initial = (user?.displayName || user?.email || 'U')[0].toUpperCase();
+
+  if (user?.photoURL && !imgError) {
+    return (
+      <img
+        src={user.photoURL}
+        alt=""
+        referrerPolicy="no-referrer"
+        onError={() => setImgError(true)}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          display: 'block',
+          flexShrink: 0,
+        }}
+      />
+    );
+  }
+
+  return (
+    <div style={{
+      width: size,
+      height: size,
+      borderRadius: '50%',
+      backgroundColor: '#00bfa5',
+      color: '#ffffff',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize,
+      fontWeight: 700,
+      flexShrink: 0,
+      boxShadow: '0 1px 3px rgba(0, 191, 165, 0.3)',
+    }}>
+      {initial}
+    </div>
+  );
+}
 
 const STATIONS = [
   { id: 'station-1', name: 'SMVITM — Station 1', sub: 'Active Live Stream', location: 'SMVITM Campus', isLive: true },
@@ -282,28 +330,7 @@ export default function Layout({
               padding: '3px 10px 3px 4px',
               boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
             }}>
-              {currentUser.photoURL ? (
-                <img
-                  src={currentUser.photoURL}
-                  alt={currentUser.displayName || 'User'}
-                  style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
-                />
-              ) : (
-                <div style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  backgroundColor: '#00bfa5',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                }}>
-                  {(currentUser.displayName || currentUser.email || 'U')[0].toUpperCase()}
-                </div>
-              )}
+              <UserAvatar user={currentUser} size={28} fontSize={12.5} />
               <span style={{
                 fontSize: 12,
                 fontWeight: 700,
@@ -504,13 +531,7 @@ export default function Layout({
                 {currentUser ? (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-                      {currentUser.photoURL ? (
-                        <img src={currentUser.photoURL} alt="User" style={{ width: 30, height: 30, borderRadius: '50%' }} />
-                      ) : (
-                        <div style={{ width: 30, height: 30, borderRadius: '50%', backgroundColor: '#00bfa5', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
-                          {(currentUser.displayName || currentUser.email || 'U')[0].toUpperCase()}
-                        </div>
-                      )}
+                      <UserAvatar user={currentUser} size={30} fontSize={13} />
                       <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                           {currentUser.displayName || currentUser.email?.split('@')[0]}
