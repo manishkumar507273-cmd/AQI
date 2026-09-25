@@ -365,7 +365,7 @@ export default function Layout({
             </div>
           ) : (
             <button
-              onClick={() => openAuthModal()}
+              onClick={() => openAuthModal(() => handleTopTabClick('dashboard'))}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -563,7 +563,7 @@ export default function Layout({
                   </>
                 ) : (
                   <button
-                    onClick={() => { setMobileMenuOpen(false); openAuthModal(); }}
+                    onClick={() => { setMobileMenuOpen(false); openAuthModal(() => handleTopTabClick('dashboard')); }}
                     style={{
                       width: '100%',
                       padding: '8px 14px',

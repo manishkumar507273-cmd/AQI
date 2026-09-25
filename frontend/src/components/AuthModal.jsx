@@ -4,7 +4,7 @@ import { X, Mail, Lock, User, Eye, EyeOff, Sparkles, AlertCircle, RefreshCw, Che
 import { useAuth } from '../context/AuthContext';
 
 export default function AuthModal() {
-  const { authModalOpen, closeAuthModal, loginWithGoogle, loginWithEmail, registerWithEmail } = useAuth();
+  const { authModalOpen, closeAuthModal, loginWithGoogle, loginWithEmail, registerWithEmail, loginAsAdmin } = useAuth();
   
   const [mode, setMode] = useState('register'); // 'register' | 'login'
   const [displayName, setDisplayName] = useState('');
@@ -70,6 +70,20 @@ export default function AuthModal() {
     e.preventDefault();
     setErrorMsg('');
 
+    if (mode === 'admin') {
+      if (!password) {
+        setErrorMsg('Please enter the bypass code.');
+        return;
+      }
+      if (password === '1234') {
+        loginAsAdmin();
+        resetState();
+      } else {
+        setErrorMsg('Incorrect Admin Password.');
+      }
+      return;
+    }
+
     if (!email.trim() || !password) {
       setErrorMsg('Please enter both email and password.');
       return;
@@ -84,6 +98,13 @@ export default function AuthModal() {
         setErrorMsg('Passwords do not match. Please re-enter.');
         return;
       }
+    }
+
+    // Developer Admin Bypass (fallback if typed in login)
+    if (mode === 'login' && email.trim().toLowerCase() === 'admin' && password === '1234') {
+      loginAsAdmin();
+      resetState();
+      return;
     }
 
     setLoading(true);
@@ -204,7 +225,7 @@ export default function AuthModal() {
                 letterSpacing: '-0.03em',
                 margin: '0 0 6px',
               }}>
-                {mode === 'register' ? 'Create Your Account' : 'Welcome Back'}
+                {mode === 'register' ? 'Create Your Account' : mode === 'admin' ? 'Developer Access' : 'Welcome Back'}
               </h2>
 
               <p style={{
@@ -213,11 +234,15 @@ export default function AuthModal() {
                 lineHeight: 1.45,
                 margin: 0,
               }}>
-                Sign in to view real-time live sensor telemetry, historical analysis, and predictive forecasts.
+                {mode === 'admin' 
+                  ? 'Enter the bypass code to unlock local dashboard access without a Firebase account.'
+                  : 'Sign in to view real-time live sensor telemetry, historical analysis, and predictive forecasts.'}
               </p>
             </div>
 
-            {/* Google One-Click Login Button */}
+            {mode !== 'admin' && (
+              <>
+                {/* Google One-Click Login Button */}
             <button
               type="button"
               onClick={handleGoogleSubmit}
@@ -322,6 +347,8 @@ export default function AuthModal() {
                 Sign In
               </button>
             </div>
+            </>
+            )}
 
             {/* Error Banner */}
             {errorMsg && (
@@ -379,16 +406,17 @@ export default function AuthModal() {
                 </div>
               )}
 
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                  Email Address
-                </label>
+              {mode !== 'admin' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 5 }}>
+                    Email Address
+                  </label>
                 <div style={{ position: 'relative' }}>
                   <Mail size={15} style={{ position: 'absolute', left: 12, top: 12, color: '#94a3b8' }} />
                   <input
-                    type="email"
+                    type={mode === 'register' ? 'email' : 'text'}
                     required
-                    placeholder="name@example.com"
+                    placeholder="name@example.com or admin"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     disabled={loading}
@@ -407,17 +435,18 @@ export default function AuthModal() {
                   />
                 </div>
               </div>
+              )}
 
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 5 }}>
-                  Password
+                  {mode === 'admin' ? 'Bypass Code' : 'Password'}
                 </label>
                 <div style={{ position: 'relative' }}>
                   <Lock size={15} style={{ position: 'absolute', left: 12, top: 12, color: '#94a3b8' }} />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    placeholder={mode === 'register' ? 'At least 6 characters' : 'Enter password'}
+                    placeholder={mode === 'admin' ? 'Enter admin code' : mode === 'register' ? 'At least 6 characters' : 'Enter password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     disabled={loading}
@@ -518,6 +547,11 @@ export default function AuthModal() {
                     <CheckCircle2 size={16} />
                     <span>Create Account & Unlock Dashboard</span>
                   </>
+                ) : mode === 'admin' ? (
+                  <>
+                    <Sparkles size={16} />
+                    <span>Unlock Dashboard</span>
+                  </>
                 ) : (
                   <span>Sign In & Unlock Dashboard</span>
                 )}
@@ -526,7 +560,23 @@ export default function AuthModal() {
 
             {/* Bottom switcher prompt */}
             <div style={{ marginTop: 16, textAlign: 'center', fontSize: 12.5, color: '#64748b' }}>
-              {mode === 'register' ? (
+              {mode === 'admin' ? (
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    color: '#64748b',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Return to Sign In
+                </button>
+              ) : mode === 'register' ? (
                 <>
                   Already registered?{' '}
                   <button
@@ -566,6 +616,28 @@ export default function AuthModal() {
                 </>
               )}
             </div>
+
+            {/* Developer Admin Bypass */}
+            {mode !== 'admin' && (
+              <div style={{ marginTop: 16, textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => switchMode('admin')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: '4px 8px',
+                    color: '#94a3b8',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Developer Admin Bypass
+                </button>
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

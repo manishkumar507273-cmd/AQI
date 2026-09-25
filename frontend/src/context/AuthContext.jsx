@@ -88,12 +88,27 @@ export function AuthProvider({ children }) {
     return res;
   };
 
+  const loginAsAdmin = () => {
+    setCurrentUser({
+      uid: 'admin-dev-bypass',
+      email: 'admin@local.dev',
+      displayName: 'Admin Developer',
+    });
+    handleAuthSuccess();
+  };
+
   const logout = async () => {
     setIsRegisteredUser(false);
     try {
       localStorage.removeItem('SMART_WEATHER_NET_REGISTERED');
       localStorage.removeItem('SMART_WEATHER_NET_USER_EMAIL');
     } catch (_) {}
+    
+    // If it's the admin bypass, just reset state
+    if (currentUser?.uid === 'admin-dev-bypass') {
+      setCurrentUser(null);
+      return;
+    }
     return await fbLogout();
   };
 
@@ -108,6 +123,7 @@ export function AuthProvider({ children }) {
       loginWithGoogle,
       loginWithEmail,
       registerWithEmail,
+      loginAsAdmin,
       logout,
     }}>
       {children}
