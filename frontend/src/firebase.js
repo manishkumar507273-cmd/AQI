@@ -3,8 +3,6 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
-  signInWithRedirect,
-  getRedirectResult,
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut as firebaseSignOut, 
@@ -22,25 +20,23 @@ import {
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC8UYQMhOaS5SFAdkCcdISTkEWw57WsmFs",
-  authDomain: "smart-air-net.firebaseapp.com",
-  databaseURL: "https://smart-air-net-default-rtdb.firebaseio.com",
-  projectId: "smart-air-net",
-  storageBucket: "smart-air-net.firebasestorage.app",
-  messagingSenderId: "647061464752",
-  appId: "1:647061464752:web:349c77286659f3a9d4fd75",
-  measurementId: "G-09JTD9RQQJ"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Auth with persistent browser local storage
+// Initialize Firebase Auth — set persistence non-blocking
 export const auth = getAuth(app);
 if (typeof window !== 'undefined') {
-  setPersistence(auth, browserLocalPersistence).catch((err) => {
-    console.warn('Firebase persistence warning:', err);
-  });
+  setPersistence(auth, browserLocalPersistence).catch(() => {});
 }
 
 // Initialize Realtime Database (RTDB)
@@ -50,28 +46,11 @@ export const rtdb = getDatabase(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-// Detect mobile browsers (redirect is faster/more reliable than popup on mobile)
-const isMobile = () =>
-  typeof window !== 'undefined' &&
-  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-
-// Handle redirect result on app init (completes mobile Google sign-in)
-if (typeof window !== 'undefined') {
-  getRedirectResult(getAuth()).then((result) => {
-    if (result?.user) {
-      syncUserProfile(result.user, { provider: 'google.com' }).catch(() => {});
-      logUserActivity(result.user, 'login', { method: 'google' }).catch(() => {});
-    }
-  }).catch(() => {});
-}
-
-// Initialize Analytics if supported
+// Initialize Analytics if supported (non-blocking)
 export let analytics = null;
 if (typeof window !== 'undefined') {
   isSupported().then((supported) => {
-    if (supported) {
-      analytics = getAnalytics(app);
-    }
+    if (supported) analytics = getAnalytics(app);
   }).catch(() => {});
 }
 
@@ -99,7 +78,7 @@ export const syncUserProfile = async (user, extraData = {}) => {
     const userRtdbRef = rtdbRef(rtdb, `users/${user.uid}`);
     await rtdbSet(userRtdbRef, profileData);
   } catch (rtdbErr) {
-    console.warn('Realtime Database profile sync note:', rtdbErr?.message || rtdbErr);
+    console.warn('RTDB profile sync note:', rtdbErr?.message || rtdbErr);
   }
 
   return profileData;
@@ -111,13 +90,12 @@ export const syncUserProfile = async (user, extraData = {}) => {
 export const logUserActivity = async (user, action, details = {}) => {
   if (!user || !user.uid) return;
 
-  const nowIso = new Date().toISOString();
   const logEntry = {
     uid: user.uid,
     email: user.email || '',
-    action, // 'login', 'register', 'dataset_download', etc.
+    action,
     details,
-    timestamp: nowIso,
+    timestamp: new Date().toISOString(),
   };
 
   try {
@@ -125,20 +103,16 @@ export const logUserActivity = async (user, action, details = {}) => {
     const newLogRef = rtdbPush(logsRtdbRef);
     await rtdbSet(newLogRef, logEntry);
   } catch (rtdbLogErr) {
-    console.warn('Realtime Database log note:', rtdbLogErr?.message || rtdbLogErr);
+    console.warn('RTDB log note:', rtdbLogErr?.message || rtdbLogErr);
   }
 };
 
-// Authentication Helper Functions (Fast & non-blocking)
+// ── Authentication Helpers ──────────────────────────────────────────
+
 export const loginWithGoogle = async () => {
-  if (isMobile()) {
-    // On mobile: redirect is faster and avoids popup-blocked issues
-    await signInWithRedirect(auth, googleProvider);
-    return null; // page will reload; getRedirectResult() handles the result
-  }
-  // On desktop: popup is instant
   const result = await signInWithPopup(auth, googleProvider);
   if (result.user) {
+    // Fire-and-forget: don't block sign-in on RTDB writes
     syncUserProfile(result.user, { provider: 'google.com' }).catch(() => {});
     logUserActivity(result.user, 'login', { method: 'google' }).catch(() => {});
   }
@@ -149,9 +123,7 @@ export const registerWithEmail = async (email, password, displayName = '') => {
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   if (userCredential.user) {
     if (displayName) {
-      try {
-        await updateProfile(userCredential.user, { displayName });
-      } catch (_) {}
+      try { await updateProfile(userCredential.user, { displayName }); } catch (_) {}
     }
     syncUserProfile(userCredential.user, { displayName, provider: 'password' }).catch(() => {});
     logUserActivity(userCredential.user, 'register', { method: 'email', displayName }).catch(() => {});
@@ -170,9 +142,7 @@ export const loginWithEmail = async (email, password) => {
 
 export const logoutUser = async () => {
   const current = auth.currentUser;
-  if (current) {
-    logUserActivity(current, 'logout', {}).catch(() => {});
-  }
+  if (current) logUserActivity(current, 'logout', {}).catch(() => {});
   return await firebaseSignOut(auth);
 };
 
