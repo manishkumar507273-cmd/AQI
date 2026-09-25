@@ -1,14 +1,23 @@
 import axios from 'axios';
 
-const baseURL = import.meta.env.VITE_API_BASE_URL 
-  ? `${import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')}/api` 
+const isBrowser = typeof window !== 'undefined';
+const isLocalhost = isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+const rawApiUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || '';
+const hasRemoteBackend = Boolean(rawApiUrl && !rawApiUrl.includes('localhost') && !rawApiUrl.includes('127.0.0.1'));
+// In local dev or when a dedicated remote backend is configured, we can call the backend API.
+// On Vercel without a dedicated backend, avoid calling localhost or relative /api to prevent rewrites to index.html.
+export const canCallBackend = isLocalhost || hasRemoteBackend;
+
+const baseURL = rawApiUrl 
+  ? `${rawApiUrl.replace(/\/$/, '')}/api` 
   : '/api';
 
 const DEFAULT_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNna2RwbGlxbGhnaXFzYWJ4enhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4NzgzMTIsImV4cCI6MjEwMDQ1NDMxMn0.vMtbXomFdmOcBkhhSoiyYyp_vFxOhg4MYCFCw9-pL30";
 
-let rawUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL || 'https://sgkdpliqlhgiqsabxzxe.supabase.co';
+let rawUrl = (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_SUPABASE_URL || import.meta.env?.NEXT_PUBLIC_SUPABASE_URL)) || 'https://sgkdpliqlhgiqsabxzxe.supabase.co';
 const supabaseBaseUrl = rawUrl.includes('/rest/v1') ? rawUrl.split('/rest/v1')[0] : rawUrl.replace(/\/$/, '');
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || DEFAULT_KEY;
+const supabaseKey = (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_SUPABASE_KEY || import.meta.env?.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)) || DEFAULT_KEY;
 
 // Table definitions as requested:
 // 1st: AQI_LIVE_NODE1 (Live AQI)
@@ -24,8 +33,25 @@ const getTableRestUrl = (tableName) => `${supabaseBaseUrl}/rest/v1/${tableName}`
 
 const api = axios.create({
   baseURL,
-  timeout: 45000,
+  timeout: 30000,
 });
+
+// Response interceptor: detect HTML responses returned from SPA catch-all rewrites (e.g. Vercel index.html)
+api.interceptors.response.use(
+  (response) => {
+    const contentType = response.headers?.['content-type'] || '';
+    if (
+      (typeof response.data === 'string' && (response.data.trim().startsWith('<!doctype') || response.data.trim().startsWith('<html'))) ||
+      (contentType.includes('text/html') && typeof response.data === 'string')
+    ) {
+      const err = new Error('Backend route not found (received HTML rewrite)');
+      err.response = { status: 404, data: null };
+      return Promise.reject(err);
+    }
+    return response;
+  },
+  (error) => Promise.reject(error)
+);
 
 // ==============================================================================
 // ENHANCED MODEL & SENSOR CALIBRATOR WEIGHTS (from aqi_model_and_calibrators)
@@ -251,9 +277,13 @@ export const getCloudLatest = async () => {
     return { data: { status: 'success', data: cached, isOffline: true } };
   }
 
-  return api.get('/cloud/latest').catch(() => {
-    return { data: { status: 'offline', data: cached } };
-  });
+  if (canCallBackend) {
+    return api.get('/cloud/latest').catch(() => {
+      return { data: { status: 'offline', data: cached } };
+    });
+  }
+
+  return { data: { status: 'offline', data: cached } };
 };
 
 export const getCloudLiveHistory = async (limit = 50) => {
@@ -285,9 +315,13 @@ export const getCloudLiveHistory = async (limit = 50) => {
     return { data: { status: 'success', count: cached.length, history: cached, isOffline: true } };
   }
 
-  return api.get(`/cloud/live-history?limit=${limit}`).catch(() => {
-    return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
-  });
+  if (canCallBackend) {
+    return api.get(`/cloud/live-history?limit=${limit}`).catch(() => {
+      return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
+    });
+  }
+
+  return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
 };
 
 export const getWeatherLatest = async () => {
@@ -321,9 +355,13 @@ export const getWeatherLatest = async () => {
     return { data: { status: 'success', data: cached, isOffline: true } };
   }
 
-  return api.get('/cloud/weather-latest').catch(() => {
-    return { data: { status: 'offline', data: cached } };
-  });
+  if (canCallBackend) {
+    return api.get('/cloud/weather-latest').catch(() => {
+      return { data: { status: 'offline', data: cached } };
+    });
+  }
+
+  return { data: { status: 'offline', data: cached } };
 };
 
 export const getCloudWeatherLiveHistory = async (limit = 50) => {
@@ -366,9 +404,13 @@ export const getCloudWeatherLiveHistory = async (limit = 50) => {
     return { data: { status: 'success', count: cached.length, history: cached, isOffline: true } };
   }
 
-  return api.get(`/cloud/weather-live-history?limit=${limit}`).catch(() => {
-    return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
-  });
+  if (canCallBackend) {
+    return api.get(`/cloud/weather-live-history?limit=${limit}`).catch(() => {
+      return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
+    });
+  }
+
+  return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
 };
 
 // Formats a historical AQI_NODE1 row — prefers timestamp_hour over created_at
@@ -411,9 +453,13 @@ export const getCloudHistory = async (limit = 96) => {
     return { data: { status: 'success', count: cached.length, history: cached, isOffline: true } };
   }
 
-  return api.get(`/cloud/history?limit=${limit}`).catch(() => {
-    return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
-  });
+  if (canCallBackend) {
+    return api.get(`/cloud/history?limit=${limit}`).catch(() => {
+      return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
+    });
+  }
+
+  return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
 };
 
 export const getCloudWeatherHistory = async (limit = 96) => {
@@ -459,9 +505,13 @@ export const getCloudWeatherHistory = async (limit = 96) => {
     return { data: { status: 'success', count: cached.length, history: cached, isOffline: true } };
   }
 
-  return api.get(`/cloud/weather-history?limit=${limit}`).catch(() => {
-    return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
-  });
+  if (canCallBackend) {
+    return api.get(`/cloud/weather-history?limit=${limit}`).catch(() => {
+      return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
+    });
+  }
+
+  return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
 };
 
 
@@ -522,20 +572,22 @@ export const saveToForecastRegistry = (forecastList) => {
 export const getAqiForecast = async (force = false) => {
   const cached = getCachedData('CACHE_AQI_NODE1_FORECAST_24H');
 
-  // 1. Try FastAPI backend endpoint (if backend is running or VITE_API_BASE_URL is set)
-  try {
-    const res = await api.get(`/forecast/24h${force ? '?force=true' : ''}`, { timeout: 60000 });
-    if (res.data && res.data.forecast && res.data.forecast.length > 0) {
-      const incomingGen = res.data.generated_at;
-      // Guard: never overwrite with an older forecast batch
-      if (!cached || !cached.generated_at || !incomingGen || new Date(incomingGen) >= new Date(cached.generated_at)) {
-        setCachedData('CACHE_AQI_NODE1_FORECAST_24H', res.data);
-        saveToForecastRegistry(res.data.forecast);
+  // 1. Try FastAPI backend endpoint (if local backend is running or dedicated remote backend is configured)
+  if (canCallBackend) {
+    try {
+      const res = await api.get(`/forecast/24h${force ? '?force=true' : ''}`, { timeout: 15000 });
+      if (res.data && res.data.forecast && Array.isArray(res.data.forecast) && res.data.forecast.length > 0) {
+        const incomingGen = res.data.generated_at;
+        // Guard: never overwrite with an older forecast batch
+        if (!cached || !cached.generated_at || !incomingGen || new Date(incomingGen) >= new Date(cached.generated_at)) {
+          setCachedData('CACHE_AQI_NODE1_FORECAST_24H', res.data);
+          saveToForecastRegistry(res.data.forecast);
+        }
+        return { data: res.data };
       }
-      return { data: res.data };
+    } catch (err) {
+      // Backend unavailable or timed out, gracefully continue to Supabase Cloud
     }
-  } catch (err) {
-    // Expected on serverless Vercel frontend if Python backend is hosted separately
   }
 
   // 2. Try direct Supabase table fetch (aqi_forecasts_24h) - query NEWEST 24 records from latest generation batch
@@ -677,17 +729,19 @@ export const getAqiForecast = async (force = false) => {
 
 export const getAqiComparison = async (historyLimit = 48, force = false) => {
   const cached = getCachedData('CACHE_AQI_COMPARISON');
-  try {
-    const res = await api.get(`/aqi/comparison?history_limit=${historyLimit}`);
-    if (res.data && (res.data.aligned_schedule || res.data.forecast)) {
-      setCachedData('CACHE_AQI_COMPARISON', res.data);
-      if (res.data.forecast) {
-        saveToForecastRegistry(res.data.forecast);
+  if (canCallBackend) {
+    try {
+      const res = await api.get(`/aqi/comparison?history_limit=${historyLimit}`);
+      if (res.data && (res.data.aligned_schedule || res.data.forecast)) {
+        setCachedData('CACHE_AQI_COMPARISON', res.data);
+        if (res.data.forecast) {
+          saveToForecastRegistry(res.data.forecast);
+        }
+        return { data: res.data };
       }
-      return { data: res.data };
+    } catch (err) {
+      console.warn('Backend AQI comparison fetch error, falling back to dual fetch:', err?.message || err);
     }
-  } catch (err) {
-    console.warn('Backend AQI comparison fetch error, falling back to dual fetch:', err?.message || err);
   }
 
   if (cached && !force) {
@@ -721,50 +775,57 @@ export const getAqiComparison = async (historyLimit = 48, force = false) => {
 };
 
 export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026, month = null }) => {
-  // 1. Try FastAPI backend endpoint first
-  try {
-    const monthParam = (month && month !== 'all') ? `&month=${month}` : '';
-    const url = `/cloud/export-dataset?category=${category}&year=${year}${monthParam}`;
-    const res = await api.get(url, { responseType: 'blob', timeout: 60000 });
-    
-    // Extract filename from header if present
-    const disposition = res.headers['content-disposition'] || '';
-    let filename = '';
-    const match = disposition.match(/filename=["']?([^"']+)["']?/);
-    if (match && match[1]) {
-      filename = match[1];
-    } else {
-      const monthPart = (month && month !== 'all') ? `_${String(month).padStart(2, '0')}` : '_Full_Year';
-      filename = `${category === 'aqi' ? 'AQI' : 'Weather'}_Historical_Dataset_${year}${monthPart}.csv`;
-    }
+  // 1. Try FastAPI backend endpoint first if backend is available
+  if (canCallBackend) {
+    try {
+      const monthParam = (month && month !== 'all') ? `&month=${month}` : '';
+      const url = `/cloud/export-dataset?category=${category}&year=${year}${monthParam}`;
+      const res = await api.get(url, { responseType: 'blob', timeout: 30000 });
+      
+      // Verify response is not an HTML document rewrite
+      if (res.data instanceof Blob && (res.data.type.includes('html') || res.data.type.includes('text/html'))) {
+        throw new Error('Backend export returned HTML rewrite');
+      }
 
-    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(downloadUrl);
+      // Extract filename from header if present
+      const disposition = res.headers['content-disposition'] || '';
+      let filename = '';
+      const match = disposition.match(/filename=["']?([^"']+)["']?/);
+      if (match && match[1]) {
+        filename = match[1];
+      } else {
+        const monthPart = (month && month !== 'all') ? `_${String(month).padStart(2, '0')}` : '_Full_Year';
+        filename = `${category === 'aqi' ? 'AQI' : 'Weather'}_Historical_Dataset_${year}${monthPart}.csv`;
+      }
 
-    const rowsCount = res.headers['x-dataset-rows'] ? Number(res.headers['x-dataset-rows']) : null;
-    return { success: true, filename, count: rowsCount };
-  } catch (err) {
-    if (err.response?.status === 404) {
-      let detail = 'No data recorded for this period in database.';
-      try {
-        if (err.response.data instanceof Blob) {
-          const text = await err.response.data.text();
-          const parsed = JSON.parse(text);
-          if (parsed.detail) detail = parsed.detail;
-        } else if (err.response.data?.detail) {
-          detail = err.response.data.detail;
-        }
-      } catch (_) {}
-      throw new Error(detail);
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+
+      const rowsCount = res.headers['x-dataset-rows'] ? Number(res.headers['x-dataset-rows']) : null;
+      return { success: true, filename, count: rowsCount };
+    } catch (err) {
+      if (err.response?.status === 404) {
+        let detail = 'No data recorded for this period in database.';
+        try {
+          if (err.response.data instanceof Blob) {
+            const text = await err.response.data.text();
+            const parsed = JSON.parse(text);
+            if (parsed.detail) detail = parsed.detail;
+          } else if (err.response.data?.detail) {
+            detail = err.response.data.detail;
+          }
+        } catch (_) {}
+        throw new Error(detail);
+      }
+      console.warn('Backend dataset export fallback to direct client pagination:', err?.message || err);
     }
-    console.warn('Backend dataset export fallback to direct client pagination:', err?.message || err);
   }
 
   // 2. Client-side fallback: fetch directly from Supabase with pagination
@@ -893,13 +954,15 @@ export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026,
 };
 
 export const getAvailablePeriods = async (category = 'aqi') => {
-  try {
-    const res = await api.get(`/cloud/available-periods?category=${category}`, { timeout: 15000 });
-    if (res.data?.status === 'success' && res.data.periods) {
-      return res.data;
+  if (canCallBackend) {
+    try {
+      const res = await api.get(`/cloud/available-periods?category=${category}`, { timeout: 10000 });
+      if (res.data?.status === 'success' && res.data.periods) {
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('Backend available-periods fetch error, fallback to client computation:', err?.message || err);
     }
-  } catch (err) {
-    console.warn('Backend available-periods fetch error, fallback to client computation:', err?.message || err);
   }
   return null;
 };

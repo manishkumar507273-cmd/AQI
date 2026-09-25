@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut as firebaseSignOut, 
-  onAuthStateChanged,
+  onAuthStateChanged as firebaseOnAuthStateChanged,
   updateProfile,
   setPersistence,
   browserLocalPersistence
@@ -19,46 +19,90 @@ import {
 } from 'firebase/database';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+// Default project configuration fallback (ensures production builds on Vercel run without crashing if env vars are unset)
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC8UYQMhOaS5SFAdkCcdISTkEWw57WsmFs",
+  authDomain: "smart-air-net.firebaseapp.com",
+  databaseURL: "https://smart-air-net-default-rtdb.firebaseio.com",
+  projectId: "smart-air-net",
+  storageBucket: "smart-air-net.firebasestorage.app",
+  messagingSenderId: "647061464752",
+  appId: "1:647061464752:web:349c77286659f3a9d4fd75",
+  measurementId: "G-09JTD9RQQJ",
 };
 
-// Initialize Firebase App
-const app = initializeApp(firebaseConfig);
+const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
 
-// Initialize Firebase Auth — set persistence non-blocking
-export const auth = getAuth(app);
-if (typeof window !== 'undefined') {
-  setPersistence(auth, browserLocalPersistence).catch(() => {});
+const firebaseConfig = {
+  apiKey: env.VITE_FIREBASE_API_KEY || DEFAULT_FIREBASE_CONFIG.apiKey,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || DEFAULT_FIREBASE_CONFIG.authDomain,
+  databaseURL: env.VITE_FIREBASE_DATABASE_URL || DEFAULT_FIREBASE_CONFIG.databaseURL,
+  projectId: env.VITE_FIREBASE_PROJECT_ID || DEFAULT_FIREBASE_CONFIG.projectId,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || DEFAULT_FIREBASE_CONFIG.storageBucket,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || DEFAULT_FIREBASE_CONFIG.messagingSenderId,
+  appId: env.VITE_FIREBASE_APP_ID || DEFAULT_FIREBASE_CONFIG.appId,
+  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || DEFAULT_FIREBASE_CONFIG.measurementId,
+};
+
+let app = null;
+let auth = null;
+let rtdb = null;
+let googleProvider = null;
+let analytics = null;
+let isFirebaseInitialized = false;
+
+try {
+  if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5 && !firebaseConfig.apiKey.includes('your_')) {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    if (typeof window !== 'undefined') {
+      setPersistence(auth, browserLocalPersistence).catch(() => {});
+    }
+    rtdb = getDatabase(app);
+    googleProvider = new GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: 'select_account' });
+    isFirebaseInitialized = true;
+
+    if (typeof window !== 'undefined') {
+      isSupported().then((supported) => {
+        if (supported && app) analytics = getAnalytics(app);
+      }).catch(() => {});
+    }
+  } else {
+    console.warn('Firebase apiKey missing. Operating in offline resilient mode.');
+  }
+} catch (initErr) {
+  console.warn('Firebase initialization error caught (resilient mode active):', initErr?.message || initErr);
 }
 
-// Initialize Realtime Database (RTDB)
-export const rtdb = getDatabase(app);
+export { auth, rtdb, googleProvider, analytics, isFirebaseInitialized };
 
-// Google Auth Provider
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
-
-// Initialize Analytics if supported (non-blocking)
-export let analytics = null;
-if (typeof window !== 'undefined') {
-  isSupported().then((supported) => {
-    if (supported) analytics = getAnalytics(app);
-  }).catch(() => {});
-}
+/**
+ * Safe wrapper around onAuthStateChanged that never throws and always resolves auth state
+ */
+export const onAuthStateChanged = (authInstance, callback) => {
+  if (!authInstance || !isFirebaseInitialized) {
+    if (typeof callback === 'function') {
+      setTimeout(() => callback(null), 0);
+    }
+    return () => {};
+  }
+  try {
+    return firebaseOnAuthStateChanged(authInstance, callback);
+  } catch (err) {
+    console.warn('onAuthStateChanged error caught:', err?.message || err);
+    if (typeof callback === 'function') {
+      setTimeout(() => callback(null), 0);
+    }
+    return () => {};
+  }
+};
 
 /**
  * Sync user profile to Realtime Database in background (non-blocking)
  */
 export const syncUserProfile = async (user, extraData = {}) => {
-  if (!user || !user.uid) return null;
+  if (!rtdb || !user || !user.uid) return null;
 
   const nowIso = new Date().toISOString();
   const provider = user.providerData?.[0]?.providerId || extraData.provider || 'email';
@@ -88,7 +132,7 @@ export const syncUserProfile = async (user, extraData = {}) => {
  * Log user actions to Realtime Database in background (non-blocking)
  */
 export const logUserActivity = async (user, action, details = {}) => {
-  if (!user || !user.uid) return;
+  if (!rtdb || !user || !user.uid) return;
 
   const logEntry = {
     uid: user.uid,
@@ -110,9 +154,11 @@ export const logUserActivity = async (user, action, details = {}) => {
 // ── Authentication Helpers ──────────────────────────────────────────
 
 export const loginWithGoogle = async () => {
+  if (!auth || !googleProvider) {
+    throw new Error('Authentication is currently not initialized. Check your Firebase API key.');
+  }
   const result = await signInWithPopup(auth, googleProvider);
   if (result.user) {
-    // Fire-and-forget: don't block sign-in on RTDB writes
     syncUserProfile(result.user, { provider: 'google.com' }).catch(() => {});
     logUserActivity(result.user, 'login', { method: 'google' }).catch(() => {});
   }
@@ -120,6 +166,9 @@ export const loginWithGoogle = async () => {
 };
 
 export const registerWithEmail = async (email, password, displayName = '') => {
+  if (!auth) {
+    throw new Error('Authentication is currently not initialized. Check your Firebase API key.');
+  }
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   if (userCredential.user) {
     if (displayName) {
@@ -132,6 +181,9 @@ export const registerWithEmail = async (email, password, displayName = '') => {
 };
 
 export const loginWithEmail = async (email, password) => {
+  if (!auth) {
+    throw new Error('Authentication is currently not initialized. Check your Firebase API key.');
+  }
   const result = await signInWithEmailAndPassword(auth, email, password);
   if (result.user) {
     syncUserProfile(result.user, { provider: 'password' }).catch(() => {});
@@ -141,10 +193,10 @@ export const loginWithEmail = async (email, password) => {
 };
 
 export const logoutUser = async () => {
+  if (!auth) return;
   const current = auth.currentUser;
   if (current) logUserActivity(current, 'logout', {}).catch(() => {});
   return await firebaseSignOut(auth);
 };
 
-export { onAuthStateChanged };
 export default app;

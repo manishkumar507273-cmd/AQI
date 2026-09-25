@@ -47,6 +47,9 @@ export default function AuthModal() {
     if (code === 'auth/network-request-failed') {
       return 'Network connection failed. Please check your internet connection.';
     }
+    if (code === 'auth/unauthorized-domain') {
+      return 'This domain is not authorized in Firebase Console. Add your Vercel domain under Authentication > Settings > Authorized domains.';
+    }
     return err?.message || 'Authentication failed. Please try again.';
   };
 
