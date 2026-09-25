@@ -640,6 +640,13 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       ? Number(rainVals.reduce((acc, val) => acc + val, 0).toFixed(3))
       : 0;
 
+    // Maximum Wind Gust across the day / observation cycle
+    const gustVals = filteredRows
+      .map(r => r.wind_gust)
+      .filter(v => v != null && !isNaN(Number(v)))
+      .map(Number);
+    const maxWindGust = gustVals.length > 0 ? Math.max(...gustVals).toFixed(3) : null;
+
     return {
       dateStr: effectiveSelectedDate,
       cycleStartStr: formatLongDate(cycleBounds.start),
@@ -659,6 +666,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       avgTemp,
       avgHum,
       avgWind,
+      maxWindGust,
       modeWindDir,
       modeCompassDir,
       modeDisplay,
@@ -1185,6 +1193,10 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                   <div style={{ background: '#e0e7ff', border: '1px solid #c7d2fe', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
                     <span style={{ color: '#3730a3', fontWeight: 600 }}>Avg Wind: </span>
                     <strong style={{ color: '#4f46e5', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgWind != null ? `${selectedDaySummary.avgWind} km/h` : '-'}</strong>
+                  </div>
+                  <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
+                    <span style={{ color: '#6b21a8', fontWeight: 600 }}>Max Wind Gust: </span>
+                    <strong style={{ color: '#8b5cf6', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.maxWindGust != null ? `${selectedDaySummary.maxWindGust} km/h` : '-'}</strong>
                   </div>
                   <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
                     <span style={{ color: '#115e59', fontWeight: 600 }}>Avg Wind Dir (Mode): </span>
