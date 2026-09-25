@@ -663,14 +663,18 @@ img, svg, video, canvas {
   }
 
   .table-responsive-wrapper table {
-    font-size: 11px !important;
-    min-width: 600px !important;
+    font-size: 10px !important;
+    min-width: 100% !important;
   }
 
   .table-responsive-wrapper th,
   .table-responsive-wrapper td {
-    padding: 7px 10px !important;
+    padding: 5px 6px !important;
     white-space: nowrap !important;
+  }
+
+  .mobile-hide {
+    display: none !important;
   }
 
   /* 11. Modal Dialogs */
