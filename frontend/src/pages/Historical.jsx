@@ -1499,31 +1499,6 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* Export CSV Button */}
-            <button
-              onClick={handleExportCSV}
-              disabled={day24HourData.length === 0}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 14px',
-                borderRadius: 10,
-                border: '1px solid #cbd5e1',
-                backgroundColor: '#ffffff',
-                color: '#334155',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: day24HourData.length === 0 ? 'not-allowed' : 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Download style={{ width: 14, height: 14, color: '#00bfa5' }} />
-              <span className="desktop-only-inline">Export Day CSV ({day24HourData.length} Rows)</span>
-              <span className="mobile-only-inline">Day CSV</span>
-            </button>
-          </div>
         </div>
 
         {/* ── Bulk Dataset Download Bar (Complete Year / Month) ── */}
