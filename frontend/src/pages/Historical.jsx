@@ -1115,7 +1115,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
 
                   {/* Pollutants Mini-Chips */}
                   {selectedDaySummary.hourCount > 0 && (
-                    <div className="mobile-stats-grid" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <div className="mobile-stats-grid-compact" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       {selectedDaySummary.avgPm25 != null && (
                         <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '5px 9px', fontSize: 11 }}>
                           <span style={{ color: '#64748b', fontWeight: 600 }}>PM2.5: </span>
@@ -1151,31 +1151,49 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                 </div>
               ) : (
                 /* Weather Summary */
-                <div className="mobile-stats-grid" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div className="mobile-stats-grid-compact" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
-                    <span style={{ color: '#9a3412', fontWeight: 600 }}>Avg Temp: </span>
+                    <span style={{ color: '#9a3412', fontWeight: 600 }}>
+                      <span className="desktop-only-inline">Avg Temp: </span>
+                      <span className="mobile-only-inline">Temp: </span>
+                    </span>
                     <strong style={{ color: '#ea580c', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgTemp != null ? `${selectedDaySummary.avgTemp}°C` : '-'}</strong>
                   </div>
                   <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
-                    <span style={{ color: '#065f46', fontWeight: 600 }}>Avg Hum: </span>
+                    <span style={{ color: '#065f46', fontWeight: 600 }}>
+                      <span className="desktop-only-inline">Avg Hum: </span>
+                      <span className="mobile-only-inline">Hum: </span>
+                    </span>
                     <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgHum != null ? `${selectedDaySummary.avgHum}%` : '-'}</strong>
                   </div>
                   <div style={{ background: '#e0e7ff', border: '1px solid #c7d2fe', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
-                    <span style={{ color: '#3730a3', fontWeight: 600 }}>Avg Wind: </span>
+                    <span style={{ color: '#3730a3', fontWeight: 600 }}>
+                      <span className="desktop-only-inline">Avg Wind: </span>
+                      <span className="mobile-only-inline">Wind: </span>
+                    </span>
                     <strong style={{ color: '#4f46e5', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.avgWind != null ? `${selectedDaySummary.avgWind} km/h` : '-'}</strong>
                   </div>
                   <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
-                    <span style={{ color: '#6b21a8', fontWeight: 600 }}>Max Wind Gust: </span>
+                    <span style={{ color: '#6b21a8', fontWeight: 600 }}>
+                      <span className="desktop-only-inline">Max Wind Gust: </span>
+                      <span className="mobile-only-inline">Gust: </span>
+                    </span>
                     <strong style={{ color: '#8b5cf6', fontFamily: 'var(--font-mono)' }}>{selectedDaySummary.maxWindGust != null ? `${selectedDaySummary.maxWindGust} km/h` : '-'}</strong>
                   </div>
                   <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
-                    <span style={{ color: '#115e59', fontWeight: 600 }}>Avg Wind Dir (Mode): </span>
+                    <span style={{ color: '#115e59', fontWeight: 600 }}>
+                      <span className="desktop-only-inline">Avg Wind Dir (Mode): </span>
+                      <span className="mobile-only-inline">Dir: </span>
+                    </span>
                     <strong style={{ color: '#0d9488', fontFamily: 'var(--font-mono)' }}>
                       {selectedDaySummary.modeDisplay || '-'}
                     </strong>
                   </div>
                   <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '6px 12px', fontSize: 11.5 }}>
-                    <span style={{ color: '#1e40af', fontWeight: 600 }}>Total Rain (24h Sum): </span>
+                    <span style={{ color: '#1e40af', fontWeight: 600 }}>
+                      <span className="desktop-only-inline">Total Rain (24h Sum): </span>
+                      <span className="mobile-only-inline">Rain: </span>
+                    </span>
                     <strong style={{ color: '#2563eb', fontFamily: 'var(--font-mono)' }}>
                       {selectedDaySummary.totalRainSum != null ? `${selectedDaySummary.totalRainSum} mm` : '0.0 mm'}
                     </strong>
