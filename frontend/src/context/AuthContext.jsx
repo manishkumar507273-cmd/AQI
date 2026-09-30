@@ -26,11 +26,8 @@ export function AuthProvider({ children }) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
 
-  // Check if device was previously authenticated / registered
-  const [isRegisteredUser, setIsRegisteredUser] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('SMART_WEATHER_NET_REGISTERED') === 'true';
-  });
+  // Strictly rely on active Firebase session or explicit active bypass (no persistent local storage guest access)
+  const [isRegisteredUser, setIsRegisteredUser] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -41,6 +38,9 @@ export function AuthProvider({ children }) {
           localStorage.setItem('SMART_WEATHER_NET_REGISTERED', 'true');
           localStorage.setItem('SMART_WEATHER_NET_USER_EMAIL', user.email || '');
         } catch (_) {}
+      } else {
+        // Ensure that if Firebase confirms no user is logged in, we lock the dashboard
+        setIsRegisteredUser(false);
       }
       setLoading(false);
     });
