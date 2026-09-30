@@ -319,7 +319,7 @@ export default function Layout({
           )}
 
           {/* User Account / Profile Badge */}
-          {currentUser ? (
+          {(currentUser || isRegisteredUser) ? (
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -330,7 +330,7 @@ export default function Layout({
               padding: '3px 10px 3px 4px',
               boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
             }}>
-              <UserAvatar user={currentUser} size={28} fontSize={12.5} />
+              <UserAvatar user={currentUser || { displayName: 'G' }} size={28} fontSize={12.5} />
               <span style={{
                 fontSize: 12,
                 fontWeight: 700,
@@ -340,7 +340,7 @@ export default function Layout({
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap'
               }}>
-                {currentUser.displayName || currentUser.email?.split('@')[0]}
+                {currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0]) : 'Guest Access'}
               </span>
               <button
                 onClick={handleSignOut}
@@ -528,16 +528,16 @@ export default function Layout({
                 justifyContent: 'space-between',
                 gap: 10,
               }}>
-                {currentUser ? (
+                {(currentUser || isRegisteredUser) ? (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-                      <UserAvatar user={currentUser} size={30} fontSize={13} />
+                      <UserAvatar user={currentUser || { displayName: 'G' }} size={30} fontSize={13} />
                       <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                          {currentUser.displayName || currentUser.email?.split('@')[0]}
+                          {currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0]) : 'Guest Access'}
                         </span>
                         <span style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                          {currentUser.email}
+                          {currentUser ? currentUser.email : 'Local Session'}
                         </span>
                       </div>
                     </div>
