@@ -499,7 +499,7 @@ export default function Layout({
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
+              transition={{ type: 'spring', stiffness: 350, damping: 25, mass: 0.8 }}
               style={{
                 position: 'fixed',
                 top: 64,

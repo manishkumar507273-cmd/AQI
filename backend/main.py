@@ -7,15 +7,16 @@ from routers import aqi, weather, cloud
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Start the automated 1-hour forecast engine sync loop as a background task
-    from scheduler import start_scheduler
-    loop = asyncio.get_running_loop()
-    task = loop.create_task(start_scheduler(interval_seconds=3600))
+    # (Disabled locally so it doesn't overwrite the 1 AM GitHub Actions schedule)
+    # from scheduler import start_scheduler
+    # loop = asyncio.get_running_loop()
+    # task = loop.create_task(start_scheduler(interval_seconds=3600))
     yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    # task.cancel()
+    # try:
+    #     await task
+    # except asyncio.CancelledError:
+    #     pass
 
 app = FastAPI(
     title="Smart AirNet API",

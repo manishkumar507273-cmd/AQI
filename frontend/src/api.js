@@ -115,8 +115,9 @@ const calcSubindex = (paramKey, cp) => {
 // Invalidate stale local caches completely so only new model predictions render
 try {
   const v = localStorage.getItem('CALIBRATOR_CACHE_VERSION');
-  if (v !== '3.4.0') {
+  if (v !== '3.4.1') {
     localStorage.removeItem('CACHE_AQI_NODE1_FORECAST_24H');
+    localStorage.removeItem('CACHE_WEATHER_FORECAST_168H');
     localStorage.removeItem('CACHE_AQI_LSTM_FORECAST_24H');
     localStorage.removeItem('CACHE_CLOUD_LATEST');
     localStorage.removeItem('CACHE_AQI_LIVE_HISTORY');
@@ -127,7 +128,7 @@ try {
     localStorage.removeItem('CACHE_WEATHER_HISTORICAL');
     localStorage.removeItem('CACHE_WEATHER_LIVE_HISTORY');
     localStorage.removeItem('CACHE_WEATHER_LATEST');
-    localStorage.setItem('CALIBRATOR_CACHE_VERSION', '3.4.0');
+    localStorage.setItem('CALIBRATOR_CACHE_VERSION', '3.4.1');
   }
 } catch (e) {}
 
@@ -136,14 +137,14 @@ try {
  * into Indian Standard Time (IST, UTC+5:30) in format YYYY-MM-DDTHH:MM:SS.
  * If timestamp is already local without timezone (like AQI_NODE1), preserves it as is.
  *
- * IMPORTANT: Never strip +00:00/Z without converting — doing so turns UTC times
+ * IMPORTANT: Never strip +00:00/Z without converting â€” doing so turns UTC times
  * into naive strings that JS will interpret as local time, displaying UTC values instead of IST.
  */
 export const parseToIstIso = (tsRaw) => {
   if (!tsRaw) return '';
   const tsStr = String(tsRaw).trim();
 
-  // Already a UTC-marked string — always convert to IST
+  // Already a UTC-marked string â€” always convert to IST
   if (tsStr.includes('+00:00') || tsStr.endsWith('Z')) {
     try {
       const dt = new Date(tsStr);
@@ -159,13 +160,13 @@ export const parseToIstIso = (tsRaw) => {
         return `${y}-${m}-${d}T${h}:${min}:${s}`;
       }
     } catch (e) {}
-    // Parse failed — return original string with UTC marker intact so
+    // Parse failed â€” return original string with UTC marker intact so
     // `new Date()` can still correctly apply the offset (shows IST via toLocaleTimeString).
     // NEVER strip +00:00 or Z here: that would make the time display as UTC.
     return tsStr;
   }
 
-  // No timezone marker — assume already IST naive string, return as-is
+  // No timezone marker â€” assume already IST naive string, return as-is
   return tsStr;
 };
 
@@ -209,7 +210,7 @@ const formatRawReading = (raw) => {
   };
 
   const domKey = Object.keys(subIndices).reduce((a, b) => subIndices[a] >= subIndices[b] ? a : b);
-  const domNames = { pm25: 'PM2.5', pm10: 'PM10', co: 'CO', no2: 'NO₂', o3: 'O₃' };
+  const domNames = { pm25: 'PM2.5', pm10: 'PM10', co: 'CO', no2: 'NOâ‚‚', o3: 'Oâ‚ƒ' };
   const cpcb_aqi = Math.round(subIndices[domKey] || 0);
 
   let label = "Good", color = "#65ff50";
@@ -454,7 +455,7 @@ export const getCloudWeatherLiveHistory = async (limit = 50) => {
   return { data: { status: 'offline', count: cached?.length || 0, history: cached || [] } };
 };
 
-// Formats a historical AQI_NODE1 row — prefers timestamp_hour over created_at
+// Formats a historical AQI_NODE1 row â€” prefers timestamp_hour over created_at
 // so that the hour-boundary timestamp matches forecast_for_time in Forecast.jsx
 const formatHistoricalReading = (raw) => {
   if (!raw) return null;
@@ -614,8 +615,8 @@ export const saveToForecastRegistry = (forecastList) => {
 export const getAqiForecast = async (force = false) => {
   const cached = getCachedData('CACHE_AQI_NODE1_FORECAST_24H');
 
-  // 1. Try FastAPI backend endpoint (if local backend is running or dedicated remote backend is configured)
-  if (canCallBackend) {
+  // 1. Try FastAPI backend endpoint ONLY if force refresh is requested (avoids blocking page load with ML inference)
+  if (canCallBackend && force) {
     try {
       const res = await api.get(`/forecast/24h${force ? '?force=true' : ''}`, { timeout: 15000 });
       if (res.data && res.data.forecast && Array.isArray(res.data.forecast) && res.data.forecast.length > 0) {
@@ -769,6 +770,78 @@ export const getAqiForecast = async (force = false) => {
   };
 };
 
+export const getWeatherForecast24h = async (force = false) => {
+  const cached = getCachedData('CACHE_WEATHER_FORECAST_24H');
+
+  // 1. Try FastAPI backend endpoint ONLY if force is requested (avoids ML inference blocking)
+  if (canCallBackend && force) {
+    try {
+      const res = await api.get(`/weather/forecast/24h${force ? '?force=true' : ''}`, { timeout: 60000 });
+      if (res.data && res.data.forecast && Array.isArray(res.data.forecast)) {
+        const incomingGen = res.data.generated_at;
+        if (!cached || !cached.generated_at || !incomingGen || new Date(incomingGen) >= new Date(cached.generated_at)) {
+          setCachedData('CACHE_WEATHER_FORECAST_24H', res.data);
+        }
+        return { data: res.data };
+      }
+    } catch (err) {
+      console.warn('Weather forecast 24h fetch error:', err?.message || err);
+    }
+  }
+
+  // 2. Try direct Supabase table fetch (weather_forecasts_24h)
+  try {
+    const headers = getNoCacheHeaders();
+    const destRes = await axios.get(
+      `${getTableRestUrl('weather_forecasts_24h')}?order=forecast_generated_at.desc,forecast_for_time.asc&limit=24`,
+      { headers, timeout: 15000 }
+    ).catch(() => null);
+
+    if (destRes?.data && Array.isArray(destRes.data) && destRes.data.length > 0) {
+      const rows = destRes.data;
+      const latestGen = rows[0].forecast_generated_at;
+      const batchRows = rows.filter((r) => r.forecast_generated_at === latestGen);
+
+      if (batchRows.length >= 12) {
+        const items = batchRows.map((r, i) => ({
+          step: i + 1,
+          forecast_for_time: r.forecast_for_time,
+          temperature: Number(r.temperature || 28),
+          humidity: Number(r.humidity || 65),
+          wind_speed: Number(r.wind_speed || 5),
+          rain_gauge: Number(r.rain_gauge || 0)
+        }));
+
+        const payload = {
+          status: 'success',
+          node_id: 'node_1',
+          source_table: 'weather_forecasts_24h',
+          generated_at: latestGen,
+          forecast: items
+        };
+
+        if (!cached || !cached.generated_at || !latestGen || new Date(latestGen) >= new Date(cached.generated_at)) {
+          setCachedData('CACHE_WEATHER_FORECAST_24H', payload);
+        }
+        return { data: payload };
+      }
+    }
+  } catch (err) {
+  }
+
+  if (cached) {
+    return { data: { ...cached, isOffline: true } };
+  }
+
+  return {
+    data: {
+      status: 'error',
+      message: 'Failed to retrieve 24-hour weather forecast.'
+    }
+  };
+};
+
+
 export const getAqiComparison = async (historyLimit = 48, force = false) => {
   const cached = getCachedData('CACHE_AQI_COMPARISON');
   if (canCallBackend) {
@@ -910,7 +983,7 @@ export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026,
     let rowsArr = [];
 
     if (category === 'aqi') {
-      headersArr = ['Date', 'Time', 'AQI', 'Temperature (°C)', 'Humidity (%)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO2 (µg/m³)', 'O3 (µg/m³)'];
+      headersArr = ['Date', 'Time', 'AQI', 'Temperature (Â°C)', 'Humidity (%)', 'PM2.5 (Âµg/mÂ³)', 'PM10 (Âµg/mÂ³)', 'CO (mg/mÂ³)', 'NO2 (Âµg/mÂ³)', 'O3 (Âµg/mÂ³)'];
       rowsArr = allRows.map((r) => {
         const ts = parseToIstIso(r.timestamp_hour || r.created_at || '');
         let dStr = ts;
@@ -944,7 +1017,7 @@ export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026,
         ];
       });
     } else {
-      headersArr = ['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'];
+      headersArr = ['Date', 'Time', 'Temperature (Â°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'];
       rowsArr = allRows.map((r) => {
         const ts = parseToIstIso(r.timestamp_hour || r.created_at || '');
         let dStr = ts;

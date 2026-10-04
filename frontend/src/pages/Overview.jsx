@@ -12,12 +12,17 @@ import {
   Sun,
   Moon,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CloudLightning,
+  CloudSun,
+  CloudMoon,
+  Cloud
 } from 'lucide-react';
 import {
   getCloudLatest,
   getWeatherLatest,
   getTimeAgo,
+  getWeatherForecast24h,
   getAqiForecast,
   getCloudHistory,
   getCachedData
@@ -212,24 +217,33 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
     fetchData();
   }, [refreshKey, selectedStation]);
 
-  // Fetch 24-Hour AI Predictive Forecast and Historical Actuals
+  // Fetch 24-Hour Predictive Forecast and Historical Actuals
   const fetchForecast = async (force = false) => {
     if (force || !forecastData) setForecastLoading(true);
     try {
-      const [fcRes, histRes] = await Promise.allSettled([
+      const [fcRes, aqiFcRes, histRes] = await Promise.allSettled([
+        getWeatherForecast24h(force),
         getAqiForecast(force),
         getCloudHistory(100)
       ]);
 
-      if (fcRes.status === 'fulfilled' && fcRes.value?.data?.status === 'success' && Array.isArray(fcRes.value.data.forecast)) {
-        const incoming = fcRes.value.data;
-        setForecastData((prev) => {
-          if (!prev || !prev.generated_at || !incoming.generated_at) return incoming;
-          const prevTime = new Date(prev.generated_at).getTime();
-          const incomingTime = new Date(incoming.generated_at).getTime();
-          if (!isNaN(incomingTime) && !isNaN(prevTime) && incomingTime < prevTime) return prev;
-          return incoming;
+      if (fcRes.status === 'fulfilled' && Array.isArray(fcRes.value?.data?.forecast)) {
+        const weatherForecast = fcRes.value.data.forecast;
+        const aqiForecast = (aqiFcRes.status === 'fulfilled' && Array.isArray(aqiFcRes.value?.data?.forecast)) 
+            ? aqiFcRes.value.data.forecast : [];
+
+        // Merge them
+        const merged = weatherForecast.map(wItem => {
+          const wTime = new Date(wItem.forecast_for_time).getTime();
+          const match = aqiForecast.find(aItem => Math.abs(new Date(aItem.forecast_for_time).getTime() - wTime) < 1000 * 60 * 30);
+          return {
+             ...wItem,
+             temperature: match?.temperature_c != null ? match.temperature_c : wItem.temperature,
+             aqi: match ? match.aqi : null
+          };
         });
+
+        setForecastData({ forecast: merged });
         setForecastLastUpdated(new Date());
       }
 
@@ -250,54 +264,113 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   // Process 24-Hour Forecast Items
   const processedForecastItems = useMemo(() => {
     if (!forecastData?.forecast) return [];
-    return forecastData.forecast.map((item, index) => {
-      const subPm25 = calculateSubIndex('pm25', item.pm2_5_ug_m3);
-      const subPm10 = calculateSubIndex('pm10', item.pm10_ug_m3);
-      const subNo2 = calculateSubIndex('no2', item.no2_ug_m3);
-      const subCo = calculateSubIndex('co', item.co_mg_m3);
-      const subO3 = calculateSubIndex('o3', item.ozone_ug_m3);
+    
+    const currentHourStart = new Date();
+    currentHourStart.setMinutes(0, 0, 0, 0);
+    
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + 1);
+    cutoff.setHours(0, 0, 0, 0);
 
-      const maxSub = Math.max(subPm25, subPm10, subNo2, subCo, subO3);
-      const cat = getForecastAqiCategory(maxSub);
-
+    const upcoming = forecastData.forecast.filter(item => {
+      if (!item.forecast_for_time) return true;
+      const itemTime = new Date(item.forecast_for_time).getTime();
+      if (isNaN(itemTime)) return true;
+      return itemTime > currentHourStart.getTime() && itemTime <= cutoff.getTime();
+    });
+    
+    // Take only the first 23 hours for the overview timeline (we'll add 'Now' as the 1st)
+    const first23 = upcoming.slice(0, 23);
+    
+    const mapped = first23.map((item, index) => {
       const dt = new Date(item.forecast_for_time);
       const hourStr = isNaN(dt.getTime())
         ? `+${item.step}h`
-        : dt.toLocaleTimeString([], { hour: 'numeric', hour12: true }).toLowerCase();
-
-      const matchingActual = historicalRecords.find((h) => {
-        if (!h?.timestamp) return false;
-        const hDt = new Date(h.timestamp);
-        if (isNaN(hDt.getTime())) return false;
-        return (
-          hDt.getFullYear() === dt.getFullYear() &&
-          hDt.getMonth() === dt.getMonth() &&
-          hDt.getDate() === dt.getDate() &&
-          hDt.getHours() === dt.getHours()
-        );
-      });
-
-      const hasActual = !!matchingActual;
-      const actualAqi = hasActual && matchingActual.cpcb_aqi != null ? Number(matchingActual.cpcb_aqi) : null;
+        : dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
       const hourNum = !isNaN(dt.getTime()) ? dt.getHours() : 12;
-      const isDaytime = hourNum >= 6 && hourNum < 18;
+      const isDaytime = hourNum >= 6 && hourNum < 19;
+      
+      const rain = Number(item.rain_gauge) || 0;
+      const hum = Number(item.humidity ?? item.humidity_pct) || 0;
+      const temp = Number(item.temperature ?? item.temperature_c) || 0;
+      
+      let weatherType = 'clear';
+      if (rain > 0.5) weatherType = 'rain';
+      else if (temp < 24) weatherType = 'cloudy';
+      else if (hum > 55) weatherType = 'partly-cloudy';
+      else weatherType = 'clear';
+
+      const aqiCat = getForecastAqiCategory(item.aqi);
 
       return {
         ...item,
-        index,
+        index: index + 1,
         display_hour: hourStr,
         isDaytime,
-        aqi: maxSub,
-        aqi_category: cat.label,
-        aqi_color: cat.color,
-        aqi_bg: cat.bg,
-        aqi_border: cat.border,
-        hasActual,
-        actual_aqi: actualAqi,
+        weatherType,
+        temp: Number(temp).toFixed(1),
+        humidity: Math.round(hum),
+        aqi_val: item.aqi != null ? Math.round(item.aqi) : null,
+        aqi_color: aqiCat.color
       };
     });
-  }, [forecastData, historicalRecords]);
+
+    // Create 'Now' item from current hour's FORECAST (user requested forecasted data, not live telemetry)
+    const currentHourNum = new Date().getHours();
+    const isNowDaytime = currentHourNum >= 6 && currentHourNum < 19;
+    
+    // Find the exact forecast item for the current hour
+    const currentHourForecast = forecastData.forecast.find(item => {
+      if (!item.forecast_for_time) return false;
+      const itemTime = new Date(item.forecast_for_time).getTime();
+      return itemTime === currentHourStart.getTime();
+    });
+
+    let nowTempStr = '0';
+    let nowHumVal = 0;
+    let nowRainVal = 0;
+    let nowAqiVal = null;
+
+    if (currentHourForecast) {
+      const t = Number(currentHourForecast.temperature ?? currentHourForecast.temperature_c) || 0;
+      const h = Number(currentHourForecast.humidity ?? currentHourForecast.humidity_pct) || 0;
+      const r = Number(currentHourForecast.rain_gauge) || 0;
+      nowTempStr = Number(t).toFixed(1);
+      nowHumVal = Math.round(h);
+      nowRainVal = Number(r).toFixed(1);
+      nowAqiVal = currentHourForecast.aqi != null ? Math.round(currentHourForecast.aqi) : null;
+    } else {
+      nowTempStr = mapped[0]?.temp || '0';
+      nowHumVal = mapped[0]?.humidity || 0;
+      nowRainVal = mapped[0]?.rain_gauge || 0;
+      nowAqiVal = mapped[0]?.aqi_val;
+    }
+
+    const nowTemp = nowTempStr;
+    const nowHum = nowHumVal;
+    const nowRain = nowRainVal;
+    const nowAqi = nowAqiVal;
+    const nowAqiColor = nowAqi != null ? getForecastAqiCategory(nowAqi).color : '#9ca3af';
+
+    let nowWeatherType = 'clear';
+    if (Number(nowRain) > 0.5) nowWeatherType = 'rain';
+    else if (Number(nowTemp) < 24) nowWeatherType = 'cloudy';
+    else if (nowHum > 55) nowWeatherType = 'partly-cloudy';
+
+    const nowItem = {
+      index: 0,
+      display_hour: 'Now',
+      isDaytime: isNowDaytime,
+      weatherType: nowWeatherType,
+      temp: nowTemp,
+      humidity: nowHum,
+      aqi_val: nowAqi,
+      aqi_color: nowAqiColor
+    };
+
+    return [nowItem, ...mapped];
+  }, [forecastData, weatherData, aqiData]);
 
   const visibleForecastTimelineItems = processedForecastItems;
 
@@ -314,8 +387,8 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   }, [aqiVal]);
 
   // Weather station readings (strictly from WEATHER_LIVE_NODE1)
-  const rawTemp = weatherData?.temperature;
-  const rawHum = weatherData?.humidity;
+  const rawTemp = visibleForecastTimelineItems.length > 0 ? visibleForecastTimelineItems[0].temp : weatherData?.temperature;
+  const rawHum = visibleForecastTimelineItems.length > 0 ? visibleForecastTimelineItems[0].humidity : weatherData?.humidity;
   const rawWind = weatherData?.wind_speed;
   const rawRain = weatherData?.rain_gauge;
   const windDirRaw = weatherData?.wind_direction;
@@ -1341,7 +1414,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               </div>
             </div>
 
-            {/* Horizontal Scroller for Unique Atmospheric Horizon Cards */}
+            {/* Horizontal Scroller for Hourly Weather Horizon Cards */}
             <div
               ref={timelineScrollerRef}
               onMouseDown={handleMouseDownTimeline}
@@ -1349,98 +1422,103 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               onMouseLeave={handleMouseLeaveOrUpTimeline}
               onMouseMove={handleMouseMoveTimeline}
               className={`overview-timeline-scroller ${isDraggingTimeline ? 'is-dragging' : ''}`}
+              style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 10, scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
               {visibleForecastTimelineItems.length === 0 ? (
                 <div style={{ padding: '28px 0', color: '#94a3b8', fontSize: 13, textAlign: 'center', width: '100%' }}>
-                  {forecastLoading ? 'Synthesizing 24-hour predictive forecast timeline...' : 'No forecast timeline items available at this time.'}
+                  {forecastLoading ? 'Synthesizing hourly weather forecast...' : 'No forecast timeline items available at this time.'}
                 </div>
               ) : (
-                visibleForecastTimelineItems.map((item) => (
-                  <div
-                    key={item.index}
-                    className="overview-timeline-card"
-                    style={{
-                      border: `1.5px solid ${item.aqi_border || '#e2e8f0'}`,
-                      background: item.aqi_bg || '#ffffff',
-                    }}
-                  >
-                    {/* Top Daylight / Night Pill */}
-                    <div className="overview-timeline-hour" style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '3px 8px',
-                      borderRadius: 999,
-                      background: '#ffffff',
-                      border: '1px solid #e2e8f0',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: '#475569',
-                      marginBottom: 10,
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                    }}>
-                      {item.isDaytime ? (
-                        <Sun style={{ width: 11, height: 11, color: '#f59e0b' }} />
-                      ) : (
-                        <Moon style={{ width: 11, height: 11, color: '#6366f1' }} />
-                      )}
-                      <span>{item.display_hour}</span>
-                    </div>
+                visibleForecastTimelineItems.map((item) => {
+                  const isFirst = item.index === 0;
+                  
+                  // Determine Icon
+                  let WeatherIcon = Sun;
+                  let iconColor = '#facc15';
+                  let iconFill = '#fef08a';
+                  
+                  if (item.weatherType === 'storm') {
+                    WeatherIcon = CloudLightning;
+                    iconColor = isFirst ? '#94a3b8' : '#64748b';
+                    iconFill = isFirst ? '#475569' : '#e2e8f0';
+                  } else if (item.weatherType === 'rain') {
+                    WeatherIcon = CloudRain;
+                    iconColor = isFirst ? '#7dd3fc' : '#38bdf8';
+                    iconFill = isFirst ? '#0284c7' : '#e0f2fe';
+                  } else if (item.weatherType === 'cloudy') {
+                    WeatherIcon = Cloud;
+                    iconColor = isFirst ? '#cbd5e1' : '#94a3b8';
+                    iconFill = isFirst ? '#64748b' : '#f1f5f9';
+                  } else if (item.weatherType === 'partly-cloudy') {
+                    WeatherIcon = item.isDaytime ? CloudSun : CloudMoon;
+                    iconColor = isFirst ? '#facc15' : '#f59e0b';
+                    iconFill = isFirst ? '#475569' : '#fef3c7';
+                  } else {
+                    WeatherIcon = item.isDaytime ? Sun : Moon;
+                    iconColor = isFirst ? '#facc15' : '#f59e0b';
+                    iconFill = isFirst ? 'rgba(250, 204, 21, 0.2)' : 'rgba(245, 158, 11, 0.2)';
+                  }
 
-                    {/* Central Glowing AQI Badge Ring */}
-                    <div className="overview-timeline-circle" style={{
-                      width: 58,
-                      height: 58,
-                      borderRadius: '50%',
-                      background: '#ffffff',
-                      border: `2.5px solid ${item.aqi_color}`,
-                      boxShadow: `0 0 10px ${item.aqi_color}30`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      margin: '2px 0 8px',
-                      transform: 'translateZ(0)',
-                    }}>
-                      <span className="overview-timeline-aqi" style={{
-                        fontSize: 22,
-                        fontWeight: 900,
-                        lineHeight: 1,
-                        color: item.aqi_color,
-                        fontFamily: 'var(--font-mono)',
+                  return (
+                    <div
+                      key={item.index}
+                      style={{
+                        flex: '0 0 auto',
+                        width: 72,
+                        borderRadius: 18,
+                        padding: '16px 8px',
+                        background: isFirst ? '#0f172a' : '#ffffff',
+                        border: isFirst ? '1px solid #1e293b' : '1px solid #e2e8f0',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        height: 140,
+                        boxShadow: isFirst ? '0 4px 12px rgba(15,23,42,0.15)' : 'none',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      {/* Top Hour */}
+                      <span style={{ 
+                        fontSize: 12, 
+                        fontWeight: 600, 
+                        color: isFirst ? '#e2e8f0' : '#64748b',
+                        marginBottom: 12 
                       }}>
-                        {item.aqi}
+                        {item.display_hour}
                       </span>
-                    </div>
 
-                    {/* Category Label */}
-                    <span className="overview-timeline-category" style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: item.aqi_color,
-                      marginBottom: 8,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}>
-                      {item.aqi_category}
-                    </span>
+                      {/* Middle Weather Icon */}
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <WeatherIcon 
+                          size={28} 
+                          color={iconColor} 
+                          fill={iconFill}
+                          strokeWidth={isFirst ? 1.5 : 2}
+                        />
+                      </div>
 
-                    {/* Micro Weather / Sensor Telemetry Pill */}
-                    <div className="overview-timeline-pill" style={{
-                      padding: '3px 8px',
-                      borderRadius: 999,
-                      background: 'rgba(255, 255, 255, 0.85)',
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: '#64748b',
-                      border: '1px solid rgba(226, 232, 240, 0.9)',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {item.hasActual ? `Act AQI: ${item.actual_aqi ?? '—'}` : '—'}
+                      {/* Bottom Stats */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 12, gap: 4 }}>
+                        <span style={{ 
+                          fontSize: 15, 
+                          fontWeight: 700, 
+                          color: isFirst ? '#ffffff' : '#0f172a',
+                          lineHeight: 1
+                        }}>
+                          {item.temp}°
+                        </span>
+                        <span style={{ 
+                          fontSize: 11, 
+                          fontWeight: 700, 
+                          color: item.aqi_color
+                        }}>
+                          AQI {item.aqi_val ?? '--'}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

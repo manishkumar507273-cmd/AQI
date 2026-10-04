@@ -40,7 +40,7 @@ const ALL_MONTHS = [
 
 const AQI_PARAMS = [
   { key: 'cpcb_aqi', label: 'AQI', unit: '', color: '#00bfa5' },
-  { key: 'temperature', label: 'Temp', unit: '°C', color: '#f97316' },
+  { key: 'temperature', label: 'Temp', unit: '°C', color: '#00bfa5' },
   { key: 'humidity', label: 'Hum.', unit: '%', color: '#00bfa5' },
   { key: 'pm25', label: 'PM2.5', unit: 'µg/m³', color: '#0284c7' },
   { key: 'pm10', label: 'PM10', unit: 'µg/m³', color: '#6366f1' },
@@ -50,7 +50,7 @@ const AQI_PARAMS = [
 ];
 
 const WEATHER_PARAMS = [
-  { key: 'temperature', label: 'Temp', unit: '°C', color: '#f97316' },
+  { key: 'temperature', label: 'Temp', unit: '°C', color: '#00bfa5' },
   { key: 'humidity', label: 'Hum.', unit: '%', color: '#00bfa5' },
   { key: 'wind_speed', label: 'Wind Spd', unit: 'km/h', color: '#4f46e5' },
   { key: 'wind_gust', label: 'Wind Gust', unit: 'km/h', color: '#8b5cf6' },
@@ -800,7 +800,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, fontFamily: 'var(--font-sans)', color: '#0f172a' }}>
       
       {/* ── Page Header ── */}
-      <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+      <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 350, damping: 25, mass: 0.8 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>
           <Database style={{ width: 22, height: 22, color: '#00bfa5' }} />
           Analytics Archive

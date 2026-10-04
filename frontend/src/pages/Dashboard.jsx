@@ -266,7 +266,7 @@ const ParameterScaleBar = ({ paramKey, value, compact = false }) => {
       <div style={{ position: 'relative', height: compact ? 8 : 12, borderRadius: 999, backgroundColor: '#e2e8f0', marginBottom: compact ? 3 : 6 }}>
         <div style={{
           width: '100%', height: '100%', borderRadius: 999,
-          background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 16.66%, #eab308 16.66%, #eab308 33.33%, #f97316 33.33%, #f97316 50%, #ef4444 50%, #ef4444 66.66%, #a855f7 66.66%, #a855f7 83.33%, #f43f5e 83.33%, #f43f5e 100%)',
+          background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 16.66%, #eab308 16.66%, #eab308 33.33%, #00bfa5 33.33%, #00bfa5 50%, #ef4444 50%, #ef4444 66.66%, #a855f7 66.66%, #a855f7 83.33%, #f43f5e 83.33%, #f43f5e 100%)',
           boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)'
         }} />
 
@@ -299,7 +299,6 @@ const ParameterScaleBar = ({ paramKey, value, compact = false }) => {
 };
 
 const computeInitialDashboardData = (cloud) => {
-  if (!cloud) return null;
   const fmt = (val, decimals = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(3) : 'N/A';
   const fmtSmart = (val, d = 3) => (val != null && !isNaN(Number(val))) ? Number(val).toFixed(d) : 'N/A';
   return {
@@ -334,6 +333,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
   const [error, setError] = useState(null);
   const [activePollutantModal, setActivePollutantModal] = useState(null);
   const [heroScaleTab, setHeroScaleTab] = useState('aqi');
+  const [isInitialCheckPending, setIsInitialCheckPending] = useState(true);
 
   const [liveHistory, setLiveHistory] = useState(() => {
     if (selectedStation !== 'station-1') return [];
@@ -357,7 +357,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
 
   const latestRow = liveHistory?.[0];
   const latestTimestamp = latestRow?.timestamp || data?.timestamp;
-  const isOnline = selectedStation === 'station-1' && isSensorOnline(latestTimestamp, 5);
+  const isOnline = selectedStation === 'station-1' && isSensorOnline(latestTimestamp, 15);
   const timeAgoStr = getTimeAgo(latestTimestamp);
 
   const latestTableTime = useMemo(() => {
@@ -517,6 +517,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
       setData(combined);
       if (onDataLoad) onDataLoad(combined.location);
       setLoading(false);
+      setIsInitialCheckPending(false);
       setError(cloudError ?? null);
       return;
     }
@@ -555,12 +556,14 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         setData(combined);
         if (onDataLoad) onDataLoad(combined.location);
         setLoading(false);
+        setIsInitialCheckPending(false);
       })
       .catch((err) => {
         if (!isMounted) return;
         console.error('Failed to fetch cloud data:', err);
         setError('Unable to fetch sensor data from cloud.');
         setLoading(false);
+        setIsInitialCheckPending(false);
       });
 
     return () => {
@@ -574,7 +577,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3 }}
+          transition={{ type: "spring", stiffness: 350, damping: 25, mass: 0.8 }}
           style={{
             backgroundColor: '#ffffff',
             borderRadius: 24,
@@ -602,21 +605,9 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
     );
   }
 
-  if (loading) {
-    return (
-      <div style={{ padding: '80px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-        <div style={{
-          width: 44, height: 44, borderRadius: '50%',
-          border: '3px solid #e2e8f0',
-          borderTopColor: '#00bfa5',
-          animation: 'spin 0.9s linear infinite',
-        }} />
-        <p style={{ fontSize: 14, color: '#64748b', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Loading air quality telemetry...</p>
-      </div>
-    );
-  }
 
-  if (error || !data) {
+
+  if (error) {
     return (
       <div style={{ padding: '40px 20px' }}>
         <div style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 40, textAlign: 'center', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)' }}>
@@ -675,7 +666,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
       )}
 
       {/* ── Offline Hardware Notice Banner ── */}
-      {selectedStation === 'station-1' && !isOnline && latestTimestamp && (
+      {selectedStation === 'station-1' && !isOnline && latestTimestamp && !isInitialCheckPending && (
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -696,7 +687,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <AlertTriangle style={{ width: 18, height: 18, color: '#ea580c', flexShrink: 0 }} />
             <span style={{ fontSize: 13.5, color: '#475569', fontWeight: 600 }}>
-              <strong style={{ color: '#9a3412' }}>AQI Sensor Node Offline:</strong> No new live telemetry received in cloud for &gt;5 mins (Last update: <span style={{ color: '#ea580c', fontWeight: 700 }}>{latestTableTime} • {timeAgoStr}</span>). Showing last recorded cloud values below.
+              <strong style={{ color: '#9a3412' }}>AQI Sensor Node Offline:</strong> No new live telemetry received in cloud for &gt;15 mins (Last update: <span style={{ color: '#ea580c', fontWeight: 700 }}>{latestTableTime} • {timeAgoStr}</span>). Showing last recorded cloud values below.
             </span>
           </div>
           <span style={{ fontSize: 11.5, fontWeight: 700, padding: '4px 12px', borderRadius: 999, backgroundColor: '#ffedd5', color: '#c2410c', fontFamily: 'var(--font-mono)' }}>
@@ -706,7 +697,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
       )}
 
       {/* ── Page Header Titles ── */}
-      <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+      <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 350, damping: 25, mass: 0.8 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em', margin: 0 }}>
           Real-time Air Quality Index
         </h1>
@@ -721,12 +712,12 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               borderRadius: 999,
               fontSize: 11,
               fontWeight: 700,
-              backgroundColor: isOnline ? '#ecfdf5' : '#fff7ed',
-              color: isOnline ? '#059669' : '#ea580c',
-              border: `1px solid ${isOnline ? '#a7f3d0' : '#fed7aa'}`
+              backgroundColor: (isOnline || isInitialCheckPending) ? '#ecfdf5' : '#fff7ed',
+              color: (isOnline || isInitialCheckPending) ? '#059669' : '#ea580c',
+              border: `1px solid ${(isOnline || isInitialCheckPending) ? '#a7f3d0' : '#fed7aa'}`
             }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: isOnline ? '#10b981' : '#f97316' }} />
-              {isOnline ? 'LIVE' : `OFFLINE (${timeAgoStr})`}
+              <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: (isOnline || isInitialCheckPending) ? '#10b981' : '#00bfa5' }} />
+              {(isOnline || isInitialCheckPending) ? 'LIVE' : `OFFLINE (${timeAgoStr})`}
             </span>
           )}
         </div>
@@ -739,7 +730,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         style={{
           backgroundColor: aqiColor === '#22c55e' ? '#f0fdf4' :
                            aqiColor === '#eab308' ? '#fefce8' :
-                           aqiColor === '#f97316' ? '#fff7ed' :
+                           aqiColor === '#00bfa5' ? '#fff7ed' :
                            aqiColor === '#ef4444' ? '#fef2f2' :
                            aqiColor === '#a855f7' ? '#faf5ff' : '#fff1f2',
           borderRadius: 24,
@@ -757,9 +748,9 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         {/* Left Side */}
         <div className="hero-left-col" style={{ zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isOnline ? '#22c55e' : '#f97316', display: 'inline-block' }} />
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: (isOnline || isInitialCheckPending) ? '#22c55e' : '#00bfa5', display: 'inline-block' }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              <span className="desktop-only-inline">Status Panel • </span>{isOnline ? 'Live Stream' : `Offline (${timeAgoStr})`}
+              <span className="desktop-only-inline">Status Panel • </span>{(isOnline || isInitialCheckPending) ? 'Live Stream' : `Offline (${timeAgoStr})`}
             </span>
           </div>
 
@@ -769,7 +760,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 {aqiValue}
               </div>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-                {isOnline ? 'LIVE AQI' : 'LAST RECORDED AQI'}
+                {(isOnline || isInitialCheckPending) ? 'LIVE AQI' : 'LAST RECORDED AQI'}
               </div>
             </div>
 
@@ -833,7 +824,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             <div className="hero-scale-bar-track" style={{ position: 'relative', height: 12, borderRadius: 999, backgroundColor: '#e2e8f0', marginBottom: 6 }}>
               <div style={{
                 width: '100%', height: '100%', borderRadius: 999,
-                background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 16.66%, #eab308 16.66%, #eab308 33.33%, #f97316 33.33%, #f97316 50%, #ef4444 50%, #ef4444 66.66%, #a855f7 66.66%, #a855f7 83.33%, #f43f5e 83.33%, #f43f5e 100%)',
+                background: 'linear-gradient(90deg, #22c55e 0%, #22c55e 16.66%, #eab308 16.66%, #eab308 33.33%, #00bfa5 33.33%, #00bfa5 50%, #ef4444 50%, #ef4444 66.66%, #a855f7 66.66%, #a855f7 83.33%, #f43f5e 83.33%, #f43f5e 100%)',
                 boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)'
               }} />
               <div className="hero-scale-bar-indicator" style={{

@@ -23,6 +23,7 @@ import {
   ReferenceLine
 } from 'recharts';
 import { getAqiForecast, getCloudHistory, getTimeAgo, getCachedData } from '../api';
+import WeatherForecast24hView from '../components/WeatherForecast24hView';
 
 const PARAM_CONFIG = {
   aqi: { name: 'Composite AQI', fullName: 'CPCB Composite AQI', key: 'aqi', histKey: 'cpcb_aqi', unit: 'Index', color: '#10b981', desc: 'CPCB India composite standard index derived from dominant pollutant sub-index.' },
@@ -110,6 +111,7 @@ const getAqiCategory = (val) => {
 };
 
 export default function Forecast({ refreshKey }) {
+  const [forecastMode, setForecastMode] = useState('aqi'); // 'aqi' or 'weather'
   const [forecastData, setForecastData] = useState(() => getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
   const [historicalRecords, setHistoricalRecords] = useState([]);
   const [loading, setLoading] = useState(() => !getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
@@ -319,7 +321,11 @@ export default function Forecast({ refreshKey }) {
       const currentHourStart = new Date(currentTime);
       currentHourStart.setMinutes(0, 0, 0);
       
-      return itemTime >= currentHourStart.getTime();
+      const cutoff = new Date(currentTime);
+      cutoff.setDate(cutoff.getDate() + 1);
+      cutoff.setHours(0, 0, 0, 0);
+      
+      return itemTime >= currentHourStart.getTime() && itemTime <= cutoff.getTime();
     });
   }, [processedItems, currentTime]);
 
@@ -352,8 +358,45 @@ export default function Forecast({ refreshKey }) {
 
   return (
     <div className="page-container" style={{ minHeight: '85vh' }}>
-      {/* ── Page Header ── */}
-      <div style={{
+      
+      {/* ── Forecast Mode Tabs ── */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
+        <button
+          onClick={() => setForecastMode('aqi')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: 'none',
+            background: forecastMode === 'aqi' ? '#14b8a6' : 'transparent',
+            color: forecastMode === 'aqi' ? '#ffffff' : '#64748b',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          AQI (24h)
+        </button>
+        <button
+          onClick={() => setForecastMode('weather_24h')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: 'none',
+            background: forecastMode === 'weather_24h' ? '#14b8a6' : 'transparent',
+            color: forecastMode === 'weather_24h' ? '#ffffff' : '#64748b',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Weather (24h)
+        </button>
+      </div>
+
+      {forecastMode === 'weather_24h' ? (
+        <WeatherForecast24hView refreshKey={refreshKey} />
+      ) : (
+        <>
+          {/* ── Page Header ── */}
+          <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -923,6 +966,8 @@ export default function Forecast({ refreshKey }) {
         )}
       </div>
 
+        </>
+      )}
 
     </div>
   );

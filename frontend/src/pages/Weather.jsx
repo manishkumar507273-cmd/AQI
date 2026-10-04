@@ -295,6 +295,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const [activeWeatherModal, setActiveWeatherModal] = useState(null);
+  const [isInitialCheckPending, setIsInitialCheckPending] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -325,12 +326,14 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
 
         setLoading(false);
         setLiveHistoryLoading(false);
+        setIsInitialCheckPending(false);
       } catch (err) {
         if (!isMounted) return;
         console.error('Failed to fetch live weather from WEATHER_LIVE_NODE1:', err);
         setError(err.message || 'Failed to fetch weather telemetry');
         setLoading(false);
         setLiveHistoryLoading(false);
+        setIsInitialCheckPending(false);
       }
     };
 
@@ -347,7 +350,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
     : [];
   const latestRow = validHistory[0] || liveHistory?.[0];
   const latestTimestamp = (weatherLive?.timestamp && weatherLive.timestamp !== 'null') ? weatherLive.timestamp : latestRow?.timestamp;
-  const isOnline = selectedStation === 'station-1' && isSensorOnline(latestTimestamp, 5);
+  const isOnline = selectedStation === 'station-1' && isSensorOnline(latestTimestamp, 15);
   const timeAgoStr = getTimeAgo(latestTimestamp);
 
   const temperature = weatherLive?.temperature ?? latestRow?.temperature ?? null;
@@ -440,7 +443,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
         )}
 
         {/* ── Offline Hardware Notice Banner ── */}
-        {selectedStation === 'station-1' && !isOnline && (
+        {selectedStation === 'station-1' && !isOnline && !isInitialCheckPending && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -462,7 +465,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
               <AlertTriangle style={{ width: 18, height: 18, color: '#ea580c', flexShrink: 0 }} />
               <span style={{ fontSize: 13.5, color: '#475569', fontWeight: 600 }}>
                 <span className="desktop-only-inline">
-                  <strong style={{ color: '#9a3412' }}>Weather Sensor Offline:</strong> No new live telemetry received in cloud for &gt;5 mins (Last update: <span style={{ color: '#ea580c', fontWeight: 700 }}>{timeAgoStr}</span>). Showing past records below.
+                  <strong style={{ color: '#9a3412' }}>Weather Sensor Offline:</strong> No new live telemetry received in cloud for &gt;15 mins (Last update: <span style={{ color: '#ea580c', fontWeight: 700 }}>{timeAgoStr}</span>). Showing past records below.
                 </span>
                 <span className="mobile-only-inline">
                   <strong style={{ color: '#9a3412' }}>Sensor Offline:</strong> Last update {timeAgoStr}. Past records shown.
@@ -476,7 +479,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
         )}
 
         {/* ── Titles ── */}
-        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 350, damping: 25, mass: 0.8 }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
             Weather Conditions
           </h1>
@@ -491,12 +494,12 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                 borderRadius: 999,
                 fontSize: 11,
                 fontWeight: 700,
-                backgroundColor: isOnline ? '#ecfdf5' : '#fff7ed',
-                color: isOnline ? '#059669' : '#ea580c',
-                border: `1px solid ${isOnline ? '#a7f3d0' : '#fed7aa'}`
+                backgroundColor: (isOnline || isInitialCheckPending) ? '#ecfdf5' : '#fff7ed',
+                color: (isOnline || isInitialCheckPending) ? '#059669' : '#ea580c',
+                border: `1px solid ${(isOnline || isInitialCheckPending) ? '#a7f3d0' : '#fed7aa'}`
               }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: isOnline ? '#10b981' : '#f97316' }} />
-                {isOnline ? 'LIVE' : `OFFLINE (${timeAgoStr})`}
+                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: (isOnline || isInitialCheckPending) ? '#10b981' : '#00bfa5' }} />
+                {(isOnline || isInitialCheckPending) ? 'LIVE' : `OFFLINE (${timeAgoStr})`}
               </span>
             )}
           </div>
@@ -541,6 +544,38 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
             </div>
           </div>
 
+          {/* ── Middle Column (Fills the blank space) ── */}
+          {tempStats && (
+            <div className="hero-middle-col" style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              padding: '0 20px',
+              borderLeft: '1px solid #e2e8f0',
+              borderRight: '1px solid #e2e8f0',
+            }}>
+              <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Today's Temp Range
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#0ea5e9', fontFamily: 'var(--font-mono)' }}>{fmt(tempStats.min, 1)}°</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>LOW</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981', fontFamily: 'var(--font-mono)' }}>{fmt(tempStats.avg, 1)}°</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>AVG</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#ea580c', fontFamily: 'var(--font-mono)' }}>{fmt(tempStats.max, 1)}°</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>HIGH</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div
             className="hero-right-col"
             style={{
@@ -552,7 +587,7 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
           >
             <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Live Sensor Feed</span>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isOnline ? '#10b981' : '#f59e0b', display: 'inline-block' }} />
+              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: (isOnline || isInitialCheckPending) ? '#10b981' : '#f59e0b', display: 'inline-block' }} />
             </div>
             <div style={{
               display: 'grid',

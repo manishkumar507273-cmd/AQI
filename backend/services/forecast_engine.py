@@ -21,8 +21,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Base Paths & Artifacts Config
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ARTIFACTS_DIR_NAME = os.getenv("ARTIFACTS_DIR", "AQI-prediction-new")
-ARTIFACTS_DIR = os.path.join(BASE_DIR, ARTIFACTS_DIR_NAME)
+ARTIFACTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "aqi")
 
 SCALER_X_PATH = os.path.join(ARTIFACTS_DIR, "scaler_X.save")
 SCALER_Y_PATH = os.path.join(ARTIFACTS_DIR, "scaler_y.save")
@@ -356,8 +355,7 @@ def run_tiered_inference(input_matrix: np.ndarray, selected_tier: int, latest_dt
     # covering the full 24 hours of today so past hours show actual data.
     IST = timezone(timedelta(hours=5, minutes=30))
     now_ist = datetime.now(IST)
-    today_midnight_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
-    base_time = today_midnight_ist  # Keep in IST so forecast_for_time is stored as IST
+    base_time = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
 
     for step in range(1, 25):
         future_time = base_time + timedelta(hours=step)

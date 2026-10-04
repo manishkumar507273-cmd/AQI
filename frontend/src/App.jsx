@@ -5,18 +5,30 @@ import LiveData from './pages/LiveData';
 import Overview from './pages/Overview';
 import Forecast from './pages/Forecast';
 import Historical from './pages/Historical';
-import { getCloudLatest } from './api';
+import { getCloudLatest, getCachedData } from './api';
 import { useAuth } from './context/AuthContext';
 
 export default function App() {
   const { currentUser, isRegisteredUser, loading: authLoading } = useAuth();
-  const [activeNav, setActiveNav] = useState('overview');
-  const [activeTab, setActiveTab] = useState('aqi');
-  const [selectedStation, setSelectedStation] = useState('station-1');
+  const [activeNav, setActiveNav] = useState(() => localStorage.getItem('SMART_WEATHER_ACTIVE_NAV') || 'overview');
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('SMART_WEATHER_ACTIVE_TAB') || 'aqi');
+
+  useEffect(() => {
+    localStorage.setItem('SMART_WEATHER_ACTIVE_NAV', activeNav);
+  }, [activeNav]);
+
+  useEffect(() => {
+    localStorage.setItem('SMART_WEATHER_ACTIVE_TAB', activeTab);
+  }, [activeTab]);
+  const [selectedStation, setSelectedStation] = useState(() => localStorage.getItem('SMART_WEATHER_ACTIVE_STATION') || 'station-1');
+
+  useEffect(() => {
+    localStorage.setItem('SMART_WEATHER_ACTIVE_STATION', selectedStation);
+  }, [selectedStation]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [cloudData, setCloudData] = useState(null);
-  const [cloudLoading, setCloudLoading] = useState(true);
+  const [cloudData, setCloudData] = useState(() => getCachedData('CACHE_CLOUD_LATEST'));
+  const [cloudLoading, setCloudLoading] = useState(() => !getCachedData('CACHE_CLOUD_LATEST'));
   const [cloudError, setCloudError] = useState(null);
   const [lastCloudId, setLastCloudId] = useState(null);
   const lastIdRef = useRef(null);
@@ -90,10 +102,10 @@ export default function App() {
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={activeNav}
-          initial={{ opacity: 0, y: 10, filter: 'blur(3px)' }}
+          initial={{ opacity: 0, y: 16, filter: 'blur(4px)' }}
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, y: -8, filter: 'blur(3px)' }}
-          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          exit={{ opacity: 0, y: -16, filter: 'blur(4px)' }}
+          transition={{ type: "spring", stiffness: 300, damping: 25, mass: 0.8 }}
           style={{ width: '100%' }}
         >
           {(activeNav === 'live' || activeNav === 'dashboard') && (
