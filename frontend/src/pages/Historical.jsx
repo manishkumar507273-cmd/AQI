@@ -1647,14 +1647,14 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                       { label: 'PM2.5 (µg/m³)', hide: false }, { label: 'PM10 (µg/m³)', hide: true },
                       { label: 'CO (mg/m³)', hide: true }, { label: 'NO₂ (µg/m³)', hide: true }, { label: 'O₃ (µg/m³)', hide: true }
                     ].map((col) => (
-                      <th key={col.label} className={col.hide ? 'mobile-hide' : ''} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{col.label}</th>
+                      <th key={col.label} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{col.label}</th>
                     ))
                   : [
                       { label: 'Date', hide: false }, { label: 'Time', hide: false }, { label: 'Temp (°C)', hide: false },
                       { label: 'Humidity (%)', hide: true }, { label: 'Wind Spd (km/h)', hide: false },
                       { label: 'Wind Gust (km/h)', hide: true }, { label: 'Wind Dir', hide: true }, { label: 'Rain (mm)', hide: true }
                     ].map((col) => (
-                      <th key={col.label} className={col.hide ? 'mobile-hide' : ''} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{col.label}</th>
+                      <th key={col.label} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{col.label}</th>
                     ))
                 }
               </tr>
@@ -1702,22 +1702,22 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                       {subTab === 'aqi' ? (
                         <>
                           <td style={{ padding: '10px 16px', fontWeight: 800, color: hasData ? '#0f172a' : '#94a3b8', fontFamily: 'var(--font-mono)' }}>{r?.cpcb_aqi != null && !isNaN(Number(r.cpcb_aqi)) ? Math.round(Number(r.cpcb_aqi)) : (r?.cpcb_aqi ?? '-')}</td>
-                          <td className="mobile-hide" style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '-'}</td>
-                          <td className="mobile-hide" style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm25 != null && !isNaN(Number(r.pm25)) ? Number(r.pm25).toFixed(3) : '-'}</td>
-                          <td className="mobile-hide" style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm10 != null && !isNaN(Number(r.pm10)) ? Number(r.pm10).toFixed(3) : '-'}</td>
-                          <td className="mobile-hide" style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.co != null && !isNaN(Number(r.co)) ? Number(r.co).toFixed(3) : '-'}</td>
-                          <td className="mobile-hide" style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.no2 != null && !isNaN(Number(r.no2)) ? Number(r.no2).toFixed(3) : '-'}</td>
-                          <td className="mobile-hide" style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.o3 != null && !isNaN(Number(r.o3)) ? Number(r.o3).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm10 != null && !isNaN(Number(r.pm10)) ? Number(r.pm10).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.co != null && !isNaN(Number(r.co)) ? Number(r.co).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.no2 != null && !isNaN(Number(r.no2)) ? Number(r.no2).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.o3 != null && !isNaN(Number(r.o3)) ? Number(r.o3).toFixed(3) : '-'}</td>
                         </>
                       ) : (
                         <>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#ea580c' : '#94a3b8', fontWeight: 600 }}>{r?.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '-'}</td>
-                          <td className="mobile-hide" style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData ? '#4f46e5' : '#94a3b8', fontWeight: 600 }}>{r?.wind_speed != null && !isNaN(Number(r.wind_speed)) ? Number(r.wind_speed).toFixed(3) : '-'}</td>
-                          <td className="mobile-hide" style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData && r?.wind_gust != null ? '#8b5cf6' : '#94a3b8', fontWeight: 600 }}>{r?.wind_gust != null && !isNaN(Number(r.wind_gust)) ? Number(r.wind_gust).toFixed(3) : '-'}</td>
-                          <td className="mobile-hide" style={{ padding: '10px 16px', fontFamily: 'var(--font-sans)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{r?.wind_direction != null ? getCompassDir(r.wind_direction) : '-'}</td>
-                          <td className="mobile-hide" style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.rain_gauge != null && !isNaN(Number(r.rain_gauge)) ? Number(r.rain_gauge).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: hasData && r?.wind_gust != null ? '#8b5cf6' : '#94a3b8', fontWeight: 600 }}>{r?.wind_gust != null && !isNaN(Number(r.wind_gust)) ? Number(r.wind_gust).toFixed(3) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-sans)', color: hasData ? '#0284c7' : '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{r?.wind_direction != null ? getCompassDir(r.wind_direction) : '-'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.rain_gauge != null && !isNaN(Number(r.rain_gauge)) ? Number(r.rain_gauge).toFixed(3) : '-'}</td>
                         </>
                       )}
                     </tr>
