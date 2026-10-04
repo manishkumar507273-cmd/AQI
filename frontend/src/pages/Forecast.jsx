@@ -843,7 +843,7 @@ export default function Forecast({ refreshKey }) {
           </div>
         ) : (
           /* Comprehensive 24h Comparison Table */
-          <div className="table-responsive-wrapper" style={{ maxHeight: 540 }}>
+          <div className="table-responsive-wrapper" style={{ overflowX: 'auto', maxHeight: 540 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left', minWidth: 800 }}>
               <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', zIndex: 2 }}>
                 <tr style={{ color: '#475569', fontSize: 12 }}>

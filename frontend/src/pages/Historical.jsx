@@ -1636,7 +1636,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
           )}
         </div>
 
-        <div className="table-responsive-wrapper" style={{ maxHeight: 440 }}>
+        <div className="table-responsive-wrapper" style={{ overflowX: 'auto', maxHeight: 440 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13, minWidth: 750 }}>
             <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', zIndex: 2 }}>
               <tr style={{ color: '#475569', fontSize: 12 }}>
