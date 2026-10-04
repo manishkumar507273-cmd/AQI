@@ -58,15 +58,18 @@ A modern, full-stack intelligence platform for real-time air quality index (AQI)
 │   │   ├── cloud.py               # Supabase cloud telemetry endpoints
 │   │   └── weather.py             # Weather telemetry endpoints
 │   ├── services/
+│   │   ├── alert_sentinel.py      # Automated alert and monitoring system
 │   │   ├── forecast_engine.py     # 24-hour multi-parameter inference engine
-│   │   └── supabase_service.py    # Supabase Cloud data integration & calibration
+│   │   ├── supabase_service.py    # Supabase Cloud data integration & calibration
+│   │   ├── weather_forecast_24h_engine.py # 24-hour weather prediction engine
+│   │   └── weather_forecast_engine.py # Weather forecasting models and utilities
 │   ├── .env.example               # Backend environment template
 │   └── .gitignore
 ├── frontend/
 │   ├── src/
 │   │   ├── api.js                 # API client, Ridge calibration & Supabase fallbacks
 │   │   ├── components/            # UI components (Layout, WindCanvas)
-│   │   ├── pages/                 # Views (Dashboard, LiveData, Weather, Forecast, Historical)
+│   │   ├── pages/                 # Views (Dashboard, Overview, LiveData, Weather, Forecast, Historical)
 │   │   ├── assets/                # Hardware sensor module imagery
 │   │   ├── index.css              # Design tokens & typography
 │   │   └── main.jsx               # React 19 entry point
