@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldAlert, CheckCircle2, Clock, Mail, Server, Trash2, Send } from 'lucide-react';
+import { ShieldAlert, CheckCircle2, Clock, Mail, Server, Trash2, Send, Building2, Briefcase } from 'lucide-react';
 import { rtdb } from '../firebase';
 import { ref as rtdbRef, onValue, update, remove } from 'firebase/database';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +9,7 @@ export default function AdminRequests() {
   const { currentUser } = useAuth();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [actionInProgress, setActionInProgress] = useState(null);
 
   useEffect(() => {
@@ -27,6 +28,10 @@ export default function AdminRequests() {
       } else {
         setRequests([]);
       }
+      setLoading(false);
+    }, (error) => {
+      console.error('Firebase read error:', error);
+      setErrorMsg('Failed to fetch requests: ' + error.message);
       setLoading(false);
     });
 
@@ -74,6 +79,7 @@ export default function AdminRequests() {
   };
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading Requests...</div>;
+  if (errorMsg) return <div style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>{errorMsg}</div>;
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: 20 }}>
@@ -110,7 +116,8 @@ export default function AdminRequests() {
                   <h3 style={{ margin: '0 0 6px 0', fontSize: 17, fontWeight: 700, color: '#0f172a' }}>{req.name || 'Anonymous User'}</h3>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 13, color: '#475569' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={14} /> {req.email}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Server size={14} /> {req.organization || 'No Org'}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Building2 size={14} /> {req.organization || 'No Org'}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Briefcase size={14} /> {req.industry || 'No Industry'}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={14} /> {new Date(req.createdAt).toLocaleString()}</span>
                   </div>
                 </div>
@@ -125,8 +132,8 @@ export default function AdminRequests() {
 
               <div style={{ background: '#f8fafc', padding: 14, borderRadius: 10, fontSize: 13.5, color: '#334155' }}>
                 <strong style={{ color: '#0f172a' }}>Dataset Requested:</strong> {req.dataset}<br/><br/>
-                <strong style={{ color: '#0f172a' }}>Purpose:</strong><br/>
-                {req.purpose || 'No purpose provided'}
+                <strong style={{ color: '#0f172a' }}>Intended Use Case:</strong><br/>
+                {req.purpose || 'No use case provided'}
               </div>
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 4 }}>

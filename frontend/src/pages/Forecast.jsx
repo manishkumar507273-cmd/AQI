@@ -318,7 +318,14 @@ export default function Forecast({ refreshKey }) {
             display_hour: hourStr,
             display_date: dayStr,
             iso_time: pastTime.toISOString(),
-            aqi: null,
+            aqi: actualAqi,
+            pm2_5_ug_m3: matchingActual.pm25 != null ? matchingActual.pm25 : matchingActual['pm2.5'],
+            pm10_ug_m3: matchingActual.pm10,
+            no2_ug_m3: matchingActual.no2,
+            co_mg_m3: matchingActual.co,
+            ozone_ug_m3: matchingActual.o3,
+            temperature_c: matchingActual.temperature,
+            humidity_pct: matchingActual.humidity,
             dominant_pollutant: '—',
             dominant_sub: null,
             pollutant_breakdown: [],
@@ -417,9 +424,9 @@ export default function Forecast({ refreshKey }) {
     return visibleTimelineItems[0];
   }, [visibleTimelineItems, selectedSlotIndex]);
 
-  const renderDualCell = (actVal, fcVal, unit = '', decimals = 3) => {
+  const renderDualCell = (actVal, fcVal, unit = '', decimals = 3, isPast = false) => {
     const hasAct = actVal != null && !isNaN(Number(actVal));
-    const hasFc = fcVal != null && !isNaN(Number(fcVal));
+    const hasFc = fcVal != null && !isNaN(Number(fcVal)) && !isPast;
 
     return (
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
@@ -789,13 +796,13 @@ export default function Forecast({ refreshKey }) {
                     </td>
 
                     {/* Actual vs Forecast pairs */}
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_pm25, row.pm2_5_ug_m3, '', 3)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_pm10, row.pm10_ug_m3, '', 3)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_no2, row.no2_ug_m3, '', 3)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_co, row.co_mg_m3, '', 3)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_o3, row.ozone_ug_m3, '', 3)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_temp, row.temperature_c, '°', 1)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_hum, row.humidity_pct, '%', 1)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_pm25, row.pm2_5_ug_m3, '', 3, row.isPast)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_pm10, row.pm10_ug_m3, '', 3, row.isPast)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_no2, row.no2_ug_m3, '', 3, row.isPast)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_co, row.co_mg_m3, '', 3, row.isPast)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_o3, row.ozone_ug_m3, '', 3, row.isPast)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_temp, row.temperature_c, '°', 1, row.isPast)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_hum, row.humidity_pct, '%', 1, row.isPast)}</td>
                   </tr>
                 ))}
               </tbody>

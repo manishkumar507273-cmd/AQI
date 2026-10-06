@@ -86,29 +86,10 @@ export default function DataRequestModal({ isOpen, onClose, datasetType }) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          style={{
-            background: '#ffffff',
-            borderRadius: 24,
-            width: '100%',
-            maxWidth: 700,
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            overflow: 'hidden',
-            fontFamily: 'var(--font-sans)',
-            display: 'flex',
-            flexDirection: 'column',
-            maxHeight: '90vh'
-          }}
+          className="data-request-modal"
         >
           {/* Header */}
-          <div style={{ 
-            padding: '28px 24px', 
-            background: 'linear-gradient(to right, #0f172a, #1e293b)', 
-            display: 'flex', 
-            flexWrap: 'wrap',
-            justifyContent: 'space-between', 
-            alignItems: 'flex-start',
-            color: '#ffffff'
-          }}>
+          <div className="data-request-modal-header">
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                 <ShieldCheck size={28} color="#00bfa5" />
@@ -130,7 +111,7 @@ export default function DataRequestModal({ isOpen, onClose, datasetType }) {
             </button>
           </div>
 
-          <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+          <div className="data-request-modal-body">
             {status === 'success' ? (
               <div style={{ padding: '40px 0', textAlign: 'center' }}>
                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 12 }}>
@@ -244,7 +225,7 @@ export default function DataRequestModal({ isOpen, onClose, datasetType }) {
                   </label>
                 </div>
 
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                <div className="data-request-buttons">
                   <button
                     type="submit"
                     disabled={status === 'submitting'}

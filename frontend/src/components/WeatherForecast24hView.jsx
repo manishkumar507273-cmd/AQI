@@ -173,10 +173,10 @@ export default function WeatherForecast24hView({ refreshKey }) {
             display_hour: hourStr,
             display_date: dayStr,
             iso_time: pastTime.toISOString(),
-            temperature: null,
-            humidity: null,
-            wind_speed: null,
-            rain_gauge: null,
+            temperature: matchingActual.temperature,
+            humidity: matchingActual.humidity,
+            wind_speed: matchingActual.wind_speed,
+            rain_gauge: matchingActual.rain_gauge,
             hasActual: true,
             actualRecord: matchingActual,
             actual_temperature: matchingActual.temperature,
@@ -214,9 +214,9 @@ export default function WeatherForecast24hView({ refreshKey }) {
     });
   }, [processedItems, currentTime]);
 
-  const renderDualCell = (actVal, fcVal, unit = '', decimals = 1) => {
+  const renderDualCell = (actVal, fcVal, unit = '', decimals = 1, isPast = false) => {
     const hasAct = actVal != null && !isNaN(Number(actVal));
-    const hasFc = fcVal != null && !isNaN(Number(fcVal));
+    const hasFc = fcVal != null && !isNaN(Number(fcVal)) && !isPast;
 
     return (
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
@@ -452,10 +452,10 @@ export default function WeatherForecast24hView({ refreshKey }) {
                     <td style={{ padding: '10px 14px', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
                       {row.display_hour} <span style={{ fontSize: 11, color: '#94a3b8' }}>({row.display_date})</span>
                     </td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_temperature, row.temperature, '°', 1)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_humidity, row.humidity, '%', 1)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_wind_speed, row.wind_speed, '', 1)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_rain_gauge, row.rain_gauge, '', 2)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_temperature, row.temperature, '°', 1, row.isPast)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_humidity, row.humidity, '%', 1, row.isPast)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_wind_speed, row.wind_speed, '', 1, row.isPast)}</td>
+                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_rain_gauge, row.rain_gauge, '', 2, row.isPast)}</td>
                   </tr>
                 ))}
               </tbody>
