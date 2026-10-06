@@ -68,6 +68,15 @@ export default function App() {
     };
   }, []);
 
+  // Auto-refresh every 5 minutes to fetch the latest telemetry and hourly GitHub Actions forecasts
+  useEffect(() => {
+    const interval = setInterval(() => {
+      handleRefresh();
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    return () => clearInterval(interval);
+  }, [handleRefresh]);
+
   const handleDataLoad = useCallback(() => setLoading(false), []);
 
   const handleRefresh = useCallback(() => {

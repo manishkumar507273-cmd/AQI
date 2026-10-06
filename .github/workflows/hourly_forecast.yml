@@ -2,8 +2,8 @@ name: Hourly AQI Forecast Job
 
 on:
   schedule:
-    # Runs daily at 1:00 AM IST (19:30 UTC the previous day)
-    - cron: '30 19 * * *'
+    # Runs at the start of every hour (e.g. 1:00, 2:00, etc.)
+    - cron: '0 * * * *'
   # Allows you to click "Run workflow" manually from GitHub Actions tab anytime
   workflow_dispatch:
   # Also triggers automatically whenever you push to main

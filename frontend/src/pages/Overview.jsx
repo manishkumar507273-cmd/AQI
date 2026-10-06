@@ -227,20 +227,31 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
         getCloudHistory(100)
       ]);
 
-      if (fcRes.status === 'fulfilled' && Array.isArray(fcRes.value?.data?.forecast)) {
-        const weatherForecast = fcRes.value.data.forecast;
-        const aqiForecast = (aqiFcRes.status === 'fulfilled' && Array.isArray(aqiFcRes.value?.data?.forecast)) 
-            ? aqiFcRes.value.data.forecast : [];
+      const weatherForecast = (fcRes.status === 'fulfilled' && Array.isArray(fcRes.value?.data?.forecast)) ? fcRes.value.data.forecast : [];
+      const aqiForecast = (aqiFcRes.status === 'fulfilled' && Array.isArray(aqiFcRes.value?.data?.forecast)) ? aqiFcRes.value.data.forecast : [];
 
-        // Merge them
-        const merged = weatherForecast.map(wItem => {
-          const wTime = new Date(wItem.forecast_for_time).getTime();
-          const match = aqiForecast.find(aItem => Math.abs(new Date(aItem.forecast_for_time).getTime() - wTime) < 1000 * 60 * 30);
-          return {
-             ...wItem,
-             temperature: match?.temperature_c != null ? match.temperature_c : wItem.temperature,
-             aqi: match ? match.aqi : null
-          };
+      if (weatherForecast.length > 0 || aqiForecast.length > 0) {
+        const baseForecast = weatherForecast.length > 0 ? weatherForecast : aqiForecast;
+        const otherForecast = weatherForecast.length > 0 ? aqiForecast : [];
+
+        const merged = baseForecast.map(bItem => {
+          const bTime = new Date(bItem.forecast_for_time).getTime();
+          const match = otherForecast.find(oItem => Math.abs(new Date(oItem.forecast_for_time).getTime() - bTime) < 1000 * 60 * 30);
+          
+          if (weatherForecast.length > 0) {
+            return {
+               ...bItem,
+               temperature: match?.temperature_c != null ? match.temperature_c : bItem.temperature,
+               aqi: match ? match.aqi : null
+            };
+          } else {
+            return {
+               ...bItem,
+               temperature: bItem.temperature_c,
+               humidity: bItem.humidity_pct,
+               aqi: bItem.aqi
+            };
+          }
         });
 
         setForecastData({ forecast: merged });
@@ -387,8 +398,8 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   }, [aqiVal]);
 
   // Weather station readings (strictly from WEATHER_LIVE_NODE1)
-  const rawTemp = visibleForecastTimelineItems.length > 0 ? visibleForecastTimelineItems[0].temp : weatherData?.temperature;
-  const rawHum = visibleForecastTimelineItems.length > 0 ? visibleForecastTimelineItems[0].humidity : weatherData?.humidity;
+  const rawTemp = weatherData?.temperature;
+  const rawHum = weatherData?.humidity;
   const rawWind = weatherData?.wind_speed;
   const rawRain = weatherData?.rain_gauge;
   const windDirRaw = weatherData?.wind_direction;
@@ -406,13 +417,13 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   const dewPoint = (rawTemp != null && rawHum != null) ? calcDewPoint(Number(rawTemp), Number(rawHum)) : null;
 
   const displayWind = rawWind != null
-    ? (windUnit === 'ms' ? (Number(rawWind) / 3.6).toFixed(3) : (fmt(rawWind, 3) ?? Number(rawWind).toFixed(3)))
+    ? (windUnit === 'ms' ? (Number(rawWind) / 3.6).toFixed(1) : (fmt(rawWind, 1) ?? Number(rawWind).toFixed(1)))
     : '--';
   const displayWindUnit = windUnit === 'ms' ? 'm/s' : 'km/h';
   const windKmh = rawWind != null ? Number(rawWind) : null;
   const windStatus = windKmh != null ? (windKmh > 15 ? 'Breezy' : (windKmh > 2 ? 'Gentle' : 'Light')) : 'Calm';
 
-  const displayRain = rawRain != null ? (fmt(rawRain, 3) ?? Number(rawRain).toFixed(3)) : '--';
+  const displayRain = rawRain != null ? (fmt(rawRain, 1) ?? Number(rawRain).toFixed(1)) : '--';
   const isRaining = rawRain != null && Number(rawRain) > 0;
 
   // ══════════════════════════════════════════════════════════════════════════

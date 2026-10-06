@@ -346,11 +346,11 @@ export default function Forecast({ refreshKey }) {
     return (
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
         <span style={{ fontWeight: 700, color: hasAct ? '#0f172a' : '#94a3b8' }}>
-          {hasAct ? `${Number(actVal).toFixed(3)}${unit}` : '—'}
+          {hasAct ? `${Number(actVal).toFixed(decimals)}${unit}` : '—'}
         </span>
         <span style={{ color: '#cbd5e1' }}>/</span>
         <span style={{ color: hasFc ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>
-          {hasFc ? `${Number(fcVal).toFixed(3)}${unit}` : '—'}
+          {hasFc ? `${Number(fcVal).toFixed(decimals)}${unit}` : '—'}
         </span>
       </div>
     );
