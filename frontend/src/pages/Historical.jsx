@@ -20,6 +20,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContai
 import { getCloudHistory, getCloudWeatherHistory, getCachedData, downloadHistoricalDataset, getAvailablePeriods } from '../api';
 import { logUserActivity } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import DataRequestModal from '../components/DataRequestModal';
 
 const START_YEAR = 2026;
 
@@ -318,6 +319,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
   const [selectedAqiParam, setSelectedAqiParam] = useState('cpcb_aqi');
   const [selectedWeatherParam, setSelectedWeatherParam] = useState('wind_speed');
   const [chartType, setChartType] = useState('area'); // 'area' | 'bar'
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
   // Track if user has manually picked a date
   const hasUserPickedDateRef = useRef(false);
@@ -1572,7 +1574,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
 
             {/* Download Dataset Button */}
             <button
-              onClick={handleDownloadDataset}
+              onClick={() => setIsRequestModalOpen(true)}
               disabled={isDownloadingDataset || periodOptions.length === 0}
               style={{
                 display: 'inline-flex',
@@ -1728,6 +1730,12 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
           </table>
         </div>
       </div>
+      
+      <DataRequestModal 
+        isOpen={isRequestModalOpen} 
+        onClose={() => setIsRequestModalOpen(false)} 
+        datasetType={subTab} 
+      />
     </div>
   );
 }

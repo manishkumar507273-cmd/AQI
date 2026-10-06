@@ -174,12 +174,19 @@ export default function Forecast({ refreshKey }) {
   useEffect(() => {
     setCurrentTime(new Date());
     fetchForecastAndHistory(false);
+    
+    // Refresh every hour (3600000 ms)
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+      fetchForecastAndHistory(true);
+    }, 3600000);
+
+    return () => clearInterval(interval);
   }, [refreshKey]);
 
   // Process forecast items with dynamic CPCB calculation and match with historical readings
   const processedItems = useMemo(() => {
-    if (!forecastData?.forecast) return [];
-    return forecastData.forecast.map((item, index) => {
+    const forecastItems = (forecastData?.forecast || []).map((item) => {
       const subPm25 = calculateSubIndex('pm25', item.pm2_5_ug_m3);
       const subPm10 = calculateSubIndex('pm10', item.pm10_ug_m3);
       const subNo2 = calculateSubIndex('no2', item.no2_ug_m3);
@@ -237,7 +244,6 @@ export default function Forecast({ refreshKey }) {
 
       return {
         ...item,
-        index,
         display_hour: hourStr,
         display_date: dayStr,
         iso_time: item.forecast_for_time,
@@ -268,20 +274,90 @@ export default function Forecast({ refreshKey }) {
         actual_o3: actualO3,
         actual_temp: actualTemp,
         actual_hum: actualHum,
-        aqi_delta: aqiDelta
+        aqi_delta: aqiDelta,
+        isPast: false
       };
     });
-  }, [forecastData, historicalRecords]);
+
+    const pastItems = [];
+    const currentHourStart = new Date(currentTime);
+    currentHourStart.setMinutes(0, 0, 0);
+
+    for (let i = 5; i >= 0; i--) {
+      const pastTime = new Date(currentHourStart);
+      pastTime.setHours(pastTime.getHours() - i);
+      
+      const alreadyInForecast = forecastItems.some(fi => {
+        if (!fi.iso_time) return false;
+        const fiTime = new Date(fi.iso_time);
+        return !isNaN(fiTime.getTime()) && fiTime.getTime() === pastTime.getTime();
+      });
+
+      if (!alreadyInForecast) {
+        const matchingActual = historicalRecords.find((h) => {
+          if (!h?.timestamp) return false;
+          const hDt = new Date(h.timestamp);
+          if (isNaN(hDt.getTime())) return false;
+          return (
+            hDt.getFullYear() === pastTime.getFullYear() &&
+            hDt.getMonth() === pastTime.getMonth() &&
+            hDt.getDate() === pastTime.getDate() &&
+            hDt.getHours() === pastTime.getHours()
+          );
+        });
+
+        if (matchingActual) {
+          const actualAqi = matchingActual.cpcb_aqi != null ? Number(matchingActual.cpcb_aqi) : null;
+          const cat = getAqiCategory(actualAqi);
+          const hourStr = pastTime.toLocaleTimeString([], { hour: 'numeric', hour12: true });
+          const dayStr = pastTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+
+          pastItems.push({
+            isPast: true,
+            step: -i,
+            display_hour: hourStr,
+            display_date: dayStr,
+            iso_time: pastTime.toISOString(),
+            aqi: null,
+            dominant_pollutant: '—',
+            dominant_sub: null,
+            pollutant_breakdown: [],
+            aqi_category: cat.label,
+            aqi_color: cat.color,
+            aqi_bg: cat.bg,
+            aqi_border: cat.border,
+            aqi_advice: cat.advice,
+            sub_indices: {},
+            hasActual: true,
+            actualRecord: matchingActual,
+            actual_aqi: actualAqi,
+            actual_pm25: matchingActual.pm25 != null ? matchingActual.pm25 : matchingActual['pm2.5'],
+            actual_pm10: matchingActual.pm10,
+            actual_no2: matchingActual.no2,
+            actual_co: matchingActual.co,
+            actual_o3: matchingActual.o3,
+            actual_temp: matchingActual.temperature,
+            actual_hum: matchingActual.humidity,
+            aqi_delta: null
+          });
+        }
+      }
+    }
+
+    return [...pastItems, ...forecastItems].map((item, index) => ({ ...item, index }));
+  }, [forecastData, historicalRecords, currentTime]);
 
   // Overall Statistics across 24h
   const stats = useMemo(() => {
     if (processedItems.length === 0) return null;
-    const aqiVals = processedItems.map(p => p.aqi);
+    const validAqiItems = processedItems.filter(p => p.aqi != null);
+    if (validAqiItems.length === 0) return null;
+    const aqiVals = validAqiItems.map(p => p.aqi);
     const minAqi = Math.round(Math.min(...aqiVals));
     const maxAqi = Math.round(Math.max(...aqiVals));
     const avgAqi = Math.round(aqiVals.reduce((a, b) => a + b, 0) / aqiVals.length);
-    const maxItem = processedItems.find(p => p.aqi === maxAqi);
-    const minItem = processedItems.find(p => p.aqi === minAqi);
+    const maxItem = validAqiItems.find(p => p.aqi === maxAqi);
+    const minItem = validAqiItems.find(p => p.aqi === minAqi);
 
     const matchedItems = processedItems.filter(p => p.hasActual && p.actual_aqi != null);
     const actualCount = matchedItems.length;
@@ -317,15 +393,17 @@ export default function Forecast({ refreshKey }) {
       const itemTime = new Date(item.iso_time).getTime();
       if (isNaN(itemTime)) return true;
       
-      // Keep items where the time is >= the start of the current hour
+      // Keep items where the time is >= 5 hours before the current hour
       const currentHourStart = new Date(currentTime);
       currentHourStart.setMinutes(0, 0, 0);
       
-      const cutoff = new Date(currentTime);
-      cutoff.setDate(cutoff.getDate() + 1);
-      cutoff.setHours(0, 0, 0, 0);
+      const pastCutoff = new Date(currentHourStart);
+      pastCutoff.setHours(pastCutoff.getHours() - 5);
       
-      return itemTime >= currentHourStart.getTime() && itemTime <= cutoff.getTime();
+      const futureCutoff = new Date(currentHourStart);
+      futureCutoff.setHours(futureCutoff.getHours() + 24);
+      
+      return itemTime >= pastCutoff.getTime() && itemTime <= futureCutoff.getTime();
     });
   }, [processedItems, currentTime]);
 
@@ -523,7 +601,7 @@ export default function Forecast({ refreshKey }) {
                   {item.display_hour}
                 </div>
                 <div className="forecast-timeline-aqi" style={{ fontSize: 22, fontWeight: 800, color: item.aqi_color, lineHeight: 1.1 }}>
-                  {item.aqi}
+                  {item.aqi != null ? item.aqi : '—'}
                 </div>
                 <div className="forecast-timeline-category" style={{
                   fontSize: 10,
@@ -547,7 +625,7 @@ export default function Forecast({ refreshKey }) {
                   {item.hasActual ? (
                     <span>Act: <strong>{item.actual_aqi ?? '—'}</strong></span>
                   ) : (
-                    <span>Pending</span>
+                    <span>Act: <span style={{opacity: 0.6}}>Pending</span></span>
                   )}
                 </div>
               </div>
@@ -570,120 +648,6 @@ export default function Forecast({ refreshKey }) {
           marginBottom: 28
         }}
       >
-        {/* Navigation Toolbar */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 16,
-          marginBottom: 22,
-          paddingBottom: 20,
-          borderBottom: '1px solid #f1f5f9'
-        }}>
-          {/* Parameter Selectors */}
-          <div className="filter-chips-container" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', maxWidth: '100%' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-              <Sliders size={14} /> Metric:
-            </span>
-            {Object.keys(PARAM_CONFIG).map((pKey) => {
-              const cfg = PARAM_CONFIG[pKey];
-              const isSelected = activeParam === pKey;
-              return (
-                <button
-                  key={pKey}
-                  onClick={() => setActiveParam(pKey)}
-                  className="forecast-param-btn"
-                  style={{
-                    padding: '7px 14px',
-                    borderRadius: 10,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    border: isSelected ? `2px solid ${cfg.color}` : '1px solid #e2e8f0',
-                    background: isSelected ? `${cfg.color}15` : '#f8fafc',
-                    color: isSelected ? cfg.color : '#64748b',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0
-                  }}
-                >
-                  {cfg.name}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* View Toggles & Comparison Mode */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setShowComparison(!showComparison)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                borderRadius: 10,
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                border: showComparison ? '1.5px solid #00bfa5' : '1px solid #cbd5e1',
-                backgroundColor: showComparison ? '#f0fdf4' : '#ffffff',
-                color: showComparison ? '#0f766e' : '#64748b',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <ArrowLeftRight size={14} color={showComparison ? '#00bfa5' : '#64748b'} />
-              <span className="desktop-only-inline">{showComparison ? 'Comparison: Active' : 'Enable Comparison'}</span>
-              <span className="mobile-only-inline">{showComparison ? 'Compare On' : 'Compare'}</span>
-            </button>
-
-            <div style={{ display: 'flex', background: '#f1f5f9', padding: 4, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-              <button
-                onClick={() => setActiveView('chart')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 14px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  border: 'none',
-                  background: activeView === 'chart' ? '#ffffff' : 'transparent',
-                  color: activeView === 'chart' ? '#0f172a' : '#64748b',
-                  boxShadow: activeView === 'chart' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
-                }}
-              >
-                <LineChartIcon size={14} />
-                <span className="desktop-only-inline">Trend Curve</span>
-                <span className="mobile-only-inline">Curve</span>
-              </button>
-              <button
-                onClick={() => setActiveView('table')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 14px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  border: 'none',
-                  background: activeView === 'table' ? '#ffffff' : 'transparent',
-                  color: activeView === 'table' ? '#0f172a' : '#64748b',
-                  boxShadow: activeView === 'table' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
-                }}
-              >
-                <TableIcon size={14} />
-                <span className="desktop-only-inline">Full 24h Table</span>
-                <span className="mobile-only-inline">Table</span>
-              </button>
-            </div>
-          </div>
-        </div>
 
         {/* Selected Parameter Context Explainer */}
         <div style={{
@@ -716,134 +680,8 @@ export default function Forecast({ refreshKey }) {
           )}
         </div>
 
-        {/* Chart View */}
-        {activeView === 'chart' ? (
-          <div style={{ width: '100%', height: 400 }}>
-            {processedItems.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={processedItems} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
-                  <defs>
-                    <linearGradient id="forecastParamGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={PARAM_CONFIG[activeParam].color} stopOpacity={0.35} />
-                      <stop offset="95%" stopColor={PARAM_CONFIG[activeParam].color} stopOpacity={0.0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <XAxis
-                    dataKey="display_hour"
-                    stroke="#94a3b8"
-                    fontSize={12}
-                    tickMargin={10}
-                  />
-                  <YAxis
-                    stroke="#94a3b8"
-                    fontSize={12}
-                    tickMargin={8}
-                    domain={activeParam === 'aqi' ? [0, 'auto'] : ['auto', 'auto']}
-                  />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        const histKey = PARAM_CONFIG[activeParam].histKey;
-                        const actVal = data.hasActual && data.actualRecord ? data.actualRecord[histKey] : null;
-
-                        return (
-                          <div style={{
-                            background: '#0f172a',
-                            color: '#ffffff',
-                            padding: '14px 18px',
-                            borderRadius: 14,
-                            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)',
-                            fontSize: 12.5,
-                            minWidth: 230,
-                            border: '1px solid rgba(255,255,255,0.1)'
-                          }}>
-                            <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8, color: '#f8fafc' }}>
-                              {data.display_hour} • {data.display_date}
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 4 }}>
-                              <span style={{ color: '#94a3b8' }}>Forecast {PARAM_CONFIG[activeParam].name}:</span>
-                              <strong style={{ color: PARAM_CONFIG[activeParam].color }}>
-                                {data[activeParam] != null && !isNaN(Number(data[activeParam])) ? Number(data[activeParam]).toFixed(activeParam === 'temperature' || activeParam === 'humidity' ? 1 : 3) : data[activeParam]} {PARAM_CONFIG[activeParam].unit}
-                              </strong>
-                            </div>
-
-                            {showComparison && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 4 }}>
-                                <span style={{ color: '#94a3b8' }}>Actual Telemetry:</span>
-                                <strong style={{ color: actVal != null ? '#f59e0b' : '#64748b' }}>
-                                  {actVal != null ? `${Number(actVal).toFixed(activeParam === 'temperature' || activeParam === 'humidity' ? 1 : 3)} ${PARAM_CONFIG[activeParam].unit}` : 'Pending (—)'}
-                                </strong>
-                              </div>
-                            )}
-
-                            {showComparison && activeParam === 'aqi' && data.aqi_delta != null && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 4 }}>
-                                <span style={{ color: '#94a3b8' }}>Difference (Δ):</span>
-                                <strong style={{ color: data.aqi_delta > 0 ? '#ef4444' : '#10b981' }}>
-                                  {data.aqi_delta > 0 ? `+${Number(data.aqi_delta).toFixed(3)}` : `${Number(data.aqi_delta).toFixed(3)}`} AQI
-                                </strong>
-                              </div>
-                            )}
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                              <span style={{ color: '#94a3b8' }}>Dominant Sub-Index:</span>
-                              <span style={{ color: '#38bdf8', fontWeight: 700 }}>{data.dominant_pollutant}</span>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  {activeParam === 'aqi' && (
-                    <>
-                      <ReferenceLine y={50} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Good (50)', fill: '#10b981', fontSize: 10, position: 'insideTopRight' }} />
-                      <ReferenceLine y={100} stroke="#84cc16" strokeDasharray="3 3" label={{ value: 'Satisfactory (100)', fill: '#84cc16', fontSize: 10, position: 'insideTopRight' }} />
-                      <ReferenceLine y={200} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Moderate (200)', fill: '#f59e0b', fontSize: 10, position: 'insideTopRight' }} />
-                    </>
-                  )}
-
-                  {/* Primary Forecast Area */}
-                  <Area
-                    type="monotone"
-                    dataKey={activeParam}
-                    name="Forecast"
-                    stroke={PARAM_CONFIG[activeParam].color}
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#forecastParamGradient)"
-                  />
-
-                  {/* Overlaid Historical Telemetry Curve */}
-                  {showComparison && (
-                    <Line
-                      type="monotone"
-                      dataKey={(item) => {
-                        const histKey = PARAM_CONFIG[activeParam].histKey;
-                        return item.hasActual && item.actualRecord ? item.actualRecord[histKey] : null;
-                      }}
-                      name="Actual Telemetry"
-                      stroke="#f59e0b"
-                      strokeWidth={2.5}
-                      strokeDasharray="5 5"
-                      dot={false}
-                      connectNulls={false}
-                    />
-                  )}
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                {loading ? 'Processing neural forecasts...' : 'No forecast data available.'}
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Comprehensive 24h Comparison Table */
-          <div className="table-responsive-wrapper" style={{ overflowX: 'auto', maxHeight: 540 }}>
+        {/* Comprehensive 24h Comparison Table */}
+        <div className="table-responsive-wrapper" style={{ overflowX: 'auto', maxHeight: 540 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left', minWidth: 800 }}>
               <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', zIndex: 2 }}>
                 <tr style={{ color: '#475569', fontSize: 12 }}>
@@ -877,7 +715,7 @@ export default function Forecast({ refreshKey }) {
                     onMouseLeave={(e) => { if (selectedSlotIndex !== row.index) e.currentTarget.style.background = idx % 2 === 0 ? '#ffffff' : '#f8fafc'; }}
                   >
                     <td style={{ padding: '10px 14px', color: '#94a3b8', fontWeight: 600 }}>
-                      +{row.step}h
+                      {row.step > 0 ? '+' : ''}{row.step}h
                     </td>
                     <td style={{ padding: '10px 14px', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
                       {row.display_hour} <span style={{ fontSize: 11, color: '#94a3b8' }}>({row.display_date})</span>
@@ -921,7 +759,7 @@ export default function Forecast({ refreshKey }) {
                         color: row.aqi_color,
                         border: `1px solid ${row.aqi_border}`
                       }}>
-                        {row.aqi != null && !isNaN(Number(row.aqi)) ? Math.round(Number(row.aqi)) : row.aqi} • {row.aqi_category}
+                        {row.aqi != null && !isNaN(Number(row.aqi)) ? Math.round(Number(row.aqi)) : (row.aqi == null ? '—' : row.aqi)} {row.aqi != null ? `• ${row.aqi_category}` : ''}
                       </span>
                     </td>
 
@@ -963,8 +801,8 @@ export default function Forecast({ refreshKey }) {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+
+        </div>
 
         </>
       )}

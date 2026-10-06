@@ -279,9 +279,8 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
     const currentHourStart = new Date();
     currentHourStart.setMinutes(0, 0, 0, 0);
     
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() + 1);
-    cutoff.setHours(0, 0, 0, 0);
+    const cutoff = new Date(currentHourStart);
+    cutoff.setHours(cutoff.getHours() + 24);
 
     const upcoming = forecastData.forecast.filter(item => {
       if (!item.forecast_for_time) return true;

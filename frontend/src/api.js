@@ -173,6 +173,11 @@ export const parseToIstIso = (tsRaw) => {
 const formatRawReading = (raw) => {
   if (!raw) return null;
 
+  // If the backend has already calibrated this reading, don't run the frontend calibrator equations again.
+  if (raw.is_calibrated && raw.cpcb_aqi != null) {
+    return { ...raw };
+  }
+
   const rawTemp = raw.temperature;
   const rawHum = raw.humidity;
   const tempVal = rawTemp != null ? Number(rawTemp) : 27.0;

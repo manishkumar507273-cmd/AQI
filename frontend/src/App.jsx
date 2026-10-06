@@ -5,6 +5,7 @@ import LiveData from './pages/LiveData';
 import Overview from './pages/Overview';
 import Forecast from './pages/Forecast';
 import Historical from './pages/Historical';
+import AdminRequests from './pages/AdminRequests';
 import { getCloudLatest, getCachedData } from './api';
 import { useAuth } from './context/AuthContext';
 
@@ -68,15 +69,6 @@ export default function App() {
     };
   }, []);
 
-  // Auto-refresh every 5 minutes to fetch the latest telemetry and hourly GitHub Actions forecasts
-  useEffect(() => {
-    const interval = setInterval(() => {
-      handleRefresh();
-    }, 5 * 60 * 1000); // 5 minutes
-    
-    return () => clearInterval(interval);
-  }, [handleRefresh]);
-
   const handleDataLoad = useCallback(() => setLoading(false), []);
 
   const handleRefresh = useCallback(() => {
@@ -95,6 +87,15 @@ export default function App() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Auto-refresh every 5 minutes to fetch the latest telemetry and hourly GitHub Actions forecasts
+  useEffect(() => {
+    const interval = setInterval(() => {
+      handleRefresh();
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    return () => clearInterval(interval);
+  }, [handleRefresh]);
 
   return (
     <Layout
@@ -140,6 +141,10 @@ export default function App() {
 
           {activeNav === 'historical' && (
             <Historical refreshKey={refreshKey} selectedStation={selectedStation} />
+          )}
+
+          {activeNav === 'admin' && (
+            <AdminRequests />
           )}
         </motion.div>
       </AnimatePresence>

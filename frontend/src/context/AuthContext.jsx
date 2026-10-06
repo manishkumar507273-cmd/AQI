@@ -26,11 +26,33 @@ export function AuthProvider({ children }) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [redirectAfterAuth, setRedirectAfterAuth] = useState(null);
 
-  // Strictly rely on active Firebase session or explicit active bypass (no persistent local storage guest access)
-  const [isRegisteredUser, setIsRegisteredUser] = useState(false);
+  // Read initial state from localStorage to prevent flash of guest state
+  const [isRegisteredUser, setIsRegisteredUser] = useState(() => {
+    try {
+      return localStorage.getItem('SMART_WEATHER_NET_REGISTERED') === 'true';
+    } catch (_) { return false; }
+  });
 
   useEffect(() => {
+    // If the user used the admin bypass, restore their admin session
+    const isAdmin = localStorage.getItem('SMART_WEATHER_ADMIN') === 'true';
+    if (isAdmin) {
+      setCurrentUser({
+        uid: 'admin-dev-bypass',
+        email: 'admin@local.dev',
+        displayName: 'Admin Developer',
+      });
+      setIsRegisteredUser(true);
+      setLoading(false);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // If we already have an admin bypass session restored, ignore Firebase's null user
+      if (localStorage.getItem('SMART_WEATHER_ADMIN') === 'true') {
+        setLoading(false);
+        return;
+      }
+
       setCurrentUser(user);
       if (user) {
         setIsRegisteredUser(true);
@@ -41,6 +63,9 @@ export function AuthProvider({ children }) {
       } else {
         // Ensure that if Firebase confirms no user is logged in, we lock the dashboard
         setIsRegisteredUser(false);
+        try {
+          localStorage.removeItem('SMART_WEATHER_NET_REGISTERED');
+        } catch (_) {}
       }
       setLoading(false);
     });
@@ -94,6 +119,9 @@ export function AuthProvider({ children }) {
       email: 'admin@local.dev',
       displayName: 'Admin Developer',
     });
+    try {
+      localStorage.setItem('SMART_WEATHER_ADMIN', 'true');
+    } catch (_) {}
     handleAuthSuccess();
   };
 
@@ -102,6 +130,7 @@ export function AuthProvider({ children }) {
     try {
       localStorage.removeItem('SMART_WEATHER_NET_REGISTERED');
       localStorage.removeItem('SMART_WEATHER_NET_USER_EMAIL');
+      localStorage.removeItem('SMART_WEATHER_ADMIN');
     } catch (_) {}
     
     // If it's the admin bypass, just reset state

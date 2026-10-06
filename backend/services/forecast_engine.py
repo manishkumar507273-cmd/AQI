@@ -350,12 +350,8 @@ def run_tiered_inference(input_matrix: np.ndarray, selected_tier: int, latest_dt
     unscaled_pred = scaler_y.inverse_transform(pred_2d)
 
     forecast_results = []
-    # Pin forecasts to today's calendar day in IST (UTC+5:30).
-    # base_time = today midnight IST → steps 1-24 = 1 AM IST … midnight IST,
-    # covering the full 24 hours of today so past hours show actual data.
     IST = timezone(timedelta(hours=5, minutes=30))
-    now_ist = datetime.now(IST)
-    base_time = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    base_time = latest_dt.astimezone(IST).replace(minute=0, second=0, microsecond=0)
 
     for step in range(1, 25):
         future_time = base_time + timedelta(hours=step)
@@ -452,9 +448,12 @@ async def upsert_forecasts_to_supabase(forecast_records: List[Dict[str, Any]], g
             res = await client.post(url, json=payload, headers=headers)
             if res.status_code in (200, 201):
                 logger.info("Successfully synced %d forecast records (%s) to %s", len(payload), tier_used, DEST_FORECAST_TABLE)
-                # Automatically prune older batches from Supabase so only the latest 24 predictions exist
+                # Automatically prune older batches from Supabase so only the latest predictions exist
                 try:
-                    del_url = f"{SUPABASE_URL}/rest/v1/{DEST_FORECAST_TABLE}?node_id=eq.{NODE_ID}&forecast_generated_at=lt.{generated_at}"
+                    from urllib.parse import quote
+                    from datetime import datetime, timedelta, timezone
+                    prune_time = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+                    del_url = f"{SUPABASE_URL}/rest/v1/{DEST_FORECAST_TABLE}?node_id=eq.{NODE_ID}&forecast_for_time=lt.{quote(prune_time, safe='')}"
                     await client.delete(del_url, headers=headers)
                 except Exception as del_err:
                     logger.debug("Prune of older forecast batches notice: %s", del_err)

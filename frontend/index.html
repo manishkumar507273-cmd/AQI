@@ -8,13 +8,24 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Smart WeatherNet" />
-    <title>Smart WeatherNet | Real-Time Air Quality & Weather Monitor</title>
+    <!-- ── Security hardening ─────────────────────────────────────────── -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta name="referrer" content="no-referrer" />
+    <!-- ─────────────────────────────────────────────────────────────── -->
+    <title>Smart WeatherNet | Real-Time Air Quality &amp; Weather Monitor</title>
     <meta name="description" content="Monitor real-time AQI, weather, and air quality telemetry. Powered by Supabase Cloud." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <style>
+      /* Disable text selection and image drag site-wide */
+      body { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+      input, textarea, [contenteditable] { -webkit-user-select: text; -moz-user-select: text; user-select: text; }
+      img { -webkit-user-drag: none; -khtml-user-drag: none; -moz-user-drag: none; pointer-events: none; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

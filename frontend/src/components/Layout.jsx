@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wind, LineChart, Database, Radio, Menu, X, ArrowLeft, ArrowUpRight, LogOut, LogIn, UserCheck } from 'lucide-react';
+import { Wind, LineChart, Database, Radio, Menu, X, ArrowLeft, ArrowUpRight, LogOut, LogIn, UserCheck, ShieldAlert } from 'lucide-react';
 import WindCanvas from './WindCanvas';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './AuthModal';
@@ -127,6 +127,8 @@ export default function Layout({
     { id: 'historical', label: 'Analytics Archive', icon: Database },
     { id: 'forecast', label: 'Predictive Forecast', icon: LineChart },
   ];
+
+  const isAdmin = currentUser?.uid === 'admin-dev-bypass' || localStorage.getItem('SMART_WEATHER_ADMIN') === 'true';
 
   return (
     <div style={{
@@ -318,6 +320,41 @@ export default function Layout({
             </button>
           )}
 
+          {isAdmin && (
+            <button
+              onClick={() => handleNavItemClick('admin')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                borderRadius: 999,
+                border: '1.5px solid #e2e8f0',
+                backgroundColor: currentTab === 'admin' ? '#0f172a' : '#ffffff',
+                color: currentTab === 'admin' ? '#ffffff' : '#475569',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={e => { 
+                if (currentTab !== 'admin') {
+                  e.currentTarget.style.backgroundColor = '#f8fafc'; 
+                  e.currentTarget.style.color = '#0f172a'; 
+                }
+              }}
+              onMouseLeave={e => { 
+                if (currentTab !== 'admin') {
+                  e.currentTarget.style.backgroundColor = '#ffffff'; 
+                  e.currentTarget.style.color = '#475569'; 
+                }
+              }}
+            >
+              <ShieldAlert size={14} />
+              <span>Admin Requests</span>
+            </button>
+          )}
+
           {/* User Account / Profile Badge */}
           {(currentUser || isRegisteredUser) ? (
             <div style={{
@@ -429,6 +466,24 @@ export default function Layout({
             >
               <span>Dashboard</span>
               <ArrowUpRight style={{ width: 12, height: 12, strokeWidth: 2.5 }} />
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              onClick={() => handleNavItemClick('admin')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 30, height: 30,
+                borderRadius: '50%',
+                backgroundColor: currentTab === 'admin' ? '#0f172a' : '#f1f5f9',
+                color: currentTab === 'admin' ? '#ffffff' : '#475569',
+                border: 'none',
+              }}
+            >
+              <ShieldAlert size={16} />
             </button>
           )}
 
@@ -635,11 +690,7 @@ export default function Layout({
       {/* Only show bottom nav after sign-in; hide on the overview/landing page for guests */}
       {(currentUser || isRegisteredUser || activeNav !== 'overview') && (
         <nav className="mobile-bottom-nav">
-          {[
-            { id: 'live', label: 'Live Stream', icon: Radio },
-            { id: 'forecast', label: 'Forecast', icon: LineChart },
-            { id: 'historical', label: 'Archive', icon: Database },
-          ].map((tab) => {
+          {NAV_ITEMS.map((tab) => {
             const isActive = currentTab === tab.id;
             const Icon = tab.icon;
             return (

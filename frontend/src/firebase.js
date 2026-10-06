@@ -151,6 +151,21 @@ export const logUserActivity = async (user, action, details = {}) => {
   }
 };
 
+export const submitDataRequest = async (user, requestData) => {
+  if (!rtdb) throw new Error('Database is not initialized');
+  const requestsRef = rtdbRef(rtdb, 'data_requests');
+  const newRequestRef = rtdbPush(requestsRef);
+  const payload = {
+    ...requestData,
+    uid: user?.uid || 'anonymous',
+    email: user?.email || requestData.email,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+  await rtdbSet(newRequestRef, payload);
+  return newRequestRef.key;
+};
+
 // ── Authentication Helpers ──────────────────────────────────────────
 
 export const loginWithGoogle = async () => {
