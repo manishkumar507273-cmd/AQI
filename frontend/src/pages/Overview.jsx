@@ -294,7 +294,8 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
     const upcoming = forecastData.forecast.filter(item => {
       if (!item.forecast_for_time) return true;
-      const itemTime = new Date(item.forecast_for_time).getTime();
+      const cleanTime = item.forecast_for_time.replace(/(Z|[+-]\d{2}:\d{2})$/gi, '');
+      const itemTime = new Date(cleanTime).getTime();
       if (isNaN(itemTime)) return true;
       return itemTime > currentHourStart.getTime() && itemTime <= cutoff.getTime();
     });
@@ -303,7 +304,8 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
     const first23 = upcoming.slice(0, 23);
     
     const mapped = first23.map((item, index) => {
-      const dt = new Date(item.forecast_for_time);
+      const cleanTime = item.forecast_for_time.replace(/(Z|[+-]\d{2}:\d{2})$/gi, '');
+      const dt = new Date(cleanTime);
       const hourStr = isNaN(dt.getTime())
         ? `+${item.step}h`
         : dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -343,7 +345,8 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
     // Find the exact forecast item for the current hour
     const currentHourForecast = forecastData.forecast.find(item => {
       if (!item.forecast_for_time) return false;
-      const itemTime = new Date(item.forecast_for_time).getTime();
+      const cleanTime = item.forecast_for_time.replace(/(Z|[+-]\d{2}:\d{2})$/gi, '');
+      const itemTime = new Date(cleanTime).getTime();
       return itemTime === currentHourStart.getTime();
     });
 
