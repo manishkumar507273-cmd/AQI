@@ -315,14 +315,9 @@ img, svg, video, canvas {
 
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   width: 100%;
-}
-
-/* Make the first card (AQI) span full width if desired, or let it flow naturally */
-.overview-grid > .overview-core-card:first-child {
-  grid-column: 1 / -1;
 }
 
 .overview-core-card {
