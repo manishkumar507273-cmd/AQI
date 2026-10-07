@@ -370,7 +370,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
     const nowTemp = nowTempStr;
     const nowHum = nowHumVal;
     const nowRain = nowRainVal;
-    const nowAqi = nowAqiVal;
+    const nowAqi = nowAqiVal != null ? nowAqiVal : (aqiData?.cpcb_aqi != null ? Math.round(aqiData.cpcb_aqi) : null);
     const nowAqiColor = nowAqi != null ? getForecastAqiCategory(nowAqi).color : '#9ca3af';
 
     let nowWeatherType = 'clear';
