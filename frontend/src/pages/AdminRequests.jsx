@@ -34,7 +34,6 @@ export default function AdminRequests() {
   const [errorMsg, setErrorMsg] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [actionInProgress, setActionInProgress] = useState(null);
-  const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
     if (!rtdb) {
@@ -128,17 +127,7 @@ export default function AdminRequests() {
     }
   };
 
-  const handleDownloadDataset = async (req) => {
-    setDownloadingId(req.id);
-    try {
-      const { category, year, month } = parseDatasetRequest(req.dataset);
-      await downloadHistoricalDataset({ category, year, month: month || 'all' });
-    } catch (err) {
-      alert('Error downloading dataset CSV: ' + err.message);
-    } finally {
-      setDownloadingId(null);
-    }
-  };
+
 
   const handleReject = async (id) => {
     setActionInProgress(id);
@@ -256,28 +245,7 @@ export default function AdminRequests() {
               </div>
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
-                {/* Instant Download Action */}
-                <button
-                  onClick={() => handleDownloadDataset(req)}
-                  disabled={downloadingId === req.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    background: '#f1f5f9',
-                    border: '1px solid #cbd5e1',
-                    color: '#334155',
-                    borderRadius: 8,
-                    fontWeight: 600,
-                    cursor: downloadingId === req.id ? 'wait' : 'pointer',
-                    fontSize: 13
-                  }}
-                  title="Download the requested dataset CSV directly"
-                >
-                  <Download size={15} />
-                  {downloadingId === req.id ? 'Generating...' : 'Download CSV'}
-                </button>
+
 
                 {req.status === 'pending' && (
                   <>
