@@ -173,10 +173,9 @@ export const parseToIstIso = (tsRaw) => {
 const formatRawReading = (raw) => {
   if (!raw) return null;
 
-  // If the backend has already calibrated this reading, don't run the frontend calibrator equations again.
-  if (raw.is_calibrated && raw.cpcb_aqi != null) {
-    return { ...raw };
-  }
+  // Determine if we should use the database's pre-calculated AQI or recalculate it
+  const hasDbAqi = raw.cpcb_aqi != null;
+  const useDbValues = raw.is_calibrated || hasDbAqi;
 
   const rawTemp = raw.temperature;
   const rawHum = raw.humidity;
@@ -189,34 +188,36 @@ const formatRawReading = (raw) => {
   const rawO3 = raw.o3 != null ? Number(raw.o3) : null;
   const rawNo2 = raw.no2 != null ? Number(raw.no2) : null;
 
-  // Multi-parameter Ridge calibration from aqi_model_and_calibrators
-  const calPm25 = rawPm25 != null
-    ? Math.max(0.0, Number((0.12532894 * rawPm25 - 0.7801631 * tempVal - 0.15188749 * humVal + 41.495258).toFixed(3)))
-    : null;
-  const calPm10 = rawPm10 != null
-    ? Math.max(0.0, Number((0.10855827 * rawPm10 - 0.6390711 * tempVal - 0.11117823 * humVal + 34.034309).toFixed(3)))
-    : null;
-  const calCo = rawCo != null
-    ? Math.max(0.0, Number((0.24370718 * rawCo + 0.02763672 * tempVal + 0.00444147 * humVal - 0.96570843).toFixed(3)))
-    : null;
-  const calNo2 = rawNo2 != null
-    ? Math.max(0.0, Number((0.00920961 * rawNo2 + 0.06749354 * tempVal + 0.00777269 * humVal + 2.903467).toFixed(3)))
-    : null;
-  const calO3 = rawO3 != null
-    ? Math.max(0.0, Number((0.05187092 * rawO3 - 1.4830095 * tempVal - 0.23912878 * humVal + 91.72351).toFixed(3)))
-    : null;
+  let cpcb_aqi, domKey, subIndices;
 
-  const subIndices = {
-    pm25: calcSubindex('pm25', calPm25 ?? rawPm25),
-    pm10: calcSubindex('pm10', calPm10 ?? rawPm10),
-    co: calcSubindex('co', calCo ?? rawCo),
-    no2: calcSubindex('no2', calNo2 ?? rawNo2),
-    o3: calcSubindex('o3', calO3 ?? rawO3),
-  };
+  if (useDbValues) {
+    // 1. Trust the database or backend ML model!
+    cpcb_aqi = raw.cpcb_aqi;
+    
+    // Some backend APIs pre-populate sub_indices and dominant_pollutant_key
+    subIndices = raw.sub_indices || {};
+    domKey = raw.dominant_pollutant_key || (raw.dominant_pollutant ? (raw.dominant_pollutant === 'PM2.5' ? 'pm25' : raw.dominant_pollutant.toLowerCase()) : 'pm25');
+  } else {
+    // 2. ONLY fallback to hardcoded frontend Ridge regression if the database is missing AQI
+    const calPm25 = rawPm25 != null ? Math.max(0.0, Number((0.12532894 * rawPm25 - 0.7801631 * tempVal - 0.15188749 * humVal + 41.495258).toFixed(3))) : null;
+    const calPm10 = rawPm10 != null ? Math.max(0.0, Number((0.10855827 * rawPm10 - 0.6390711 * tempVal - 0.11117823 * humVal + 34.034309).toFixed(3))) : null;
+    const calCo = rawCo != null ? Math.max(0.0, Number((0.24370718 * rawCo + 0.02763672 * tempVal + 0.00444147 * humVal - 0.96570843).toFixed(3))) : null;
+    const calNo2 = rawNo2 != null ? Math.max(0.0, Number((0.00920961 * rawNo2 + 0.06749354 * tempVal + 0.00777269 * humVal + 2.903467).toFixed(3))) : null;
+    const calO3 = rawO3 != null ? Math.max(0.0, Number((0.05187092 * rawO3 - 1.4830095 * tempVal - 0.23912878 * humVal + 91.72351).toFixed(3))) : null;
 
-  const domKey = Object.keys(subIndices).reduce((a, b) => subIndices[a] >= subIndices[b] ? a : b);
+    subIndices = {
+      pm25: calcSubindex('pm25', calPm25 ?? rawPm25),
+      pm10: calcSubindex('pm10', calPm10 ?? rawPm10),
+      co: calcSubindex('co', calCo ?? rawCo),
+      no2: calcSubindex('no2', calNo2 ?? rawNo2),
+      o3: calcSubindex('o3', calO3 ?? rawO3),
+    };
+
+    domKey = Object.keys(subIndices).reduce((a, b) => subIndices[a] >= subIndices[b] ? a : b);
+    cpcb_aqi = Math.round(subIndices[domKey] || 0);
+  }
+
   const domNames = { pm25: 'PM2.5', pm10: 'PM10', co: 'CO', no2: 'NO₂', o3: 'O₃' };
-  const cpcb_aqi = Math.round(subIndices[domKey] || 0);
 
   let label = "Good", color = "#65ff50";
   if (cpcb_aqi > 50 && cpcb_aqi <= 100) { label = "Satisfactory"; color = "#a3e635"; }
@@ -230,19 +231,19 @@ const formatRawReading = (raw) => {
     timestamp: raw.created_at || raw.timestamp_hour || raw.timestamp,
     temperature: rawTemp,
     humidity: rawHum,
-    pm25: calPm25 ?? rawPm25,
-    pm10: calPm10 ?? rawPm10,
-    co: calCo ?? rawCo,
-    o3: calO3 ?? rawO3,
-    no2: calNo2 ?? rawNo2,
-    raw_pm25: rawPm25,
-    raw_pm10: rawPm10,
-    raw_co: rawCo,
-    raw_o3: rawO3,
-    raw_no2: rawNo2,
+    pm25: rawPm25,
+    pm10: rawPm10,
+    co: rawCo,
+    o3: rawO3,
+    no2: rawNo2,
+    raw_pm25: raw.raw_pm25 ?? rawPm25,
+    raw_pm10: raw.raw_pm10 ?? rawPm10,
+    raw_co: raw.raw_co ?? rawCo,
+    raw_o3: raw.raw_o3 ?? rawO3,
+    raw_no2: raw.raw_no2 ?? rawNo2,
     is_calibrated: true,
     cpcb_aqi,
-    dominant_pollutant: domNames[domKey] || 'N/A',
+    dominant_pollutant: raw.dominant_pollutant || domNames[domKey] || 'N/A',
     dominant_pollutant_key: domKey,
     sub_indices: subIndices,
     aqi_info: { value: cpcb_aqi, label, color, standard: 'CPCB (India)' },
