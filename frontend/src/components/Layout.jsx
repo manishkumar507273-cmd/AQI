@@ -121,14 +121,14 @@ export default function Layout({
   const currentTab = getCurrentNavTab();
   const currentStationObj = STATIONS.find(s => s.id === selectedStation) || STATIONS[0];
 
-  // Only these 3 options appear in the navigation on all inner pages
+  const isAdmin = currentUser?.uid === 'admin-dev-bypass' || localStorage.getItem('SMART_WEATHER_ADMIN') === 'true';
+
+  // Navigation options; Predictive Forecast is visible to admins only
   const NAV_ITEMS = [
     { id: 'live', label: 'Live Data Stream', icon: Radio },
     { id: 'historical', label: 'Analytics Archive', icon: Database },
-    { id: 'forecast', label: 'Predictive Forecast', icon: LineChart },
+    ...(isAdmin ? [{ id: 'forecast', label: 'Predictive Forecast', icon: LineChart }] : []),
   ];
-
-  const isAdmin = currentUser?.uid === 'admin-dev-bypass' || localStorage.getItem('SMART_WEATHER_ADMIN') === 'true';
 
   return (
     <div style={{

@@ -41,6 +41,14 @@ export default function App() {
     }
   }, [authLoading, currentUser, isRegisteredUser, activeNav]);
 
+  // Admin-only pages: Predictive Forecast and Admin Requests
+  const isAdmin = currentUser?.uid === 'admin-dev-bypass' || localStorage.getItem('SMART_WEATHER_ADMIN') === 'true';
+  useEffect(() => {
+    if (!authLoading && !isAdmin && (activeNav === 'forecast' || activeNav === 'admin')) {
+      setActiveNav('overview');
+    }
+  }, [authLoading, isAdmin, activeNav]);
+
   useEffect(() => {
     let isMounted = true;
     getCloudLatest()
@@ -135,7 +143,7 @@ export default function App() {
             <Overview refreshKey={refreshKey} selectedStation={selectedStation} onNavigate={setActiveNav} />
           )}
 
-          {activeNav === 'forecast' && (
+          {activeNav === 'forecast' && isAdmin && (
             <Forecast refreshKey={refreshKey} selectedStation={selectedStation} />
           )}
 
@@ -143,7 +151,7 @@ export default function App() {
             <Historical refreshKey={refreshKey} selectedStation={selectedStation} />
           )}
 
-          {activeNav === 'admin' && (
+          {activeNav === 'admin' && isAdmin && (
             <AdminRequests />
           )}
         </motion.div>
