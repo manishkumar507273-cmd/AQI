@@ -25,18 +25,18 @@ import DataRequestModal from '../components/DataRequestModal';
 const START_YEAR = 2026;
 
 const ALL_MONTHS = [
-  { value: 1, label: '01 - January' },
-  { value: 2, label: '02 - February' },
-  { value: 3, label: '03 - March' },
-  { value: 4, label: '04 - April' },
-  { value: 5, label: '05 - May' },
-  { value: 6, label: '06 - June' },
-  { value: 7, label: '07 - July' },
-  { value: 8, label: '08 - August' },
-  { value: 9, label: '09 - September' },
-  { value: 10, label: '10 - October' },
-  { value: 11, label: '11 - November' },
-  { value: 12, label: '12 - December' },
+  { value: 1, label: 'January' },
+  { value: 2, label: 'February' },
+  { value: 3, label: 'March' },
+  { value: 4, label: 'April' },
+  { value: 5, label: 'May' },
+  { value: 6, label: 'June' },
+  { value: 7, label: 'July' },
+  { value: 8, label: 'August' },
+  { value: 9, label: 'September' },
+  { value: 10, label: 'October' },
+  { value: 11, label: 'November' },
+  { value: 12, label: 'December' },
 ];
 
 const AQI_PARAMS = [
@@ -408,13 +408,6 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
   const periodOptions = useMemo(() => {
     const options = [];
 
-    if (availableMonthsForYear.length > 0) {
-      options.push({
-        value: 'all',
-        label: `Complete Year ${selectedDatasetYear} (${availableMonthsForYear.length} Active Month${availableMonthsForYear.length > 1 ? 's' : ''})`
-      });
-    }
-
     for (const mNum of availableMonthsForYear) {
       const monthObj = ALL_MONTHS.find(m => m.value === mNum);
       if (monthObj) {
@@ -425,17 +418,16 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
     return options;
   }, [availableMonthsForYear, selectedDatasetYear]);
 
-  const [selectedDatasetMonth, setSelectedDatasetMonth] = useState('all'); // 'all' or 1..12
+  const [selectedDatasetMonths, setSelectedDatasetMonths] = useState([]); // Array of selected month values
 
-  // Sync selected month if previous selection has no data in current year
+  // Sync selected months if previous selection has no data in current year
   useEffect(() => {
     if (periodOptions.length > 0) {
-      const isValid = periodOptions.some(opt => opt.value === selectedDatasetMonth);
-      if (!isValid) {
-        setSelectedDatasetMonth(periodOptions[0].value);
-      }
+      setSelectedDatasetMonths(prev => prev.filter(m => periodOptions.some(opt => opt.value === m)));
+    } else {
+      setSelectedDatasetMonths([]);
     }
-  }, [periodOptions, selectedDatasetMonth]);
+  }, [periodOptions]);
 
   const [isDownloadingDataset, setIsDownloadingDataset] = useState(false);
   const [datasetDownloadStatus, setDatasetDownloadStatus] = useState(null);
@@ -1511,71 +1503,9 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
               <span>Bulk Dataset Download:</span>
             </div>
 
-            {/* Year Selector (2026 and forward dynamically) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Year:</label>
-              <select
-                value={selectedDatasetYear}
-                onChange={(e) => setSelectedDatasetYear(Number(e.target.value))}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 8,
-                  border: '1.5px solid #cbd5e1',
-                  backgroundColor: '#ffffff',
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  color: '#0f172a',
-                  cursor: 'pointer',
-                  outline: 'none',
-                  fontFamily: 'var(--font-mono)'
-                }}
-              >
-                {availableYears.map((yr) => (
-                  <option key={yr} value={yr}>
-                    {yr}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Month Selector (Only months that actually contain data in database) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Period:</label>
-              <select
-                value={selectedDatasetMonth}
-                onChange={(e) => setSelectedDatasetMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                disabled={periodOptions.length === 0}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 8,
-                  border: '1.5px solid #cbd5e1',
-                  backgroundColor: periodOptions.length === 0 ? '#f1f5f9' : '#ffffff',
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  color: periodOptions.length === 0 ? '#94a3b8' : '#0f172a',
-                  cursor: periodOptions.length === 0 ? 'not-allowed' : 'pointer',
-                  outline: 'none',
-                  fontFamily: 'var(--font-sans)'
-                }}
-              >
-                {periodOptions.length === 0 ? (
-                  <option value="" disabled>
-                    No recorded data for {selectedDatasetYear}
-                  </option>
-                ) : (
-                  periodOptions.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-
-            {/* Download Dataset Button */}
+            {/* Request Dataset Button */}
             <button
               onClick={() => setIsRequestModalOpen(true)}
-              disabled={isDownloadingDataset || periodOptions.length === 0}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1583,38 +1513,18 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                 padding: '6px 18px',
                 borderRadius: 999,
                 border: 'none',
-                backgroundColor: (isDownloadingDataset || periodOptions.length === 0) ? '#94a3b8' : '#00bfa5',
+                backgroundColor: '#00bfa5',
                 color: '#ffffff',
                 fontSize: 12.5,
                 fontWeight: 700,
-                cursor: (isDownloadingDataset || periodOptions.length === 0) ? 'not-allowed' : 'pointer',
-                boxShadow: (isDownloadingDataset || periodOptions.length === 0) ? 'none' : '0 2px 10px rgba(0, 191, 165, 0.28)',
+                cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(0, 191, 165, 0.28)',
                 transition: 'all 0.15s ease',
                 whiteSpace: 'nowrap'
               }}
             >
-              {isDownloadingDataset ? (
-                <>
-                  <RefreshCw style={{ width: 13, height: 13, animation: 'spin 1s linear infinite' }} />
-                  <span>Preparing Dataset...</span>
-                </>
-              ) : periodOptions.length === 0 ? (
-                <>
-                  <Download style={{ width: 14, height: 14 }} />
-                  <span>No Records in {selectedDatasetYear}</span>
-                </>
-              ) : (
-                <>
-                  <Download style={{ width: 14, height: 14 }} />
-                  <span>
-                    Download {subTab === 'aqi' ? 'AQI' : 'Weather'}{' '}
-                    {selectedDatasetMonth === 'all'
-                      ? `Year ${selectedDatasetYear}`
-                      : ALL_MONTHS.find((m) => m.value === selectedDatasetMonth)?.label || 'Month'}{' '}
-                    Dataset
-                  </span>
-                </>
-              )}
+              <Download style={{ width: 14, height: 14 }} />
+              <span>Request Dataset</span>
             </button>
           </div>
 
@@ -1734,7 +1644,13 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
       <DataRequestModal 
         isOpen={isRequestModalOpen} 
         onClose={() => setIsRequestModalOpen(false)} 
-        datasetType={subTab} 
+        datasetType={subTab}
+        availableYears={availableYears}
+        periodOptions={periodOptions}
+        selectedYear={selectedDatasetYear}
+        onYearChange={setSelectedDatasetYear}
+        selectedMonths={selectedDatasetMonths}
+        onMonthsChange={setSelectedDatasetMonths}
       />
     </div>
   );

@@ -140,7 +140,7 @@ export default function WeatherForecast24hView({ refreshKey }) {
     const currentHourStart = new Date(currentTime);
     currentHourStart.setMinutes(0, 0, 0);
 
-    for (let i = 5; i >= 0; i--) {
+    for (let i = 0; i >= 0; i--) {
       const pastTime = new Date(currentHourStart);
       pastTime.setHours(pastTime.getHours() - i);
       
@@ -232,34 +232,17 @@ export default function WeatherForecast24hView({ refreshKey }) {
   };
 
   return (
-    <div style={{ minHeight: '85vh' }}>
+    <div style={{ width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 10 }}>
             <Sparkles style={{ width: 22, height: 22, color: '#3b82f6' }} />
-            Predictive Forecast (24h)
+            Weather Forecast (24h)
           </h1>
           <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13.5 }}>
             <span className="desktop-only-inline">Node 1 24-Hour horizon (t+1 → t+24) with MultiKernel CNN-LSTM and real-time telemetry sync.</span>
             <span className="mobile-only-inline">24-Hour predictive AI horizon &amp; telemetry sync</span>
           </p>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {lastUpdated && <span style={{ fontSize: 12.5, color: '#94a3b8' }}>Updated {getTimeAgo(lastUpdated)}</span>}
-          <button
-            onClick={() => fetchForecastAndHistory(true)}
-            disabled={loading}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 7, backgroundColor: '#3b82f6', color: '#ffffff',
-              border: 'none', padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.15s ease', opacity: loading ? 0.7 : 1,
-              boxShadow: '0 2px 8px rgba(59, 130, 246, 0.25)'
-            }}
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
         </div>
       </div>
 
@@ -292,6 +275,7 @@ export default function WeatherForecast24hView({ refreshKey }) {
             display: 'flex',
             gap: 4, // Tighter gap for floating cards
             overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
             paddingBottom: 8,
             scrollbarWidth: 'thin'
           }}>
@@ -403,65 +387,6 @@ export default function WeatherForecast24hView({ refreshKey }) {
         </div>
       )}
 
-      {/* Main Analytics Hub */}
-      <div className="forecast-main-hub" style={{ background: '#ffffff', borderRadius: 20, border: '1px solid #e2e8f0', padding: '26px 28px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.04)', marginBottom: 28 }}>
-
-
-        <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, fontSize: 13, color: '#64748b' }}>
-          <div>
-            <strong style={{ color: '#0f172a' }}>{WEATHER_PARAM_CONFIG[activeParam].name}</strong> ({WEATHER_PARAM_CONFIG[activeParam].unit}): {WEATHER_PARAM_CONFIG[activeParam].desc}
-          </div>
-          {showComparison && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 14, height: 3, background: WEATHER_PARAM_CONFIG[activeParam].color, display: 'inline-block', borderRadius: 2 }} />
-                <strong style={{ color: WEATHER_PARAM_CONFIG[activeParam].color }}>Solid: Forecast Prediction</strong>
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 14, height: 3, borderTop: '2px dashed #f59e0b', display: 'inline-block' }} />
-                <strong style={{ color: '#f59e0b' }}>Dashed: Actual Telemetry (WEATHER_NODE1)</strong>
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="table-responsive-wrapper" style={{ maxHeight: 540 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left', minWidth: 800 }}>
-              <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', zIndex: 2 }}>
-                <tr style={{ color: '#475569', fontSize: 12 }}>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Time Window</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Temp (°C) (Act / Fcst)</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Humidity (%) (Act / Fcst)</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Wind (km/h) (Act / Fcst)</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Rain (mm) (Act / Fcst)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {processedItems.map((row, idx) => (
-                  <tr
-                    key={row.step}
-                    onClick={() => setSelectedSlotIndex(row.index)}
-                    style={{
-                      borderBottom: '1px solid #f1f5f9',
-                      backgroundColor: selectedSlotIndex === row.index ? `#f1f5f9` : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'),
-                      cursor: 'pointer',
-                      transition: 'background 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => { if (selectedSlotIndex !== row.index) e.currentTarget.style.background = '#f1f5f9'; }}
-                    onMouseLeave={(e) => { if (selectedSlotIndex !== row.index) e.currentTarget.style.background = idx % 2 === 0 ? '#ffffff' : '#f8fafc'; }}
-                  >
-                    <td style={{ padding: '10px 14px', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                      {row.display_hour} <span style={{ fontSize: 11, color: '#94a3b8' }}>({row.display_date})</span>
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_temperature, row.temperature, '°', 1, row.isPast)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_humidity, row.humidity, '%', 1, row.isPast)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_wind_speed, row.wind_speed, '', 1, row.isPast)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_rain_gauge, row.rain_gauge, '', 2, row.isPast)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-      </div>
-    </div>
     </div>
   );
 }

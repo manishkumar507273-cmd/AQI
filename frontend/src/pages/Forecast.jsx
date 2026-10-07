@@ -111,7 +111,6 @@ const getAqiCategory = (val) => {
 };
 
 export default function Forecast({ refreshKey }) {
-  const [forecastMode, setForecastMode] = useState('aqi'); // 'aqi' or 'weather'
   const [forecastData, setForecastData] = useState(() => getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
   const [historicalRecords, setHistoricalRecords] = useState([]);
   const [loading, setLoading] = useState(() => !getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
@@ -283,7 +282,7 @@ export default function Forecast({ refreshKey }) {
     const currentHourStart = new Date(currentTime);
     currentHourStart.setMinutes(0, 0, 0);
 
-    for (let i = 5; i >= 0; i--) {
+    for (let i = 0; i >= 0; i--) {
       const pastTime = new Date(currentHourStart);
       pastTime.setHours(pastTime.getHours() - i);
       
@@ -444,42 +443,7 @@ export default function Forecast({ refreshKey }) {
   return (
     <div className="page-container" style={{ minHeight: '85vh' }}>
       
-      {/* ── Forecast Mode Tabs ── */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
-        <button
-          onClick={() => setForecastMode('aqi')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: forecastMode === 'aqi' ? '#14b8a6' : 'transparent',
-            color: forecastMode === 'aqi' ? '#ffffff' : '#64748b',
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
-        >
-          AQI (24h)
-        </button>
-        <button
-          onClick={() => setForecastMode('weather_24h')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: forecastMode === 'weather_24h' ? '#14b8a6' : 'transparent',
-            color: forecastMode === 'weather_24h' ? '#ffffff' : '#64748b',
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
-        >
-          Weather (24h)
-        </button>
-      </div>
 
-      {forecastMode === 'weather_24h' ? (
-        <WeatherForecast24hView refreshKey={refreshKey} />
-      ) : (
-        <>
           {/* ── Page Header ── */}
           <div style={{
         display: 'flex',
@@ -501,7 +465,7 @@ export default function Forecast({ refreshKey }) {
             gap: 10
           }}>
             <Sparkles style={{ width: 22, height: 22, color: '#00bfa5' }} />
-            Predictive Forecast (24h)
+            AQI Forecast (24h)
           </h1>
           <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13.5 }}>
             <span className="desktop-only-inline">Node 1 24-hour horizon (t+1 → t+24) with expanding-lookback Seq2Seq LSTM and real-time telemetry sync.</span>
@@ -586,6 +550,7 @@ export default function Forecast({ refreshKey }) {
             display: 'flex',
             gap: 10,
             overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
             paddingBottom: 8,
             scrollbarWidth: 'thin'
           }}>
@@ -643,176 +608,9 @@ export default function Forecast({ refreshKey }) {
 
 
 
-      {/* Main Analytics Hub: Chart & Full 24h Table with Metric Switcher */}
-      <div
-        className="forecast-main-hub"
-        style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1px solid #e2e8f0',
-          padding: '26px 28px',
-          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.04)',
-          marginBottom: 28
-        }}
-      >
 
-        {/* Selected Parameter Context Explainer */}
-        <div style={{
-          background: '#f8fafc',
-          borderRadius: 12,
-          padding: '12px 18px',
-          marginBottom: 20,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 12,
-          fontSize: 13,
-          color: '#64748b'
-        }}>
-          <div>
-            <strong style={{ color: '#0f172a' }}>{PARAM_CONFIG[activeParam].fullName}</strong> ({PARAM_CONFIG[activeParam].unit}): {PARAM_CONFIG[activeParam].desc}
-          </div>
-          {showComparison && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 14, height: 3, background: PARAM_CONFIG[activeParam].color, display: 'inline-block', borderRadius: 2 }} />
-                <strong style={{ color: PARAM_CONFIG[activeParam].color }}>Solid: Forecast Prediction</strong>
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 14, height: 3, borderTop: '2px dashed #f59e0b', display: 'inline-block' }} />
-                <strong style={{ color: '#f59e0b' }}>Dashed: Actual Telemetry (AQI_NODE1)</strong>
-              </span>
-            </div>
-          )}
-        </div>
 
-        {/* Comprehensive 24h Comparison Table */}
-        <div className="table-responsive-wrapper" style={{ overflowX: 'auto', maxHeight: 540 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left', minWidth: 800 }}>
-              <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', zIndex: 2 }}>
-                <tr style={{ color: '#475569', fontSize: 12 }}>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Step</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Time Window</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Actual AQI</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Forecast AQI</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Difference (Δ)</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Dominant Pollutant</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>PM2.5 (Act / Fcst)</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>PM10 (Act / Fcst)</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>NO₂ (Act / Fcst)</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>CO (Act / Fcst)</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>O₃ (Act / Fcst)</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Temp (Act / Fcst)</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Humidity (Act / Fcst)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {processedItems.map((row, idx) => (
-                  <tr
-                    key={idx}
-                    onClick={() => setSelectedSlotIndex(row.index)}
-                    style={{
-                      borderBottom: '1px solid #f1f5f9',
-                      backgroundColor: selectedSlotIndex === row.index ? `${row.aqi_color}10` : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'),
-                      cursor: 'pointer',
-                      transition: 'background 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => { if (selectedSlotIndex !== row.index) e.currentTarget.style.background = '#f1f5f9'; }}
-                    onMouseLeave={(e) => { if (selectedSlotIndex !== row.index) e.currentTarget.style.background = idx % 2 === 0 ? '#ffffff' : '#f8fafc'; }}
-                  >
-                    <td style={{ padding: '10px 14px', color: '#94a3b8', fontWeight: 600 }}>
-                      {row.step > 0 ? '+' : ''}{row.step}h
-                    </td>
-                    <td style={{ padding: '10px 14px', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                      {row.display_hour} <span style={{ fontSize: 11, color: '#94a3b8' }}>({row.display_date})</span>
-                    </td>
-
-                    {/* Actual AQI */}
-                    <td style={{ padding: '10px 14px' }}>
-                      {row.hasActual && row.actual_aqi != null ? (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          padding: '3px 8px',
-                          borderRadius: 6,
-                          fontWeight: 700,
-                          fontSize: 12,
-                          background: getAqiCategory(row.actual_aqi).bg,
-                          color: getAqiCategory(row.actual_aqi).text,
-                          border: `1px solid ${getAqiCategory(row.actual_aqi).border}`
-                        }}>
-                          {row.actual_aqi != null && !isNaN(Number(row.actual_aqi)) ? Math.round(Number(row.actual_aqi)) : row.actual_aqi} • {getAqiCategory(row.actual_aqi).label}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: 12 }}>
-                          Pending (—)
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Forecast AQI */}
-                    <td style={{ padding: '10px 14px' }}>
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '3px 8px',
-                        borderRadius: 6,
-                        fontWeight: 700,
-                        fontSize: 12,
-                        background: row.aqi_bg,
-                        color: row.aqi_color,
-                        border: `1px solid ${row.aqi_border}`
-                      }}>
-                        {row.aqi != null && !isNaN(Number(row.aqi)) ? Math.round(Number(row.aqi)) : (row.aqi == null ? '—' : row.aqi)} {row.aqi != null ? `• ${row.aqi_category}` : ''}
-                      </span>
-                    </td>
-
-                    {/* Difference (Delta) */}
-                    <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono, monospace)' }}>
-                      {row.aqi_delta != null ? (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontSize: 11.5,
-                          fontWeight: 700,
-                          padding: '2px 7px',
-                          borderRadius: 6,
-                          backgroundColor: row.aqi_delta === 0 ? '#f1f5f9' : (row.aqi_delta > 0 ? '#fef2f2' : '#f0fdf4'),
-                          color: row.aqi_delta === 0 ? '#64748b' : (row.aqi_delta > 0 ? '#dc2626' : '#16a34a')
-                        }}>
-                          {row.aqi_delta != null && !isNaN(Number(row.aqi_delta)) ? (row.aqi_delta > 0 ? `+${Math.round(Number(row.aqi_delta))}` : `${Math.round(Number(row.aqi_delta))}`) : (row.aqi_delta > 0 ? `+${row.aqi_delta}` : `${row.aqi_delta}`)}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#cbd5e1' }}>—</span>
-                      )}
-                    </td>
-
-                    <td style={{ padding: '10px 14px', fontWeight: 600, color: '#0284c7' }}>
-                      {row.dominant_pollutant}
-                    </td>
-
-                    {/* Actual vs Forecast pairs */}
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_pm25, row.pm2_5_ug_m3, '', 3, row.isPast)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_pm10, row.pm10_ug_m3, '', 3, row.isPast)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_no2, row.no2_ug_m3, '', 3, row.isPast)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_co, row.co_mg_m3, '', 3, row.isPast)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_o3, row.ozone_ug_m3, '', 3, row.isPast)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_temp, row.temperature_c, '°', 1, row.isPast)}</td>
-                    <td style={{ padding: '10px 14px' }}>{renderDualCell(row.actual_hum, row.humidity_pct, '%', 1, row.isPast)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-        </div>
-
-        </>
-      )}
+        <WeatherForecast24hView refreshKey={refreshKey} />
 
     </div>
   );

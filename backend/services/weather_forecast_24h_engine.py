@@ -1,8 +1,11 @@
 import os
+import sys
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional, Tuple
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pandas as pd
@@ -40,8 +43,9 @@ def load_model():
     if _MODEL is not None:
         return _MODEL
 
-    import tensorflow as tf
-    _MODEL = tf.keras.models.load_model(MODEL_PATH, compile=False)
+    os.environ["KERAS_BACKEND"] = "torch"
+    import keras
+    _MODEL = keras.saving.load_model(MODEL_PATH)
     return _MODEL
 
 def parse_iso_datetime(ts_str: str) -> datetime:

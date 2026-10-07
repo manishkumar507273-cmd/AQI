@@ -1,6 +1,11 @@
+import sys
 import os
 import smtplib
 from datetime import datetime, timezone, timedelta
+
+# Fix Windows console encoding issues for emojis
+if sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import List, Dict, Any, Optional

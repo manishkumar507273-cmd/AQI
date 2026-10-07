@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, CheckCircle, AlertCircle, ShieldCheck, Lock, Building2, User, Mail, Database, Server } from 'lucide-react';
+import { X, Send, CheckCircle, AlertCircle, ShieldCheck, Lock, Building2, User, Mail, Database, Server, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { submitDataRequest } from '../firebase';
 
-export default function DataRequestModal({ isOpen, onClose, datasetType }) {
+export default function DataRequestModal({ 
+  isOpen, 
+  onClose, 
+  datasetType,
+  availableYears = [2026],
+  periodOptions = [],
+  selectedYear,
+  onYearChange,
+  selectedMonths = [],
+  onMonthsChange
+}) {
   const { currentUser } = useAuth();
   
   const [formData, setFormData] = useState({
@@ -18,6 +28,7 @@ export default function DataRequestModal({ isOpen, onClose, datasetType }) {
   
   const [status, setStatus] = useState('idle'); // idle, submitting, success, error
   const [errorMsg, setErrorMsg] = useState('');
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -38,9 +49,12 @@ export default function DataRequestModal({ isOpen, onClose, datasetType }) {
     setErrorMsg('');
 
     try {
+      const periodLabels = selectedMonths.length > 0 
+        ? selectedMonths.map(m => periodOptions.find(o => o.value === m)?.label).filter(Boolean).join(', ')
+        : 'None selected';
       await submitDataRequest(currentUser, {
         ...formData,
-        dataset: datasetType === 'aqi' ? 'AQI Year 2026 Telemetry Dataset' : 'Meteorological Year 2026 Dataset',
+        dataset: `${datasetType === 'aqi' ? 'AQI' : 'Meteorological'} Year ${selectedYear} (${periodLabels}) Dataset`,
       });
       setStatus('success');
     } catch (err) {
@@ -78,8 +92,9 @@ export default function DataRequestModal({ isOpen, onClose, datasetType }) {
         backgroundColor: 'rgba(15, 23, 42, 0.65)',
         backdropFilter: 'blur(8px)',
         zIndex: 9999,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 20
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        padding: '40px 20px',
+        overflowY: 'auto'
       }}>
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -87,6 +102,7 @@ export default function DataRequestModal({ isOpen, onClose, datasetType }) {
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           className="data-request-modal"
+          style={{ margin: 'auto', maxWidth: 600, width: '100%', background: '#ffffff', borderRadius: 24, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden' }}
         >
           {/* Header */}
           <div className="data-request-modal-header">
@@ -144,6 +160,94 @@ export default function DataRequestModal({ isOpen, onClose, datasetType }) {
                 )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 20 }}>
+                  <div style={{ display: 'flex', gap: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={labelStyle}>Dataset Year *</label>
+                      <select
+                        value={selectedYear}
+                        onChange={(e) => onYearChange(Number(e.target.value))}
+                        style={{...inputStyle, cursor: 'pointer', appearance: 'none', fontFamily: 'var(--font-mono)' }}
+                        onFocus={e => { e.target.style.borderColor = '#00bfa5'; e.target.style.backgroundColor = '#ffffff'; }}
+                        onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.backgroundColor = '#f8fafc'; }}
+                      >
+                        {availableYears.map((yr) => (
+                          <option key={yr} value={yr}>{yr}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ flex: 2, position: 'relative' }}>
+                      <label style={labelStyle}>Dataset Period (Select Months) *</label>
+                      <div 
+                        onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
+                        style={{
+                          ...inputStyle,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: '#ffffff'
+                        }}
+                      >
+                        <span style={{ color: selectedMonths.length > 0 ? '#0f172a' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {selectedMonths.length > 0 
+                            ? selectedMonths.map(m => periodOptions.find(o => o.value === m)?.label).filter(Boolean).join(', ')
+                            : 'Select months...'}
+                        </span>
+                        <ChevronDown size={18} color="#64748b" style={{ transform: isMonthDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                      </div>
+
+                      <AnimatePresence>
+                        {isMonthDropdownOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.15 }}
+                            style={{
+                              position: 'absolute',
+                              top: '100%',
+                              left: 0,
+                              right: 0,
+                              marginTop: 8,
+                              padding: '12px 16px',
+                              backgroundColor: '#ffffff',
+                              border: '1.5px solid #e2e8f0',
+                              borderRadius: 12,
+                              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                              maxHeight: 200,
+                              overflowY: 'auto',
+                              zIndex: 10
+                            }}
+                          >
+                            {periodOptions.length === 0 ? (
+                              <span style={{ fontSize: 13, color: '#94a3b8' }}>No recorded data</span>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {periodOptions.map((m) => (
+                                  <label key={m.value} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f172a', cursor: 'pointer' }}>
+                                    <input 
+                                      type="checkbox"
+                                      checked={selectedMonths.includes(m.value)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          onMonthsChange([...selectedMonths, m.value].sort((a, b) => a - b));
+                                        } else {
+                                          onMonthsChange(selectedMonths.filter(val => val !== m.value));
+                                        }
+                                      }}
+                                      style={{ accentColor: '#00bfa5', width: 16, height: 16, cursor: 'pointer' }}
+                                    />
+                                    {m.label}
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+
                   <div>
                     <label style={labelStyle}>Full Name *</label>
                     <div style={inputIconWrapper}>
