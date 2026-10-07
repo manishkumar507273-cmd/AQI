@@ -624,11 +624,19 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
         <div className="overview-toolbar" style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-end',
+          justifyContent: 'space-between',
           gap: 6,
-          flexWrap: 'nowrap',
+          flexWrap: 'wrap',
           marginBottom: 4,
         }}>
+          {/* Location Header */}
+          <div style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.9)', borderRadius: 999, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} />
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a' }}>SMVITM Campus</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b', borderLeft: '1px solid #cbd5e1', paddingLeft: 8 }}>13.254° N, 74.785° E</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Settings Pill (Unit Toggles) */}
           <div style={{
             display: 'flex',
@@ -696,6 +704,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           >
             <RefreshCw style={{ width: 14, height: 14, color: '#00bfa5', animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none' }} />
           </button>
+          </div>
         </div>
 
         {/* ── 5 Core Telemetry Cards in Harmonious, Compact Light Palette ── */}
