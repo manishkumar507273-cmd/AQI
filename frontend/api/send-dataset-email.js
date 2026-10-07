@@ -8,7 +8,7 @@
 //   SMTP_HOST (default smtp.gmail.com), SMTP_PORT (default 587), SENDER_NAME
 //   SUPABASE_URL, SUPABASE_KEY, FIREBASE_DATABASE_URL (defaults match the frontend config)
 
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://sgkdpliqlhgiqsabxzxe.supabase.co').replace(/\/$/, '');
 const SUPABASE_KEY = process.env.SUPABASE_KEY ||
@@ -96,7 +96,7 @@ const buildCsv = (category, rows) => {
 
 const escapeHtml = (s = '') => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ email_sent: false, message: 'Method not allowed' });
@@ -195,4 +195,4 @@ module.exports = async (req, res) => {
     console.error('send-dataset-email error:', err);
     return res.status(500).json({ email_sent: false, message: `Email delivery failed: ${err.message}` });
   }
-};
+}

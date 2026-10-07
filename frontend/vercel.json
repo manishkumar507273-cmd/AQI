@@ -1,7 +1,12 @@
 {
+  "functions": {
+    "api/send-dataset-email.js": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     {
-      "source": "/((?!assets/|favicon\\.svg|.*\\..*).*)",
+      "source": "/((?!api/|assets/|favicon\\.svg|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],

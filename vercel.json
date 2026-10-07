@@ -2,14 +2,9 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "framework": "vite",
-  "functions": {
-    "api/send-dataset-email.js": {
-      "maxDuration": 30
-    }
-  },
   "rewrites": [
     {
-      "source": "/((?!api/|assets/|favicon\\.svg|.*\\..*).*)",
+      "source": "/((?!assets/|favicon\\.svg|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],
