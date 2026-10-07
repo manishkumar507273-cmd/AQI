@@ -211,7 +211,7 @@ export default function Forecast({ refreshKey }) {
       ];
 
       const maxSub = subList.reduce((prev, curr) => (curr.val > prev.val ? curr : prev), subList[0]);
-      const compositeAqi = item.cpcb_aqi ?? item.aqi ?? maxSub.val;
+      const compositeAqi = maxSub.val;
       const cat = getAqiCategory(compositeAqi);
 
       const dt = new Date(item.forecast_for_time);

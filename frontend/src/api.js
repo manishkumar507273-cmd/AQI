@@ -620,11 +620,19 @@ export const saveToForecastRegistry = (forecastList) => {
 export const getAqiForecast = async (force = false) => {
   const cached = getCachedData('CACHE_AQI_NODE1_FORECAST_24H');
 
-  // 1. Try FastAPI backend endpoint ONLY if force refresh is requested (avoids blocking page load with ML inference)
   if (canCallBackend && force) {
     try {
       const res = await api.get(`/forecast/24h${force ? '?force=true' : ''}`, { timeout: 15000 });
       if (res.data && res.data.forecast && Array.isArray(res.data.forecast) && res.data.forecast.length > 0) {
+        res.data.forecast = res.data.forecast.map(item => {
+          const pm25 = Number(item.pm2_5_ug_m3 || item.pm25 || 0);
+          const pm10 = Number(item.pm10_ug_m3 || item.pm10 || 0);
+          const no2 = Number(item.no2_ug_m3 || item.no2 || 0);
+          const co = Number(item.co_mg_m3 || item.co || 0);
+          const o3 = Number(item.ozone_ug_m3 || item.o3 || 0);
+          const aqi = Math.max(calcSubindex('pm25', pm25), calcSubindex('pm10', pm10), calcSubindex('no2', no2), calcSubindex('co', co), calcSubindex('o3', o3));
+          return { ...item, aqi, cpcb_aqi: aqi };
+        });
         const incomingGen = res.data.generated_at;
         // Guard: never overwrite with an older forecast batch
         if (!cached || !cached.generated_at || !incomingGen || new Date(incomingGen) >= new Date(cached.generated_at)) {
@@ -763,7 +771,16 @@ export const getAqiForecast = async (force = false) => {
     console.warn('Vercel fallback prediction generator error:', e);
   }
 
-  if (cached) {
+  if (cached && cached.forecast) {
+    cached.forecast = cached.forecast.map(item => {
+      const pm25 = Number(item.pm2_5_ug_m3 || item.pm25 || 0);
+      const pm10 = Number(item.pm10_ug_m3 || item.pm10 || 0);
+      const no2 = Number(item.no2_ug_m3 || item.no2 || 0);
+      const co = Number(item.co_mg_m3 || item.co || 0);
+      const o3 = Number(item.ozone_ug_m3 || item.o3 || 0);
+      const aqi = Math.max(calcSubindex('pm25', pm25), calcSubindex('pm10', pm10), calcSubindex('no2', no2), calcSubindex('co', co), calcSubindex('o3', o3));
+      return { ...item, aqi, cpcb_aqi: aqi };
+    });
     return { data: { ...cached, isOffline: true } };
   }
 
