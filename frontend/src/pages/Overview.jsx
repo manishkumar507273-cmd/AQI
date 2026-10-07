@@ -1486,6 +1486,31 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
       </div>
 
+      {/* ── Footer ── */}
+      <div style={{
+        marginTop: 40,
+        marginBottom: 20,
+        textAlign: 'center',
+        position: 'relative',
+        zIndex: 2,
+        padding: '24px 16px',
+        background: 'rgba(255,255,255,0.6)',
+        borderRadius: 24,
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 4px 20px rgba(15, 23, 42, 0.02)'
+      }}>
+        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em' }}>
+          Developed by{' '}
+          <span style={{ color: '#00bfa5' }}>Manish Kumar</span> •{' '}
+          <span style={{ color: '#00bfa5' }}>Manikanta CH</span> •{' '}
+          <span style={{ color: '#00bfa5' }}>Madan</span> •{' '}
+          <span style={{ color: '#00bfa5' }}>Aditya Thunga K</span>
+        </p>
+        <p style={{ margin: '6px 0 0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+          Under the Guidance of <strong style={{ color: '#334155' }}>Dr. Nagaraj Bhat</strong>
+        </p>
+      </div>
+
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
