@@ -1153,10 +1153,20 @@ export const sendDatasetEmail = async ({
   category = 'aqi',
   year = 2026,
   month = null,
-  purpose = ''
+  purpose = '',
+  requestId = null,
+  idToken = null
 }) => {
   if (!canCallBackend) {
-    throw new Error('Backend server is not reachable to dispatch emails.');
+    // No FastAPI backend (e.g. Vercel deploy): use the Vercel serverless function in /api
+    const res = await axios.post('/api/send-dataset-email', {
+      requestId,
+      idToken,
+      category,
+      year,
+      month
+    }, { timeout: 35000 });
+    return res.data;
   }
   const res = await api.post('/cloud/send-dataset-email', {
     recipient_email,

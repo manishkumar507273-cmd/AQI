@@ -70,6 +70,8 @@ export default function AdminRequests() {
       // 1. Dispatch dataset CSV via backend email service
       let emailResult = { email_sent: false, message: '' };
       try {
+        let idToken = null;
+        try { idToken = currentUser ? await currentUser.getIdToken() : null; } catch (_) {}
         emailResult = await sendDatasetEmail({
           recipient_email: req.email,
           recipient_name: req.name || 'Researcher',
@@ -77,14 +79,15 @@ export default function AdminRequests() {
           category,
           year,
           month,
-          purpose: req.purpose || ''
+          purpose: req.purpose || '',
+          requestId: req.id,
+          idToken
         });
       } catch (emailErr) {
-        console.warn('Backend send email note:', emailErr);
+        console.warn('Send email note:', emailErr);
         emailResult = {
           email_sent: false,
-          requires_smtp_config: true,
-          message: emailErr.response?.data?.detail || emailErr.message || 'Email delivery failed'
+          message: emailErr.response?.data?.message || emailErr.response?.data?.detail || emailErr.message || 'Email delivery failed'
         };
       }
 
@@ -105,7 +108,7 @@ export default function AdminRequests() {
       } else if (emailResult.requires_smtp_config) {
         setFeedback({
           type: 'warning',
-          message: `Request approved in database! Note: To automatically send emails, configure SMTP_USER & SMTP_PASSWORD in backend/.env. You can also click "Download CSV" below to send it manually.`
+          message: `Request approved, but the email was not sent: ${emailResult.message || 'SMTP_USER & SMTP_PASSWORD are not configured.'} You can click "Download CSV" below to send it manually.`
         });
       } else {
         setFeedback({
