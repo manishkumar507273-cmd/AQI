@@ -214,7 +214,8 @@ export default function Forecast({ refreshKey }) {
       const compositeAqi = maxSub.val;
       const cat = getAqiCategory(compositeAqi);
 
-      const dt = new Date(item.forecast_for_time);
+      const cleanTime = item.forecast_for_time ? item.forecast_for_time.replace(/(Z|[+-]\d{2}:\d{2})$/gi, '') : '';
+      const dt = new Date(cleanTime);
       const hourStr = isNaN(dt.getTime())
         ? `+${item.step}h`
         : dt.toLocaleTimeString([], { hour: 'numeric', hour12: true });
