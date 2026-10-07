@@ -252,8 +252,8 @@ export default function Forecast({ refreshKey }) {
       const actualHum = hasActual ? matchingActual.humidity : null;
 
       const rain = Number(item.rain_gauge) || 0;
-      const hum = Number(item.humidity_pct) || 0;
-      const temp = Number(item.temperature_c) || 0;
+      const hum = Number(item.humidity ?? item.humidity_pct) || 0;
+      const temp = Number(item.temperature ?? item.temperature_c) || 0;
       const windSpeed = Number(item.wind_speed) || 0;
       
       const hourNum = !isNaN(dt.getTime()) ? dt.getHours() : 12;
