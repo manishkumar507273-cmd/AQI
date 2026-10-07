@@ -173,14 +173,8 @@ export const parseToIstIso = (tsRaw) => {
 const formatRawReading = (raw) => {
   if (!raw) return null;
 
-  // Determine if we should use the database's pre-calculated AQI or recalculate it
-  const hasDbAqi = raw.cpcb_aqi != null;
-  const useDbValues = raw.is_calibrated || hasDbAqi;
-
   const rawTemp = raw.temperature;
   const rawHum = raw.humidity;
-  const tempVal = rawTemp != null ? Number(rawTemp) : 27.0;
-  const humVal = rawHum != null ? Number(rawHum) : 60.0;
 
   const rawPm25 = raw.pm25 != null ? Number(raw.pm25) : (raw['pm2.5'] != null ? Number(raw['pm2.5']) : null);
   const rawPm10 = raw.pm10 != null ? Number(raw.pm10) : null;
@@ -188,34 +182,21 @@ const formatRawReading = (raw) => {
   const rawO3 = raw.o3 != null ? Number(raw.o3) : null;
   const rawNo2 = raw.no2 != null ? Number(raw.no2) : null;
 
-  let cpcb_aqi, domKey, subIndices;
+  // The user requested NO modifications to the raw data on the frontend.
+  // We use the raw values directly from Supabase without any calibration equations.
+  const subIndices = raw.sub_indices || {
+    pm25: calcSubindex('pm25', rawPm25),
+    pm10: calcSubindex('pm10', rawPm10),
+    co: calcSubindex('co', rawCo),
+    no2: calcSubindex('no2', rawNo2),
+    o3: calcSubindex('o3', rawO3),
+  };
 
-  if (useDbValues) {
-    // 1. Trust the database or backend ML model!
-    cpcb_aqi = raw.cpcb_aqi;
-    
-    // Some backend APIs pre-populate sub_indices and dominant_pollutant_key
-    subIndices = raw.sub_indices || {};
-    domKey = raw.dominant_pollutant_key || (raw.dominant_pollutant ? (raw.dominant_pollutant === 'PM2.5' ? 'pm25' : raw.dominant_pollutant.toLowerCase()) : 'pm25');
-  } else {
-    // 2. ONLY fallback to hardcoded frontend Ridge regression if the database is missing AQI
-    const calPm25 = rawPm25 != null ? Math.max(0.0, Number((0.12532894 * rawPm25 - 0.7801631 * tempVal - 0.15188749 * humVal + 41.495258).toFixed(3))) : null;
-    const calPm10 = rawPm10 != null ? Math.max(0.0, Number((0.10855827 * rawPm10 - 0.6390711 * tempVal - 0.11117823 * humVal + 34.034309).toFixed(3))) : null;
-    const calCo = rawCo != null ? Math.max(0.0, Number((0.24370718 * rawCo + 0.02763672 * tempVal + 0.00444147 * humVal - 0.96570843).toFixed(3))) : null;
-    const calNo2 = rawNo2 != null ? Math.max(0.0, Number((0.00920961 * rawNo2 + 0.06749354 * tempVal + 0.00777269 * humVal + 2.903467).toFixed(3))) : null;
-    const calO3 = rawO3 != null ? Math.max(0.0, Number((0.05187092 * rawO3 - 1.4830095 * tempVal - 0.23912878 * humVal + 91.72351).toFixed(3))) : null;
-
-    subIndices = {
-      pm25: calcSubindex('pm25', calPm25 ?? rawPm25),
-      pm10: calcSubindex('pm10', calPm10 ?? rawPm10),
-      co: calcSubindex('co', calCo ?? rawCo),
-      no2: calcSubindex('no2', calNo2 ?? rawNo2),
-      o3: calcSubindex('o3', calO3 ?? rawO3),
-    };
-
-    domKey = Object.keys(subIndices).reduce((a, b) => subIndices[a] >= subIndices[b] ? a : b);
-    cpcb_aqi = Math.round(subIndices[domKey] || 0);
-  }
+  const calculatedDomKey = Object.keys(subIndices).reduce((a, b) => subIndices[a] >= subIndices[b] ? a : b);
+  const domKey = raw.dominant_pollutant_key || (raw.dominant_pollutant ? (raw.dominant_pollutant === 'PM2.5' ? 'pm25' : raw.dominant_pollutant.toLowerCase()) : calculatedDomKey);
+  
+  // Use the pre-calculated AQI from Supabase if it exists, otherwise derive it strictly from the un-modified raw values.
+  const cpcb_aqi = raw.cpcb_aqi != null ? raw.cpcb_aqi : Math.round(subIndices[domKey] || 0);
 
   const domNames = { pm25: 'PM2.5', pm10: 'PM10', co: 'CO', no2: 'NO₂', o3: 'O₃' };
 
