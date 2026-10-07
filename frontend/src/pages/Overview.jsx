@@ -251,15 +251,18 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           if (weatherForecast.length > 0) {
             return {
                ...bItem,
-               temperature: match?.temperature_c != null ? match.temperature_c : bItem.temperature,
-               aqi: match ? computeAqiFromForecastItem(match) : null
+               // Use Weather model's native temperature and humidity
+               temperature: bItem.temperature,
+               humidity: bItem.humidity ?? bItem.humidity_pct,
+               // Pull AQI details from the matching AQI model forecast
+               aqi: match ? match.aqi : null
             };
           } else {
             return {
                ...bItem,
                temperature: bItem.temperature_c,
                humidity: bItem.humidity_pct,
-               aqi: computeAqiFromForecastItem(bItem)
+               aqi: bItem.aqi
             };
           }
         });
