@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import pandas as pd
 import joblib
+import math
 
 from dotenv import load_dotenv
 import httpx
@@ -67,7 +68,8 @@ def _wind_dir_to_degrees(value) -> float:
     if value is None:
         return 0.0
     try:
-        return float(value)
+        f = float(value)
+        return 0.0 if (math.isnan(f) or math.isinf(f)) else f
     except (TypeError, ValueError):
         key = str(value).strip().upper().replace(" ", "").replace("-", "")
         return float(COMPASS_TO_DEG.get(key, 0.0))
@@ -76,20 +78,21 @@ def prepare_input_matrix(rows_chrono: List[Dict[str, Any]]) -> Tuple[np.ndarray,
     fs, _ = load_scalers()
     df = pd.DataFrame(rows_chrono)
     
-    # Base features
-    df['temperature_c'] = pd.to_numeric(df['temperature'], errors='coerce').fillna(25.0)
-    df['humidity_percent'] = pd.to_numeric(df['humidity'], errors='coerce').fillna(50.0)
-    df['wind_speed_kmh'] = pd.to_numeric(df['wind_speed'], errors='coerce').fillna(5.0)
+    # Base features with robust imputation against empty/null rows
+    df['temperature_c'] = pd.to_numeric(df.get('temperature', pd.Series([25.0]*len(df))), errors='coerce').ffill().bfill().fillna(25.0)
+    df['humidity_percent'] = pd.to_numeric(df.get('humidity', pd.Series([50.0]*len(df))), errors='coerce').ffill().bfill().fillna(50.0)
+    df['wind_speed_kmh'] = pd.to_numeric(df.get('wind_speed', pd.Series([5.0]*len(df))), errors='coerce').ffill().bfill().fillna(5.0)
     
-    rain = pd.to_numeric(df.get('rain_gauge', df.get('rain', pd.Series([0.0]*len(df)))), errors='coerce').fillna(0.0)
-    df['rainfall_log'] = np.log1p(rain)
+    rain = pd.to_numeric(df.get('rain_gauge', df.get('rain', pd.Series([0.0]*len(df)))), errors='coerce').ffill().bfill().fillna(0.0)
+    df['rainfall_log'] = np.log1p(np.maximum(0.0, rain))
     
     wind_dir = df['wind_direction'].map(_wind_dir_to_degrees) if 'wind_direction' in df else pd.Series([0.0]*len(df))
+    wind_dir = wind_dir.fillna(0.0)
     rad = np.radians(wind_dir)
     df['wind_u'] = -df['wind_speed_kmh'] * np.sin(rad)
     df['wind_v'] = -df['wind_speed_kmh'] * np.cos(rad)
     
-    df['wind_gust_kmh'] = pd.to_numeric(df.get('wind_gust', df.get('gust', df['wind_speed_kmh'])), errors='coerce').fillna(df['wind_speed_kmh'])
+    df['wind_gust_kmh'] = pd.to_numeric(df.get('wind_gust', df.get('gust', df['wind_speed_kmh'])), errors='coerce').ffill().bfill().fillna(df['wind_speed_kmh'])
     
     # Dew point approximation
     df['dew_point'] = df['temperature_c'] - ((100.0 - df['humidity_percent']) / 5.0)
@@ -112,17 +115,17 @@ def prepare_input_matrix(rows_chrono: List[Dict[str, Any]]) -> Tuple[np.ndarray,
     df['cos_doy'] = np.cos(2 * np.pi * doys / 365.25)
     
     # Rolling features
-    df['temperature_c_roll6'] = df['temperature_c'].rolling(6, min_periods=1).mean()
-    df['temperature_c_roll24'] = df['temperature_c'].rolling(24, min_periods=1).mean()
+    df['temperature_c_roll6'] = df['temperature_c'].rolling(6, min_periods=1).mean().ffill().bfill().fillna(25.0)
+    df['temperature_c_roll24'] = df['temperature_c'].rolling(24, min_periods=1).mean().ffill().bfill().fillna(25.0)
     
-    df['humidity_percent_roll6'] = df['humidity_percent'].rolling(6, min_periods=1).mean()
-    df['humidity_percent_roll24'] = df['humidity_percent'].rolling(24, min_periods=1).mean()
+    df['humidity_percent_roll6'] = df['humidity_percent'].rolling(6, min_periods=1).mean().ffill().bfill().fillna(50.0)
+    df['humidity_percent_roll24'] = df['humidity_percent'].rolling(24, min_periods=1).mean().ffill().bfill().fillna(50.0)
     
-    df['wind_speed_kmh_roll6'] = df['wind_speed_kmh'].rolling(6, min_periods=1).mean()
-    df['wind_speed_kmh_roll24'] = df['wind_speed_kmh'].rolling(24, min_periods=1).mean()
+    df['wind_speed_kmh_roll6'] = df['wind_speed_kmh'].rolling(6, min_periods=1).mean().ffill().bfill().fillna(5.0)
+    df['wind_speed_kmh_roll24'] = df['wind_speed_kmh'].rolling(24, min_periods=1).mean().ffill().bfill().fillna(5.0)
     
-    df['rainfall_log_roll6'] = df['rainfall_log'].rolling(6, min_periods=1).mean()
-    df['rainfall_log_roll24'] = df['rainfall_log'].rolling(24, min_periods=1).mean()
+    df['rainfall_log_roll6'] = df['rainfall_log'].rolling(6, min_periods=1).mean().ffill().bfill().fillna(0.0)
+    df['rainfall_log_roll24'] = df['rainfall_log'].rolling(24, min_periods=1).mean().ffill().bfill().fillna(0.0)
     
     feature_cols = [
         'temperature_c', 'humidity_percent', 'wind_speed_kmh', 'rainfall_log',
@@ -132,12 +135,9 @@ def prepare_input_matrix(rows_chrono: List[Dict[str, Any]]) -> Tuple[np.ndarray,
         'wind_speed_kmh_roll24', 'rainfall_log_roll6', 'rainfall_log_roll24'
     ]
     
-    X = df[feature_cols].values
-    X_scaled = fs.transform(X)
+    X = np.nan_to_num(df[feature_cols].values, nan=0.0)
+    X_scaled = np.nan_to_num(fs.transform(X), nan=0.0)
     
-    # We only need the last sequence
-    # Let's see the sequence length dynamically, assuming 24 or 48.
-    # We will slice the last 'n' rows during inference based on model input shape.
     return X_scaled, latest_dt
 
 def run_inference(input_matrix: np.ndarray, latest_dt: datetime) -> List[Dict[str, Any]]:
@@ -182,29 +182,51 @@ def run_inference(input_matrix: np.ndarray, latest_dt: datetime) -> List[Dict[st
     # unscale
     unscaled_preds = ts.inverse_transform(pred_2d)
 
-    # Bias correction for distribution shift (sensor data hotter/drier than training data):
-    # shift temperature (col 0) and humidity (col 1) so the 24h forecast mean matches the
-    # mean of the last 24 observed hours. The model's hour-to-hour shape is preserved.
+    # Bias correction for distribution shift:
     if os.getenv("WEATHER_BIAS_CORRECTION", "1") != "0":
-        recent_obs = fs.inverse_transform(input_matrix[-24:])  # cols: temperature_c, humidity_percent, ...
-        for col in (0, 1):
-            offset = float(np.mean(recent_obs[:, col]) - np.mean(unscaled_preds[:, col]))
-            unscaled_preds[:, col] = unscaled_preds[:, col] + offset
-            logger.info("Weather bias correction col=%d offset=%+.2f", col, offset)
+        try:
+            recent_obs = fs.inverse_transform(input_matrix[-24:])
+            for col in (0, 1):
+                obs_mean = float(np.nanmean(recent_obs[:, col]))
+                pred_mean = float(np.nanmean(unscaled_preds[:, col]))
+                if not np.isnan(obs_mean) and not np.isnan(pred_mean):
+                    offset = obs_mean - pred_mean
+                    unscaled_preds[:, col] = unscaled_preds[:, col] + offset
+                    logger.info("Weather bias correction col=%d offset=%+.2f", col, offset)
+        except Exception as b_err:
+            logger.warning("Weather bias correction skipped: %s", b_err)
     
+    # Ensure unscaled_preds contains no NaNs or Infs
+    unscaled_preds = np.nan_to_num(unscaled_preds, nan=0.0, posinf=100.0, neginf=0.0)
+
+    import math
+
     for step in range(1, out_len + 1):
         future_time = base_time + timedelta(hours=step)
         iso_str = future_time.isoformat()
         
         row_vals = unscaled_preds[step - 1]
         
-        temp_val = round(float(row_vals[0]), 2)
-        hum_val = round(max(0.0, min(100.0, float(row_vals[1]))), 2)
-        wind_val = round(max(0.0, float(row_vals[2])), 2)
-        # Rain target is log1p-scaled; hurdle gate zeroes hours predicted dry (prob < 0.5)
-        rain_val = round(max(0.0, float(np.expm1(row_vals[3]))), 2)
-        if rain_prob is not None and step - 1 < len(rain_prob) and float(rain_prob[step - 1]) < 0.5:
-            rain_val = 0.0
+        raw_temp = float(row_vals[0]) if (not math.isnan(float(row_vals[0])) and float(row_vals[0]) > 0) else 25.0
+        raw_hum = float(row_vals[1]) if (not math.isnan(float(row_vals[1])) and float(row_vals[1]) > 0) else 50.0
+        raw_wind = float(row_vals[2]) if not math.isnan(float(row_vals[2])) else 5.0
+        try:
+            raw_rain = float(np.expm1(row_vals[3])) if not math.isnan(float(row_vals[3])) else 0.0
+        except Exception:
+            raw_rain = 0.0
+
+        temp_val = round(raw_temp, 2)
+        hum_val = round(max(0.0, min(100.0, raw_hum)), 2)
+        wind_val = round(max(0.0, raw_wind), 2)
+        rain_val = round(max(0.0, raw_rain), 2)
+
+        if rain_prob is not None and step - 1 < len(rain_prob):
+            try:
+                p_val = float(rain_prob[step - 1])
+                if not math.isnan(p_val) and p_val < 0.5:
+                    rain_val = 0.0
+            except Exception:
+                pass
         
         forecast_results.append({
             "step": step,
@@ -215,7 +237,6 @@ def run_inference(input_matrix: np.ndarray, latest_dt: datetime) -> List[Dict[st
             "rain_gauge": rain_val
         })
         
-    import math
     if out_len < 24 and out_len > 0:
         last_row = unscaled_preds[-1]
         for step in range(out_len + 1, 25):
@@ -223,9 +244,13 @@ def run_inference(input_matrix: np.ndarray, latest_dt: datetime) -> List[Dict[st
             iso_str = future_time.isoformat()
             h = future_time.hour
             
-            temp_val = round(max(0.0, float(last_row[0]) + 1.5 * math.sin((h - 14) * (math.pi / 12))), 2)
-            hum_val = round(max(0.0, min(100.0, float(last_row[1]) - 5 * math.sin((h - 14) * (math.pi / 12)))), 2)
-            wind_val = round(max(0.0, float(last_row[2]) + 1.0 * math.sin((h - 16) * (math.pi / 12))), 2)
+            t_base = float(last_row[0]) if not math.isnan(float(last_row[0])) else 25.0
+            h_base = float(last_row[1]) if not math.isnan(float(last_row[1])) else 50.0
+            w_base = float(last_row[2]) if not math.isnan(float(last_row[2])) else 5.0
+
+            temp_val = round(max(0.0, t_base + 1.5 * math.sin((h - 14) * (math.pi / 12))), 2)
+            hum_val = round(max(0.0, min(100.0, h_base - 5 * math.sin((h - 14) * (math.pi / 12)))), 2)
+            wind_val = round(max(0.0, w_base + 1.0 * math.sin((h - 16) * (math.pi / 12))), 2)
             rain_val = 0.0
             
             forecast_results.append({

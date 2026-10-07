@@ -776,21 +776,35 @@ export const getAqiForecast = async (force = false) => {
 };
 
 export const getWeatherForecast24h = async (force = false) => {
-  const cached = getCachedData('CACHE_WEATHER_FORECAST_24H');
+  let cached = getCachedData('CACHE_WEATHER_FORECAST_24H');
 
-  // 1. Try FastAPI backend endpoint ONLY if force is requested (avoids ML inference blocking)
-  if (canCallBackend && force) {
+  const isFlatForecast = (items) => {
+    if (!items || !Array.isArray(items) || items.length === 0) return true;
+    const firstT = Number(items[0]?.temperature);
+    return isNaN(firstT) || firstT === 0 || items.every(it => Math.abs(Number(it.temperature) - firstT) < 0.001);
+  };
+
+  // If local cache contains flat/buggy data (e.g. all 28.0), purge it
+  if (cached?.forecast && isFlatForecast(cached.forecast)) {
+    try { localStorage.removeItem('CACHE_WEATHER_FORECAST_24H'); } catch (e) {}
+    cached = null;
+  }
+
+  // 1. Try FastAPI backend endpoint
+  if (canCallBackend) {
     try {
-      const res = await api.get(`/weather/forecast/24h${force ? '?force=true' : ''}`, { timeout: 60000 });
-      if (res.data && res.data.forecast && Array.isArray(res.data.forecast)) {
-        const incomingGen = res.data.generated_at;
-        if (!cached || !cached.generated_at || !incomingGen || new Date(incomingGen) >= new Date(cached.generated_at)) {
-          setCachedData('CACHE_WEATHER_FORECAST_24H', res.data);
+      const res = await api.get(`/weather/forecast/24h${force ? '?force=true' : ''}`, { timeout: 35000 });
+      if (res.data && res.data.forecast && Array.isArray(res.data.forecast) && res.data.forecast.length > 0) {
+        if (!isFlatForecast(res.data.forecast)) {
+          const incomingGen = res.data.generated_at;
+          if (!cached || !cached.generated_at || !incomingGen || new Date(incomingGen) >= new Date(cached.generated_at)) {
+            setCachedData('CACHE_WEATHER_FORECAST_24H', res.data);
+          }
+          return { data: res.data };
         }
-        return { data: res.data };
       }
     } catch (err) {
-      console.warn('Weather forecast 24h fetch error:', err?.message || err);
+      console.warn('Weather forecast 24h backend fetch error:', err?.message || err);
     }
   }
 
@@ -811,24 +825,26 @@ export const getWeatherForecast24h = async (force = false) => {
         const items = batchRows.map((r, i) => ({
           step: i + 1,
           forecast_for_time: r.forecast_for_time,
-          temperature: Number(r.temperature || 28),
-          humidity: Number(r.humidity || 65),
-          wind_speed: Number(r.wind_speed || 5),
-          rain_gauge: Number(r.rain_gauge || 0)
+          temperature: r.temperature != null && Number(r.temperature) > 0 ? Number(r.temperature) : 28,
+          humidity: r.humidity != null && Number(r.humidity) > 0 ? Number(r.humidity) : 65,
+          wind_speed: r.wind_speed != null ? Number(r.wind_speed) : 5,
+          rain_gauge: r.rain_gauge != null ? Number(r.rain_gauge) : 0
         }));
 
-        const payload = {
-          status: 'success',
-          node_id: 'node_1',
-          source_table: 'weather_forecasts_24h',
-          generated_at: latestGen,
-          forecast: items
-        };
+        if (!isFlatForecast(items)) {
+          const payload = {
+            status: 'success',
+            node_id: 'node_1',
+            source_table: 'weather_forecasts_24h',
+            generated_at: latestGen,
+            forecast: items
+          };
 
-        if (!cached || !cached.generated_at || !latestGen || new Date(latestGen) >= new Date(cached.generated_at)) {
-          setCachedData('CACHE_WEATHER_FORECAST_24H', payload);
+          if (!cached || !cached.generated_at || !latestGen || new Date(latestGen) >= new Date(cached.generated_at)) {
+            setCachedData('CACHE_WEATHER_FORECAST_24H', payload);
+          }
+          return { data: payload };
         }
-        return { data: payload };
       }
     }
   } catch (err) {
@@ -1128,6 +1144,30 @@ export const getAvailablePeriods = async (category = 'aqi') => {
     }
   }
   return null;
+};
+
+export const sendDatasetEmail = async ({
+  recipient_email,
+  recipient_name,
+  dataset_name,
+  category = 'aqi',
+  year = 2026,
+  month = null,
+  purpose = ''
+}) => {
+  if (!canCallBackend) {
+    throw new Error('Backend server is not reachable to dispatch emails.');
+  }
+  const res = await api.post('/cloud/send-dataset-email', {
+    recipient_email,
+    recipient_name,
+    dataset_name,
+    category,
+    year,
+    month,
+    purpose
+  }, { timeout: 35000 });
+  return res.data;
 };
 
 export default api;

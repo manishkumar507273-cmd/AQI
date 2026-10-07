@@ -131,9 +131,13 @@ def parse_iso_datetime(ts_str: str) -> datetime:
     """Safely parses timestamp string to datetime object."""
     clean_str = ts_str.replace("Z", "+00:00")
     try:
-        return datetime.fromisoformat(clean_str)
+        dt = datetime.fromisoformat(clean_str)
     except Exception:
-        return datetime.strptime(ts_str[:19], "%Y-%m-%dT%H:%M:%S")
+        dt = datetime.strptime(ts_str[:19], "%Y-%m-%dT%H:%M:%S")
+    if dt.tzinfo is None:
+        IST = timezone(timedelta(hours=5, minutes=30))
+        dt = dt.replace(tzinfo=IST)
+    return dt
 
 
 async def fetch_source_rows(limit: int = 168) -> List[Dict[str, Any]]:

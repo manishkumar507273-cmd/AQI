@@ -5,24 +5,17 @@ import {
   RefreshCw,
   Clock,
   AlertCircle,
-  Table as TableIcon,
-  LineChart as LineChartIcon,
-  Sliders,
-  ArrowLeftRight
+  Sun,
+  Moon,
+  CloudLightning,
+  CloudSun,
+  CloudMoon,
+  CloudRain,
+  Cloud,
+  Wind,
+  Droplets
 } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine
-} from 'recharts';
-import { getAqiForecast, getCloudHistory, getTimeAgo, getCachedData } from '../api';
+import { getAqiForecast, getWeatherForecast24h, getCloudHistory, getTimeAgo, getCachedData } from '../api';
 import WeatherForecast24hView from '../components/WeatherForecast24hView';
 
 const PARAM_CONFIG = {
@@ -116,11 +109,7 @@ export default function Forecast({ refreshKey }) {
   const [loading, setLoading] = useState(() => !getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [activeParam, setActiveParam] = useState('aqi');
-  const [activeView, setActiveView] = useState('timeline'); // 'timeline' | 'chart' | 'table'
-  const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
-  const [showComparison, setShowComparison] = useState(false);
 
   const isFetchingRef = useRef(false);
 
@@ -132,28 +121,49 @@ export default function Forecast({ refreshKey }) {
     }
     setError(null);
     try {
-      const [fcRes, histRes] = await Promise.allSettled([
+      const [aqiFcRes, weatherFcRes, histRes] = await Promise.allSettled([
         getAqiForecast(force),
+        getWeatherForecast24h(force),
         getCloudHistory(100)
       ]);
 
-      if (fcRes.status === 'fulfilled' && fcRes.value?.data?.status === 'success' && Array.isArray(fcRes.value.data.forecast)) {
-        const incoming = fcRes.value.data;
-        setForecastData((prev) => {
-          if (!prev || !prev.generated_at || !incoming.generated_at) {
-            return incoming;
+      const aqiForecast = (aqiFcRes.status === 'fulfilled' && aqiFcRes.value?.data?.status === 'success' && Array.isArray(aqiFcRes.value.data.forecast)) ? aqiFcRes.value.data.forecast : [];
+      const weatherForecast = (weatherFcRes.status === 'fulfilled' && Array.isArray(weatherFcRes.value?.data?.forecast)) ? weatherFcRes.value.data.forecast : [];
+
+      if (aqiForecast.length > 0 || weatherForecast.length > 0) {
+        const baseForecast = aqiForecast.length > 0 ? aqiForecast : weatherForecast;
+        const otherForecast = aqiForecast.length > 0 ? weatherForecast : [];
+
+        const merged = baseForecast.map(bItem => {
+          const bTime = new Date(bItem.forecast_for_time).getTime();
+          const match = otherForecast.find(oItem => Math.abs(new Date(oItem.forecast_for_time).getTime() - bTime) < 1000 * 60 * 30);
+          
+          if (aqiForecast.length > 0) {
+            return {
+               ...bItem,
+               temperature_c: match?.temperature_c != null ? match.temperature_c : match?.temperature,
+               humidity_pct: match?.humidity_pct != null ? match.humidity_pct : match?.humidity,
+               rain_gauge: match?.rain_gauge,
+               wind_speed: match?.wind_speed,
+               weather_type: match?.weather_type
+            };
+          } else {
+            return {
+               ...bItem,
+               ...match
+            };
           }
-          const prevTime = new Date(prev.generated_at).getTime();
-          const incomingTime = new Date(incoming.generated_at).getTime();
-          // Never overwrite a newer forecast with an older one
-          if (!isNaN(incomingTime) && !isNaN(prevTime) && incomingTime < prevTime) {
-            return prev;
-          }
-          return incoming;
         });
+
+        const incoming = {
+          generated_at: aqiFcRes.value?.data?.generated_at || weatherFcRes.value?.data?.generated_at || new Date().toISOString(),
+          forecast: merged
+        };
+
+        setForecastData(incoming);
         setLastUpdated(new Date());
       } else if (!forecastData) {
-        setError(fcRes.value?.data?.message || 'Failed to retrieve Node 1 24h forecast.');
+        setError('Failed to retrieve Node 1 24h forecast.');
       }
 
       if (histRes.status === 'fulfilled' && Array.isArray(histRes.value?.data?.history)) {
@@ -241,8 +251,28 @@ export default function Forecast({ refreshKey }) {
       const actualTemp = hasActual ? matchingActual.temperature : null;
       const actualHum = hasActual ? matchingActual.humidity : null;
 
+      const rain = Number(item.rain_gauge) || 0;
+      const hum = Number(item.humidity_pct) || 0;
+      const temp = Number(item.temperature_c) || 0;
+      const windSpeed = Number(item.wind_speed) || 0;
+      
+      const hourNum = !isNaN(dt.getTime()) ? dt.getHours() : 12;
+      const isDaytime = hourNum >= 6 && hourNum < 19;
+      
+      let weatherType = 'clear';
+      if (rain > 0.5) weatherType = 'rain';
+      else if (temp < 24) weatherType = 'cloudy';
+      else if (hum > 55) weatherType = 'partly-cloudy';
+      else weatherType = 'clear';
+
       return {
         ...item,
+        isDaytime,
+        weatherType,
+        temp: Number(temp).toFixed(1),
+        humidity: Math.round(hum),
+        rain,
+        windSpeed,
         display_hour: hourStr,
         display_date: dayStr,
         iso_time: item.forecast_for_time,
@@ -310,10 +340,28 @@ export default function Forecast({ refreshKey }) {
           const cat = getAqiCategory(actualAqi);
           const hourStr = pastTime.toLocaleTimeString([], { hour: 'numeric', hour12: true });
           const dayStr = pastTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+          const hourNum = pastTime.getHours();
+          const isDaytime = hourNum >= 6 && hourNum < 19;
+          const actualTemp = matchingActual.temperature != null ? Number(matchingActual.temperature) : null;
+          const actualHum = matchingActual.humidity != null ? Number(matchingActual.humidity) : null;
+          const actualRain = Number(matchingActual.rain_gauge) || 0;
+          const actualWind = Number(matchingActual.wind_speed) || (forecastItems[0]?.windSpeed || 0);
+
+          let weatherType = 'clear';
+          if (actualRain > 0.5) weatherType = 'rain';
+          else if (actualTemp != null && actualTemp < 24) weatherType = 'cloudy';
+          else if (actualHum != null && actualHum > 55) weatherType = 'partly-cloudy';
+          else weatherType = 'clear';
 
           pastItems.push({
             isPast: true,
             step: -i,
+            isDaytime,
+            weatherType,
+            temp: actualTemp != null ? actualTemp.toFixed(1) : (forecastItems[0]?.temp || null),
+            humidity: actualHum != null ? Math.round(actualHum) : (forecastItems[0]?.humidity || null),
+            rain: actualRain,
+            windSpeed: actualWind,
             display_hour: hourStr,
             display_date: dayStr,
             iso_time: pastTime.toISOString(),
@@ -353,45 +401,7 @@ export default function Forecast({ refreshKey }) {
     return [...pastItems, ...forecastItems].map((item, index) => ({ ...item, index }));
   }, [forecastData, historicalRecords, currentTime]);
 
-  // Overall Statistics across 24h
-  const stats = useMemo(() => {
-    if (processedItems.length === 0) return null;
-    const validAqiItems = processedItems.filter(p => p.aqi != null);
-    if (validAqiItems.length === 0) return null;
-    const aqiVals = validAqiItems.map(p => p.aqi);
-    const minAqi = Math.round(Math.min(...aqiVals));
-    const maxAqi = Math.round(Math.max(...aqiVals));
-    const avgAqi = Math.round(aqiVals.reduce((a, b) => a + b, 0) / aqiVals.length);
-    const maxItem = validAqiItems.find(p => p.aqi === maxAqi);
-    const minItem = validAqiItems.find(p => p.aqi === minAqi);
 
-    const matchedItems = processedItems.filter(p => p.hasActual && p.actual_aqi != null);
-    const actualCount = matchedItems.length;
-
-    // Mean absolute error if we have comparisons
-    let maeAqi = null;
-    if (actualCount > 0) {
-      const sumErr = matchedItems.reduce((acc, curr) => acc + Math.abs(curr.aqi_delta || 0), 0);
-      maeAqi = (sumErr / actualCount).toFixed(3);
-    }
-
-    return {
-      minAqi,
-      maxAqi,
-      avgAqi,
-      peakTime: maxItem?.display_hour,
-      peakDate: maxItem?.display_date,
-      bestTime: minItem?.display_hour,
-      bestDate: minItem?.display_date,
-      dominantOverall: maxItem?.dominant_pollutant || 'PM2.5',
-      avgCat: getAqiCategory(avgAqi),
-      peakCat: getAqiCategory(maxAqi),
-      bestCat: getAqiCategory(minAqi),
-      actualCount,
-      pendingCount: processedItems.length - actualCount,
-      maeAqi
-    };
-  }, [processedItems]);
 
   const visibleTimelineItems = useMemo(() => {
     return processedItems.filter((item) => {
@@ -404,7 +414,7 @@ export default function Forecast({ refreshKey }) {
       currentHourStart.setMinutes(0, 0, 0);
       
       const pastCutoff = new Date(currentHourStart);
-      pastCutoff.setHours(pastCutoff.getHours() - 5);
+      pastCutoff.setHours(pastCutoff.getHours());
       
       const futureCutoff = new Date(currentHourStart);
       futureCutoff.setHours(futureCutoff.getHours() + 24);
@@ -413,97 +423,80 @@ export default function Forecast({ refreshKey }) {
     });
   }, [processedItems, currentTime]);
 
-  // Active inspected slot defaults smoothly to first visible upcoming hour
-  const activeSlot = useMemo(() => {
-    if (visibleTimelineItems.length === 0) return null;
-    if (selectedSlotIndex !== null) {
-      const match = visibleTimelineItems.find((p) => p.index === selectedSlotIndex);
-      if (match) return match;
-    }
-    return visibleTimelineItems[0];
-  }, [visibleTimelineItems, selectedSlotIndex]);
 
-  const renderDualCell = (actVal, fcVal, unit = '', decimals = 3, isPast = false) => {
-    const hasAct = actVal != null && !isNaN(Number(actVal));
-    const hasFc = fcVal != null && !isNaN(Number(fcVal)) && !isPast;
-
-    return (
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
-        <span style={{ fontWeight: 700, color: hasAct ? '#0f172a' : '#94a3b8' }}>
-          {hasAct ? `${Number(actVal).toFixed(decimals)}${unit}` : '—'}
-        </span>
-        <span style={{ color: '#cbd5e1' }}>/</span>
-        <span style={{ color: hasFc ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>
-          {hasFc ? `${Number(fcVal).toFixed(decimals)}${unit}` : '—'}
-        </span>
-      </div>
-    );
-  };
 
   return (
     <div className="page-container" style={{ minHeight: '85vh' }}>
       
 
           {/* ── Page Header ── */}
-          <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 16,
-        marginBottom: 20
-      }}>
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 16,
+            marginBottom: 20
+          }}>
         <div>
           <h1 style={{
-            fontSize: 24,
-            fontWeight: 700,
+            fontSize: 26,
+            fontWeight: 800,
             color: '#0f172a',
             margin: 0,
             letterSpacing: '-0.02em',
             display: 'flex',
             alignItems: 'center',
-            gap: 10
+            gap: 12
           }}>
-            <Sparkles style={{ width: 22, height: 22, color: '#00bfa5' }} />
-            AQI Forecast (24h)
+            <motion.div
+              animate={{ rotate: [0, 15, -15, 0] }}
+              transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+            >
+              <Sparkles style={{ width: 26, height: 26, color: '#00bfa5' }} />
+            </motion.div>
+            AQI Forecast
           </h1>
-          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13.5 }}>
-            <span className="desktop-only-inline">Node 1 24-hour horizon (t+1 → t+24) with expanding-lookback Seq2Seq LSTM and real-time telemetry sync.</span>
-            <span className="mobile-only-inline">24-hour predictive AI horizon &amp; real-time telemetry sync</span>
-          </p>
+
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {lastUpdated && (
-            <span style={{ fontSize: 12.5, color: '#94a3b8' }}>
+            <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>
               Updated {getTimeAgo(lastUpdated)}
             </span>
           )}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05, boxShadow: '0 4px 12px rgba(0, 191, 165, 0.3)' }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => fetchForecastAndHistory(true)}
             disabled={loading}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 7,
+              gap: 8,
               backgroundColor: '#00bfa5',
               color: '#ffffff',
               border: 'none',
-              padding: '8px 16px',
-              borderRadius: 10,
-              fontSize: 13,
-              fontWeight: 600,
+              padding: '10px 18px',
+              borderRadius: 12,
+              fontSize: 13.5,
+              fontWeight: 700,
               cursor: loading ? 'not-allowed' : 'pointer',
               boxShadow: '0 2px 8px rgba(0, 191, 165, 0.25)',
-              transition: 'all 0.15s ease',
+              transition: 'all 0.2s ease',
               opacity: loading ? 0.7 : 1
             }}
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
       {error && (
         <div style={{
@@ -528,89 +521,169 @@ export default function Forecast({ refreshKey }) {
 
       {/* 24-Hour Quick Timeline Scrubber */}
       {processedItems.length > 0 && (
-        <div className="mobile-card-compact" style={{
-          background: '#ffffff',
-          borderRadius: 18,
-          padding: '20px 24px',
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.04)',
-          marginBottom: 24
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="mobile-card-compact" style={{
+          background: 'linear-gradient(to bottom right, #ffffff, #f8fafc)',
+          borderRadius: 24,
+          padding: '24px',
+          border: '1px solid rgba(226, 232, 240, 0.8)',
+          boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset',
+          marginBottom: 32,
+          position: 'relative',
+          overflow: 'hidden'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          {/* Decorative Background Blob */}
+          <div style={{
+            position: 'absolute', top: -100, right: -100, width: 250, height: 250,
+            background: 'radial-gradient(circle, rgba(14,165,233,0.08) 0%, rgba(255,255,255,0) 70%)',
+            borderRadius: '50%', pointerEvents: 'none'
+          }} />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10, position: 'relative', zIndex: 1 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <Clock size={18} color="#0ea5e9" /> 24-Hour Timeline Overview
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '-0.02em' }}>
+                <Clock size={20} color="#0ea5e9" /> 24-Hour Timeline Overview
               </h3>
             </div>
-
           </div>
 
           {/* Horizontal Scroller Cards */}
-          <div style={{
+          <motion.div 
+            initial="hidden"
+            animate="show"
+            variants={{
+              hidden: { opacity: 0 },
+              show: { opacity: 1, transition: { staggerChildren: 0.05, delayChildren: 0.1 } }
+            }}
+            style={{
             display: 'flex',
-            gap: 10,
+            gap: 12,
             overflowX: 'auto',
             WebkitOverflowScrolling: 'touch',
-            paddingBottom: 8,
-            scrollbarWidth: 'thin'
+            paddingBottom: 16,
+            paddingTop: 8,
+            scrollbarWidth: 'thin',
+            position: 'relative',
+            zIndex: 1
           }}>
-            {visibleTimelineItems.map((item) => (
-              <div
-                key={item.index}
-                className="forecast-timeline-card"
-                style={{
-                  flex: '0 0 110px',
-                  padding: '12px 10px',
-                  borderRadius: 14,
-                  border: `1.5px solid ${item.aqi_border || '#e2e8f0'}`,
-                  background: item.aqi_bg || '#ffffff',
-                  textAlign: 'center',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
-                }}
-              >
-                <div className="forecast-timeline-hour" style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>
-                  {item.display_hour}
-                </div>
-                <div className="forecast-timeline-aqi" style={{ fontSize: 22, fontWeight: 800, color: item.aqi_color, lineHeight: 1.1 }}>
-                  {item.aqi != null ? item.aqi : '—'}
-                </div>
-                <div className="forecast-timeline-category" style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: item.aqi_color,
-                  marginTop: 4,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}>
-                  {item.aqi_category}
-                </div>
-                <div className="forecast-timeline-actual" style={{
-                  marginTop: 6,
-                  paddingTop: 6,
-                  borderTop: '1px dashed #e2e8f0',
-                  fontSize: 10,
-                  color: item.hasActual ? '#0284c7' : '#94a3b8',
-                  fontWeight: 600
-                }}>
-                  {item.hasActual ? (
-                    <span>Act: <strong>{item.actual_aqi ?? '—'}</strong></span>
-                  ) : (
-                    <span>Act: <span style={{opacity: 0.6}}>Pending</span></span>
+            {visibleTimelineItems.map((item) => {
+              const isFirst = item.index === 0;
+
+              // Determine Weather Icon
+              let WeatherIcon = Sun;
+              let iconColor = '#facc15';
+              let iconFill = '#fef08a';
+              
+              if (item.weatherType === 'storm') {
+                WeatherIcon = CloudLightning;
+                iconColor = isFirst ? '#94a3b8' : '#64748b';
+                iconFill = isFirst ? '#475569' : '#e2e8f0';
+              } else if (item.weatherType === 'rain') {
+                WeatherIcon = CloudRain;
+                iconColor = isFirst ? '#7dd3fc' : '#38bdf8';
+                iconFill = isFirst ? '#0284c7' : '#e0f2fe';
+              } else if (item.weatherType === 'cloudy') {
+                WeatherIcon = Cloud;
+                iconColor = isFirst ? '#cbd5e1' : '#94a3b8';
+                iconFill = isFirst ? '#64748b' : '#f1f5f9';
+              } else if (item.weatherType === 'partly-cloudy') {
+                WeatherIcon = item.isDaytime ? CloudSun : CloudMoon;
+                iconColor = isFirst ? '#facc15' : '#f59e0b';
+                iconFill = isFirst ? '#475569' : '#fef3c7';
+              } else {
+                WeatherIcon = item.isDaytime ? Sun : Moon;
+                iconColor = isFirst ? '#facc15' : '#f59e0b';
+                iconFill = isFirst ? 'rgba(250, 204, 21, 0.2)' : 'rgba(245, 158, 11, 0.2)';
+              }
+
+              return (
+                <motion.div
+                  key={item.index}
+                  variants={{
+                    hidden: { opacity: 0, scale: 0.8, y: 15 },
+                    show: { opacity: 1, scale: 1, y: 0, transition: { type: "spring", stiffness: 350, damping: 20 } }
+                  }}
+                  whileHover={{ scale: 1.04, y: -4, boxShadow: '0 12px 24px -8px rgba(0,0,0,0.12)' }}
+                  whileTap={{ scale: 0.96 }}
+                  className="forecast-timeline-card"
+                  style={{
+                    flex: '0 0 115px',
+                    padding: '16px 12px',
+                    borderRadius: 16,
+                    border: `1.5px solid ${item.aqi_border || '#e2e8f0'}`,
+                    background: item.aqi_bg || '#ffffff',
+                    textAlign: 'center',
+                    boxShadow: '0 4px 12px -4px rgba(0,0,0,0.05)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    minHeight: 180
+                  }}
+                >
+                  <div className="forecast-timeline-hour" style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 12 }}>
+                    {item.display_hour}
+                  </div>
+                  
+                  {/* Weather Icon & Temp */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 12 }}>
+                    <WeatherIcon size={32} color={iconColor} fill={iconFill} strokeWidth={1.5} style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))', marginBottom: 6 }} />
+                    <span style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                      {item.temp != null ? `${item.temp}°` : (item.temperature_c != null ? `${Number(item.temperature_c).toFixed(1)}°` : '—')}
+                    </span>
+                  </div>
+
+                  {/* AQI */}
+                  <div className="forecast-timeline-aqi" style={{ fontSize: 24, fontWeight: 800, color: item.aqi_color, lineHeight: 1, textShadow: '0 2px 4px rgba(255,255,255,0.5)' }}>
+                    {item.aqi != null ? item.aqi : '—'}
+                  </div>
+                  <div className="forecast-timeline-category" style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: item.aqi_color,
+                    marginTop: 4,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    background: 'rgba(255,255,255,0.6)',
+                    padding: '2px 6px',
+                    borderRadius: 8,
+                    display: 'inline-block',
+                    maxWidth: '90%'
+                  }}>
+                    AQI {item.aqi_category}
+                  </div>
+                  
+                  {/* Rainfall/Wind micro indicators only when significant */}
+                  {(Number(item.rain) >= 0.5 || Number(item.windSpeed) >= 20) && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, borderTop: '1px solid rgba(226, 232, 240, 0.6)', paddingTop: 8, width: '100%', justifyContent: 'center' }}>
+                      {Number(item.rain) >= 0.5 && (
+                        <span style={{ fontSize: 10, color: '#0ea5e9', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Droplets size={10} color="#38bdf8" /> {Number(item.rain).toFixed(1)}mm
+                        </span>
+                      )}
+                      {Number(item.windSpeed) >= 20 && (
+                        <span style={{ fontSize: 10, color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Wind size={10} /> {Math.round(item.windSpeed)}km/h
+                        </span>
+                      )}
+                    </div>
                   )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        </motion.div>
       )}
 
-
-
-
-
+      {/* ── 24-Hour Predictive Weather Forecast ── */}
+      <div style={{ marginTop: 28 }}>
         <WeatherForecast24hView refreshKey={refreshKey} />
+      </div>
 
     </div>
   );

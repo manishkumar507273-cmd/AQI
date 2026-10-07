@@ -4,10 +4,6 @@ import {
   RefreshCw,
   Clock,
   AlertCircle,
-  Table as TableIcon,
-  LineChart as LineChartIcon,
-  Sliders,
-  ArrowLeftRight,
   CloudRain,
   Sun,
   Wind,
@@ -18,37 +14,23 @@ import {
   CloudMoon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ComposedChart
-} from 'recharts';
 import { getWeatherForecast24h, getCloudWeatherHistory, getTimeAgo, getCachedData } from '../api';
 
-const WEATHER_PARAM_CONFIG = {
-  temperature: { name: 'Temperature', histKey: 'temperature', unit: '°C', color: '#f43f5e', desc: 'Forecasted ambient temperature' },
-  humidity: { name: 'Humidity', histKey: 'humidity', unit: '%', color: '#06b6d4', desc: 'Forecasted relative humidity' },
-  wind_speed: { name: 'Wind Speed', histKey: 'wind_speed', unit: 'km/h', color: '#3b82f6', desc: 'Forecasted wind speed' },
-  rain_gauge: { name: 'Rainfall', histKey: 'rain_gauge', unit: 'mm', color: '#0ea5e9', desc: 'Forecasted rainfall amount' }
-};
-
 export default function WeatherForecast24hView({ refreshKey }) {
-  const [forecastData, setForecastData] = useState(() => getCachedData('CACHE_WEATHER_FORECAST_24H'));
+  const [forecastData, setForecastData] = useState(() => {
+    const c = getCachedData('CACHE_WEATHER_FORECAST_24H');
+    if (c?.forecast && Array.isArray(c.forecast)) {
+      const firstT = Number(c.forecast[0]?.temperature);
+      const isFlat = isNaN(firstT) || firstT === 0 || c.forecast.every(it => Math.abs(Number(it.temperature) - firstT) < 0.001);
+      if (isFlat) return null;
+    }
+    return c;
+  });
   const [historicalRecords, setHistoricalRecords] = useState([]);
-  const [loading, setLoading] = useState(() => !getCachedData('CACHE_WEATHER_FORECAST_24H'));
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [activeParam, setActiveParam] = useState('temperature');
-  const [activeView, setActiveView] = useState('chart');
-  const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
-  const [showComparison, setShowComparison] = useState(false);
 
   const isFetchingRef = useRef(false);
 
@@ -214,37 +196,62 @@ export default function WeatherForecast24hView({ refreshKey }) {
     });
   }, [processedItems, currentTime]);
 
-  const renderDualCell = (actVal, fcVal, unit = '', decimals = 1, isPast = false) => {
-    const hasAct = actVal != null && !isNaN(Number(actVal));
-    const hasFc = fcVal != null && !isNaN(Number(fcVal)) && !isPast;
 
-    return (
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono, monospace)' }}>
-        <span style={{ fontWeight: 700, color: hasAct ? '#0f172a' : '#94a3b8' }}>
-          {hasAct ? `${Number(actVal).toFixed(decimals)}${unit}` : '—'}
-        </span>
-        <span style={{ color: '#cbd5e1' }}>/</span>
-        <span style={{ color: hasFc ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>
-          {hasFc ? `${Number(fcVal).toFixed(decimals)}${unit}` : '—'}
-        </span>
-      </div>
-    );
-  };
 
   return (
     <div style={{ width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}
+      >
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Sparkles style={{ width: 22, height: 22, color: '#3b82f6' }} />
-            Weather Forecast (24h)
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <motion.div
+              animate={{ rotate: [0, 15, -15, 0] }}
+              transition={{ repeat: Infinity, duration: 4, ease: "easeInOut", delay: 2 }}
+            >
+              <Sparkles style={{ width: 26, height: 26, color: '#3b82f6' }} />
+            </motion.div>
+            Weather Forecast
           </h1>
-          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13.5 }}>
-            <span className="desktop-only-inline">Node 1 24-Hour horizon (t+1 → t+24) with MultiKernel CNN-LSTM and real-time telemetry sync.</span>
-            <span className="mobile-only-inline">24-Hour predictive AI horizon &amp; telemetry sync</span>
-          </p>
+
         </div>
-      </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {lastUpdated && (
+            <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>
+              Updated {getTimeAgo(lastUpdated)}
+            </span>
+          )}
+          <motion.button
+            whileHover={{ scale: 1.05, boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)' }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => fetchForecastAndHistory(true)}
+            disabled={loading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              backgroundColor: '#3b82f6',
+              color: '#ffffff',
+              border: 'none',
+              padding: '10px 18px',
+              borderRadius: 12,
+              fontSize: 13.5,
+              fontWeight: 700,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 8px rgba(59, 130, 246, 0.25)',
+              transition: 'all 0.2s ease',
+              opacity: loading ? 0.7 : 1
+            }}
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </motion.button>
+        </div>
+      </motion.div>
 
       {error && (
         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 14, padding: '16px 20px', color: '#991b1b', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
@@ -255,33 +262,49 @@ export default function WeatherForecast24hView({ refreshKey }) {
 
       {/* 24-Hour Quick Timeline Scrubber */}
       {processedItems.length > 0 && (
-        <div className="mobile-card-compact" style={{
-          background: '#f8fafc', // Light grey-blue container
-          borderRadius: 18,
-          padding: '20px 24px',
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.04)',
-          marginBottom: 24
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+          className="mobile-card-compact" style={{
+          background: 'linear-gradient(to bottom right, #f8fafc, #f1f5f9)',
+          borderRadius: 24,
+          padding: '24px',
+          border: '1px solid rgba(226, 232, 240, 0.8)',
+          boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset',
+          marginBottom: 32,
+          position: 'relative',
+          overflow: 'hidden'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          {/* Decorative Background Blob */}
+          <div style={{
+            position: 'absolute', top: -100, left: -100, width: 300, height: 300,
+            background: 'radial-gradient(circle, rgba(250,204,21,0.06) 0%, rgba(255,255,255,0) 70%)',
+            borderRadius: '50%', pointerEvents: 'none'
+          }} />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10, position: 'relative', zIndex: 1 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <Clock size={18} color="#0ea5e9" /> Weather Forecast
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '-0.02em' }}>
+                <CloudSun size={20} color="#f59e0b" /> Weather Timeline
               </h3>
             </div>
           </div>
 
           <div style={{
             display: 'flex',
-            gap: 4, // Tighter gap for floating cards
+            gap: 12, // Tighter gap for floating cards
             overflowX: 'auto',
             WebkitOverflowScrolling: 'touch',
-            paddingBottom: 8,
-            scrollbarWidth: 'thin'
+            paddingBottom: 16,
+            paddingTop: 8,
+            scrollbarWidth: 'thin',
+            position: 'relative',
+            zIndex: 1
           }}>
             {visibleTimelineItems.map((item, i) => {
               const isFirst = item.index === 0;
-              const hasRain = Number(item.rain_gauge) > 0;
+              const hasRain = Number(item.rain_gauge) >= 0.5;
               
               const dt = new Date(item.iso_time);
               const hour = isNaN(dt.getTime()) ? new Date().getHours() : dt.getHours();
@@ -368,23 +391,28 @@ export default function WeatherForecast24hView({ refreshKey }) {
                       )}
                     </div>
                   </motion.div>
-                  
-                  {/* Vertical Values (Wind & Rain) */}
+
+                  {/* Temperature Readout */}
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginTop: 2, marginBottom: 2 }}>
+                    {temp > 0 ? `${temp.toFixed(1)}°` : (item.actual_temperature != null ? `${Number(item.actual_temperature).toFixed(1)}°` : '—')}
+                  </div>
+
+                  {/* Vertical Values (Wind & Rain / Humidity) */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center', width: '100%' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 800, color: '#1e293b' }} title="Wind Speed (km/h)">
                       <Wind size={13} color="#94a3b8" strokeWidth={2.5} />
                       {Math.round(Number(item.wind_speed || 0))} <span style={{fontSize: 10, color:'#94a3b8', fontWeight:600}}>km/h</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 800, color: hasRain ? '#0ea5e9' : '#cbd5e1' }} title="Rainfall (mm)">
-                      <Droplets size={13} color={hasRain ? "#38bdf8" : "#e2e8f0"} strokeWidth={2.5} />
-                      {hasRain ? Number(item.rain_gauge).toFixed(1) : 0} <span style={{fontSize: 10, color:hasRain ? '#7dd3fc' : '#cbd5e1', fontWeight:600}}>mm</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 800, color: Number(item.rain_gauge) > 0 ? '#0ea5e9' : '#64748b' }} title="Precipitation (mm)">
+                      <Droplets size={13} color={Number(item.rain_gauge) > 0 ? "#38bdf8" : "#94a3b8"} strokeWidth={2.5} />
+                      {Number(item.rain_gauge || 0).toFixed(1)} <span style={{fontSize: 10, color: Number(item.rain_gauge) > 0 ? '#7dd3fc' : '#94a3b8', fontWeight:600}}>mm</span>
                     </div>
                   </div>
                 </motion.div>
               );
             })}
           </div>
-        </div>
+        </motion.div>
       )}
 
     </div>

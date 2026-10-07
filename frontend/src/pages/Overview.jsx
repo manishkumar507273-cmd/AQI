@@ -217,6 +217,16 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
     fetchData();
   }, [refreshKey, selectedStation]);
 
+  const computeAqiFromForecastItem = (item) => {
+    if (!item) return null;
+    const subPm25 = calculateSubIndex('pm25', item.pm2_5_ug_m3);
+    const subPm10 = calculateSubIndex('pm10', item.pm10_ug_m3);
+    const subNo2 = calculateSubIndex('no2', item.no2_ug_m3);
+    const subCo = calculateSubIndex('co', item.co_mg_m3);
+    const subO3 = calculateSubIndex('o3', item.ozone_ug_m3);
+    return Math.max(subPm25, subPm10, subNo2, subCo, subO3);
+  };
+
   // Fetch 24-Hour Predictive Forecast and Historical Actuals
   const fetchForecast = async (force = false) => {
     if (force || !forecastData) setForecastLoading(true);
@@ -242,14 +252,14 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
             return {
                ...bItem,
                temperature: match?.temperature_c != null ? match.temperature_c : bItem.temperature,
-               aqi: match ? match.aqi : null
+               aqi: match ? computeAqiFromForecastItem(match) : null
             };
           } else {
             return {
                ...bItem,
                temperature: bItem.temperature_c,
                humidity: bItem.humidity_pct,
-               aqi: bItem.aqi
+               aqi: computeAqiFromForecastItem(bItem)
             };
           }
         });

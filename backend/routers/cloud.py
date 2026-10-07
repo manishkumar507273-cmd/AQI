@@ -1,5 +1,7 @@
 from typing import Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Response
+from services.email_service import send_dataset_email, is_smtp_configured
 from services.supabase_service import (
     get_latest_cloud_reading,
     get_latest_weather_live_reading,
@@ -13,6 +15,15 @@ from services.supabase_service import (
     TABLE_AQI_HISTORICAL,
     TABLE_WEATHER_HISTORICAL
 )
+
+class DatasetEmailPayload(BaseModel):
+    recipient_email: str
+    recipient_name: Optional[str] = "Researcher"
+    dataset_name: Optional[str] = "Historical Dataset"
+    category: Optional[str] = "aqi"
+    year: Optional[int] = 2026
+    month: Optional[int] = None
+    purpose: Optional[str] = ""
 
 router = APIRouter(prefix="/api/cloud", tags=["Cloud Telemetry"])
 
@@ -137,6 +148,65 @@ async def export_dataset(
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to generate dataset export: {str(e)}")
+
+MONTH_NAMES = {
+    1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "May", 6: "Jun",
+    7: "Jul", 8: "Aug", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec"
+}
+
+@router.post("/send-dataset-email")
+async def email_dataset_to_user(payload: DatasetEmailPayload):
+    try:
+        cat_raw = (payload.category or "aqi").lower()
+        category = "weather" if "weather" in cat_raw or "meteo" in cat_raw else "aqi"
+        year = payload.year or 2026
+        month = payload.month
+        
+        table_name = TABLE_AQI_HISTORICAL if category == "aqi" else TABLE_WEATHER_HISTORICAL
+        rows = await fetch_dataset_range(table_name, year=year, month=month)
+        
+        # If no rows found for specific month, fallback to full year so recipient gets data
+        if not rows:
+            rows = await fetch_dataset_range(table_name, year=year, month=None)
+            
+        if not rows:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No {category.upper()} records found in database for year {year}."
+            )
+            
+        csv_content = format_dataset_csv(rows, category=category)
+        cat_title = "AQI" if category == "aqi" else "Weather"
+        if month:
+            m_name = MONTH_NAMES.get(month, f"{month:02d}")
+            filename = f"{cat_title}_Historical_Dataset_{year}_{month:02d}_{m_name}.csv"
+        else:
+            filename = f"{cat_title}_Historical_Dataset_{year}_Full_Year.csv"
+            
+        result = send_dataset_email(
+            recipient_email=payload.recipient_email,
+            recipient_name=payload.recipient_name or "Researcher",
+            dataset_name=payload.dataset_name or f"{cat_title} Historical Dataset",
+            filename=filename,
+            csv_content=csv_content,
+            rows_count=len(rows),
+            purpose=payload.purpose
+        )
+        
+        return {
+            "status": "success" if result["success"] else "notice",
+            "email_sent": result["success"],
+            "requires_smtp_config": result.get("requires_smtp_config", False),
+            "message": result["message"],
+            "filename": filename,
+            "rows_count": len(rows),
+            "recipient": payload.recipient_email
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process and email dataset: {str(e)}")
+
 
 
 
