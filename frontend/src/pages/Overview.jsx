@@ -251,9 +251,9 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           if (weatherForecast.length > 0) {
             return {
                ...bItem,
-               // Use Weather model's native temperature and humidity
-               temperature: bItem.temperature,
-               humidity: bItem.humidity ?? bItem.humidity_pct,
+               // Prefer AQI model's temperature and humidity
+               temperature: match?.temperature_c != null ? match.temperature_c : bItem.temperature,
+               humidity: match?.humidity_pct != null ? match.humidity_pct : (bItem.humidity ?? bItem.humidity_pct),
                // Pull AQI details from the matching AQI model forecast
                aqi: match ? match.aqi : null
             };
