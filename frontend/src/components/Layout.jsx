@@ -446,29 +446,6 @@ export default function Layout({
 
         {/* Right: Mobile Header Controls (Visible only on mobile <768px) */}
         <div className="mobile-only-header" style={{ display: 'none', alignItems: 'center', gap: 6 }}>
-          {activeNav === 'overview' && (
-            <button
-              onClick={handleViewDetailedDashboard}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '5px 9px',
-                borderRadius: 999,
-                border: '1.5px solid #7dd3fc',
-                backgroundColor: '#f0f9ff',
-                color: '#0284c7',
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <span>Dashboard</span>
-              <ArrowUpRight style={{ width: 12, height: 12, strokeWidth: 2.5 }} />
-            </button>
-          )}
-
           {isAdmin && (
             <button
               onClick={() => handleNavItemClick('admin')}
@@ -643,6 +620,34 @@ export default function Layout({
 
               {/* Mobile Nav Links */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {activeNav === 'overview' && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleViewDetailedDashboard();
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '12px 16px',
+                      borderRadius: 14,
+                      border: 'none',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      backgroundColor: '#f0f9ff',
+                      color: '#0284c7',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      boxShadow: 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <ArrowUpRight style={{ width: 18, height: 18 }} />
+                    <span>View Dashboard</span>
+                  </button>
+                )}
+
                 {NAV_ITEMS.map((tab) => {
                   const isActive = currentTab === tab.id;
                   const Icon = tab.icon;

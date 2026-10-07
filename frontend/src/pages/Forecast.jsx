@@ -141,10 +141,10 @@ export default function Forecast({ refreshKey }) {
           if (aqiForecast.length > 0) {
             return {
                ...bItem,
-               temperature_c: match?.temperature_c != null ? match.temperature_c : match?.temperature,
-               humidity_pct: match?.humidity_pct != null ? match.humidity_pct : match?.humidity,
-               rain_gauge: match?.rain_gauge,
-               wind_speed: match?.wind_speed,
+               temperature_c: match?.temperature_c != null ? match.temperature_c : (match?.temperature != null ? match.temperature : bItem.temperature_c),
+               humidity_pct: match?.humidity_pct != null ? match.humidity_pct : (match?.humidity != null ? match.humidity : bItem.humidity_pct),
+               rain_gauge: match?.rain_gauge != null ? match.rain_gauge : (match?.rain != null ? match.rain : bItem.rain_gauge),
+               wind_speed: match?.wind_speed != null ? match.wind_speed : (match?.windSpeed != null ? match.windSpeed : bItem.wind_speed),
                weather_type: match?.weather_type
             };
           } else {

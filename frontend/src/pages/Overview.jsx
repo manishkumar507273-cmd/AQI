@@ -620,102 +620,57 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
       {/* ── Content Container ── */}
       <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* ── Overview Unit Toggles & Live Refresh ── */}
+        {/* ── Compact Toolbar (Settings & Refresh) ── */}
         <div className="overview-toolbar" style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          gap: 10,
-          flexWrap: 'wrap',
+          gap: 6,
+          flexWrap: 'nowrap',
           marginBottom: 4,
         }}>
-          {/* Temperature & Wind Unit Toggles Container */}
-          <div className="overview-toolbar-units" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* Temperature Unit Toggle */}
-            <div style={{
-              display: 'flex',
-              backgroundColor: '#ffffff',
-              borderRadius: 999,
-              padding: 3,
-              border: '1px solid #cbd5e1',
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
-            }}>
-              <button
-                onClick={() => setTempUnit('C')}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 999,
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backgroundColor: tempUnit === 'C' ? '#00bfa5' : 'transparent',
-                  color: tempUnit === 'C' ? '#ffffff' : '#64748b',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                °C
-              </button>
-              <button
-                onClick={() => setTempUnit('F')}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 999,
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backgroundColor: tempUnit === 'F' ? '#00bfa5' : 'transparent',
-                  color: tempUnit === 'F' ? '#ffffff' : '#64748b',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                °F
-              </button>
-            </div>
-
-            {/* Wind Unit Toggle */}
-            <div style={{
-              display: 'flex',
-              backgroundColor: '#ffffff',
-              borderRadius: 999,
-              padding: 3,
-              border: '1px solid #cbd5e1',
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
-            }}>
-              <button
-                onClick={() => setWindUnit('kmh')}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 999,
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backgroundColor: windUnit === 'kmh' ? '#0284c7' : 'transparent',
-                  color: windUnit === 'kmh' ? '#ffffff' : '#64748b',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                km/h
-              </button>
-              <button
-                onClick={() => setWindUnit('ms')}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 999,
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backgroundColor: windUnit === 'ms' ? '#0284c7' : 'transparent',
-                  color: windUnit === 'ms' ? '#ffffff' : '#64748b',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                m/s
-              </button>
-            </div>
+          {/* Settings Pill (Unit Toggles) */}
+          <div style={{
+            display: 'flex',
+            backgroundColor: '#ffffff',
+            borderRadius: 999,
+            padding: 3,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+            gap: 2
+          }}>
+            <button
+              onClick={() => setTempUnit(tempUnit === 'C' ? 'F' : 'C')}
+              style={{
+                padding: '4px 8px',
+                borderRadius: 999,
+                border: 'none',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+                backgroundColor: '#f1f5f9',
+                color: '#475569',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              °{tempUnit}
+            </button>
+            <button
+              onClick={() => setWindUnit(windUnit === 'kmh' ? 'ms' : 'kmh')}
+              style={{
+                padding: '4px 8px',
+                borderRadius: 999,
+                border: 'none',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+                backgroundColor: '#f1f5f9',
+                color: '#475569',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {windUnit === 'kmh' ? 'km/h' : 'm/s'}
+            </button>
           </div>
 
           {/* Refresh Button */}
@@ -723,24 +678,23 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
             onClick={() => fetchData(true)}
             disabled={isRefreshing}
             className="overview-refresh-btn"
+            title="Refresh Live Data"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              padding: '6px 12px',
-              borderRadius: 999,
+              justifyContent: 'center',
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
               border: '1px solid #cbd5e1',
               background: '#ffffff',
               color: '#334155',
-              fontSize: 12,
-              fontWeight: 600,
               cursor: 'pointer',
               boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
               transition: 'all 0.2s ease',
             }}
           >
-            <RefreshCw style={{ width: 13, height: 13, color: '#00bfa5', animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none' }} />
-            <span>{isRefreshing ? 'Updating...' : 'Live Refresh'}</span>
+            <RefreshCw style={{ width: 14, height: 14, color: '#00bfa5', animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none' }} />
           </button>
         </div>
 
@@ -1338,30 +1292,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 </span>
               )}
 
-              <button
-                onClick={() => fetchForecast(true)}
-                disabled={forecastLoading}
-                className="overview-forecast-refresh"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  backgroundColor: '#ffffff',
-                  color: '#0f172a',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 12,
-                  padding: '7px 14px',
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  cursor: forecastLoading ? 'not-allowed' : 'pointer',
-                  opacity: forecastLoading ? 0.7 : 1,
-                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <RefreshCw style={{ width: 13, height: 13, color: '#00bfa5', animation: forecastLoading ? 'spin 0.8s linear infinite' : 'none' }} />
-                <span>Refresh</span>
-              </button>
             </div>
           </div>
 
@@ -1373,7 +1303,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
             border: '1.5px solid #e2e8f0',
             boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)',
             position: 'relative',
-            overflow: 'hidden',
+            overflow: 'visible',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1384,8 +1314,8 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                {/* Smooth Scroll Navigation Arrows */}
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {/* Smooth Scroll Navigation Arrows (Hidden on mobile where swipe is native) */}
+                <div className="desktop-only-inline" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <button
                     type="button"
                     onClick={() => scrollTimeline('left')}

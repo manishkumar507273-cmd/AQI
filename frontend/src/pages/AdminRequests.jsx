@@ -4,7 +4,7 @@ import { ShieldAlert, CheckCircle2, Clock, Mail, Server, Trash2, Send, Building2
 import { rtdb } from '../firebase';
 import { ref as rtdbRef, onValue, update, remove } from 'firebase/database';
 import { useAuth } from '../context/AuthContext';
-import { sendDatasetEmail, exportHistoricalDataset } from '../api';
+import { sendDatasetEmail, downloadHistoricalDataset } from '../api';
 
 const parseDatasetRequest = (datasetStr = '') => {
   const isWeather = /meteo|weather/i.test(datasetStr);
@@ -129,7 +129,7 @@ export default function AdminRequests() {
     setDownloadingId(req.id);
     try {
       const { category, year, month } = parseDatasetRequest(req.dataset);
-      await exportHistoricalDataset(category, year, month || 'all');
+      await downloadHistoricalDataset({ category, year, month: month || 'all' });
     } catch (err) {
       alert('Error downloading dataset CSV: ' + err.message);
     } finally {
