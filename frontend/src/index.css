@@ -1013,9 +1013,9 @@ img, svg, video, canvas {
   }
 }
 
-/* Hide Location Coordinates on very small mobile screens to prevent overflow */
-@media (max-width: 600px) {
-  .location-coords {
+/* Responsive adjustments for the top header to prevent mobile overflow */
+@media (max-width: 850px) {
+  .global-location-badge {
     display: none !important;
   }
 }

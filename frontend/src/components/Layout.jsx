@@ -164,7 +164,7 @@ export default function Layout({
       }}>
 
         {/* Left: Brand & Location Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             {/* Back arrow — shown on all inner pages to return to start page */}
             {activeNav !== 'overview' && (
@@ -208,22 +208,17 @@ export default function Layout({
             >
               <Wind style={{ width: 20, height: 20 }} />
             </div>
-            <div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <div className="app-header-title" style={{ fontSize: 'clamp(17px, 3vw, 20px)', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
                 Smart <span style={{ fontWeight: 500, color: '#00bfa5' }}>WeatherNet</span>
               </div>
-              <div className="app-header-subtitle" style={{ fontSize: 10, fontWeight: 600, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: -1 }}>
-                Real-time AQI &amp; Weather
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>SMVITM Campus</span>
+                <span className="location-coords" style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', borderLeft: '1px solid #e2e8f0', paddingLeft: 6, whiteSpace: 'nowrap' }}>13.254° N, 74.785° E</span>
               </div>
             </div>
             </div>
-          </div>
-
-          {/* Global Location Badge */}
-          <div className="global-location-badge" style={{ padding: '6px 12px', background: '#ffffff', borderRadius: 999, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
-            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>SMVITM Campus</span>
-            <span className="location-coords" style={{ fontSize: 11, fontWeight: 600, color: '#64748b', borderLeft: '1px solid #cbd5e1', paddingLeft: 8, whiteSpace: 'nowrap' }}>13.254° N, 74.785° E</span>
           </div>
         </div>
 
