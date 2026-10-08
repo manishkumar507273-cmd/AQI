@@ -403,16 +403,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
     });
   }, [liveHistory]);
 
-  const aqiSummaryStats = useMemo(() => {
-    if (!liveHistoryChartData || liveHistoryChartData.length === 0) return null;
-    let minItem = liveHistoryChartData[0];
-    let maxItem = liveHistoryChartData[0];
-    for (const item of liveHistoryChartData) {
-      if (item.cpcb_aqi < minItem.cpcb_aqi) minItem = item;
-      if (item.cpcb_aqi > maxItem.cpcb_aqi) maxItem = item;
-    }
-    return { minItem, maxItem };
-  }, [liveHistoryChartData]);
+
 
   const chart15MinTicks = useMemo(() => {
     if (!liveHistoryChartData || liveHistoryChartData.length === 0) return undefined;
@@ -985,124 +976,6 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         {/* Responsive Grid for both Line plots */}
         <div className="mobile-chart-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 20 }}>
 
-          {/* 1. AQI Lineplot Card */}
-          <div
-            className="mobile-card-compact"
-            style={{
-              backgroundColor: '#ffffff',
-              borderRadius: 20,
-              padding: 24,
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Activity style={{ width: 16, height: 16, color: '#00bfa5' }} />
-                  AQI Line Plot
-                </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                  <span className="desktop-only-inline">Real-time Air Quality Index progression</span>
-                  <span className="mobile-only-inline">Real-time AQI progression</span>
-                </div>
-              </div>
-              <div style={{
-                backgroundColor: 'rgba(0, 191, 165, 0.1)',
-                border: '1px solid rgba(0, 191, 165, 0.25)',
-                padding: '4px 10px',
-                borderRadius: 999,
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#00bfa5',
-                fontFamily: 'var(--font-mono)'
-              }}>
-                Current: {aqiValue}
-              </div>
-            </div>
-
-            <div className="chart-responsive" style={{ width: '100%', minWidth: 0 }}>
-              {liveHistoryLoading ? (
-                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
-                  <RefreshCw style={{ width: 16, height: 16, animation: 'spin 1s linear infinite', marginRight: 8, color: '#00bfa5' }} />
-                  Loading graph...
-                </div>
-              ) : liveHistoryChartData.length === 0 ? (
-                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 13 }}>
-                  No telemetry stream available.
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={liveHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                    <defs>
-                      <linearGradient id="aqiGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#00bfa5" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#00bfa5" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis
-                      dataKey="uniqueKey"
-                      ticks={chart15MinTicks}
-                      tickFormatter={(val) => {
-                        const item = liveHistoryChartData.find(d => d.uniqueKey === val);
-                        return item ? item.time : val;
-                      }}
-                      stroke="#94a3b8"
-                      fontSize={10}
-                      tick={{ fill: '#64748b' }}
-                      interval={0}
-                    />
-                    <YAxis stroke="#94a3b8" fontSize={10} tick={{ fill: '#64748b' }} domain={[0, 'auto']} />
-                    <Tooltip content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const d = payload[0].payload;
-                        const val = d.cpcb_aqi;
-                        const col = getAqiColor(val);
-                        return (
-                          <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', borderRadius: 10, padding: '10px 14px', fontSize: 12, boxShadow: '0 10px 25px rgba(15,23,42,0.12)' }}>
-                            <div style={{ color: '#64748b', fontSize: 11, marginBottom: 4 }}>{d.fullTime}</div>
-                            <div style={{ fontWeight: 800, fontSize: 18, color: col }}>
-                              AQI: {val}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }} />
-                    <Area type="monotone" dataKey="cpcb_aqi" name="AQI" stroke="#00bfa5" strokeWidth={2.5} fillOpacity={1} fill="url(#aqiGrad)" dot={false} activeDot={{ r: 5, fill: '#00bfa5', stroke: '#ffffff', strokeWidth: 2 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            {/* High / Low summary pills underneath chart */}
-            {aqiSummaryStats && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '5px 12px', borderRadius: 999,
-                  backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0',
-                  fontSize: 11.5, fontWeight: 700, color: '#047857', fontFamily: 'var(--font-mono)'
-                }}>
-                  <ArrowDownRight style={{ width: 14, height: 14 }} />
-                  <span>Lowest: {aqiSummaryStats.minItem.cpcb_aqi} @ {aqiSummaryStats.minItem.time}</span>
-                </div>
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '5px 12px', borderRadius: 999,
-                  backgroundColor: '#fff7ed', border: '1px solid #fed7aa',
-                  fontSize: 11.5, fontWeight: 700, color: '#c2410c', fontFamily: 'var(--font-mono)'
-                }}>
-                  <ArrowUpRight style={{ width: 14, height: 14 }} />
-                  <span>Highest: {aqiSummaryStats.maxItem.cpcb_aqi} @ {aqiSummaryStats.maxItem.time}</span>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* 2. AQI Pollutants Comparison Lineplot Card */}
           <div
@@ -1316,67 +1189,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
       </motion.div>
 
       {/* ── AIR QUALITY INDEX (AQI) SCALE GUIDE (Matching Mobile Standard) ── */}
-      <motion.div
-        custom={7.5} variants={cardVariants} initial="hidden" animate="visible"
-        className="mobile-card-compact"
-        style={{
-          backgroundColor: '#ffffff',
-          borderRadius: 20,
-          padding: 24,
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16
-        }}
-      >
-        <div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)' }}>
-            <ShieldAlert style={{ width: 20, height: 20, color: '#00bfa5' }} />
-            Air Quality Index (AQI) Scale
-          </h2>
-          <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 4, margin: '4px 0 0' }}>
-            Know what each category of the Air Quality Index implies for health and ambient safety.
-          </p>
-        </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[
-            { range: '0 to 50', label: 'Good', color: '#22c55e', bg: '#f0fdf4', border: '#bbf7d0', desc: 'Air quality is considered satisfactory, and air pollution poses little or no risk.' },
-            { range: '51 to 100', label: 'Moderate', color: '#eab308', bg: '#fefce8', border: '#fef08a', desc: 'Acceptable air quality; minor breathing discomfort may occur for sensitive individuals.' },
-            { range: '101 to 200', label: 'Poor', color: '#f97316', bg: '#fff7ed', border: '#fed7aa', desc: 'Breathing discomfort to people with lungs, asthma, and heart diseases.' },
-            { range: '201 to 300', label: 'Unhealthy', color: '#ef4444', bg: '#fef2f2', border: '#fecaca', desc: 'Breathing discomfort to most people on prolonged exposure. Limit strenuous outdoor exertion.' },
-            { range: '301 to 400', label: 'Severe', color: '#a855f7', bg: '#faf5ff', border: '#e9d5ff', desc: 'Respiratory illness on prolonged exposure; significantly impacts people with existing ailments.' },
-            { range: '401+', label: 'Hazardous', color: '#f43f5e', bg: '#fff1f2', border: '#fecdd3', desc: 'May cause serious health impacts on entire population. Wear N95 masks and stay indoors.' },
-          ].map((cat) => (
-            <div
-              key={cat.label}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 14px',
-                borderRadius: 14,
-                backgroundColor: cat.bg,
-                border: `1px solid ${cat.border}`,
-                gap: 12,
-                flexWrap: 'wrap'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: cat.color, flexShrink: 0 }} />
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{cat.label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: cat.color, fontFamily: 'var(--font-mono)' }}>({cat.range})</span>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}>{cat.desc}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
 
       {/* ── Pollutant Detail Modal (Cool Light Theme) ── */}
       <AnimatePresence>

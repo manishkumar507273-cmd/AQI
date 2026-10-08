@@ -10,6 +10,7 @@ from services.supabase_service import (
     get_weather_live_history,
     get_weather_history,
     fetch_dataset_range,
+    fetch_table_rows,
     fetch_available_periods,
     format_dataset_csv,
     TABLE_AQI_HISTORICAL,
@@ -108,32 +109,25 @@ async def get_available_periods(
 @router.get("/export-dataset")
 async def export_dataset(
     category: str = Query(..., regex="^(aqi|weather)$", description="Type of historical dataset: aqi or weather"),
-    year: int = Query(default=2026, ge=2020, description="Calendar year for dataset export"),
-    month: Optional[int] = Query(default=None, ge=1, le=12, description="Month 1-12 (omit for full year)")
 ):
     """
-    Downloads historical dataset for complete year or specific month as CSV.
+    Downloads historical dataset for previous 24 hours as CSV.
     Fetches real records directly from Supabase, handling multi-page pagination.
     """
     try:
         table_name = TABLE_AQI_HISTORICAL if category == "aqi" else TABLE_WEATHER_HISTORICAL
-        rows = await fetch_dataset_range(table_name, year=year, month=month)
+        rows = await fetch_table_rows(table_name, limit=96)
         
         if not rows:
-            period_str = f"{MONTH_NAMES.get(month, f'Month {month}')} {year}" if month else f"Year {year}"
             raise HTTPException(
                 status_code=404,
-                detail=f"No {category.upper()} records exist in database for {period_str}."
+                detail=f"No {category.upper()} records exist in database."
             )
 
         csv_content = format_dataset_csv(rows, category=category)
         
         cat_title = "AQI" if category == "aqi" else "Weather"
-        if month:
-            m_name = MONTH_NAMES.get(month, f"{month:02d}")
-            filename = f"{cat_title}_Historical_Dataset_{year}_{month:02d}_{m_name}.csv"
-        else:
-            filename = f"{cat_title}_Historical_Dataset_{year}_Full_Year.csv"
+        filename = f"{cat_title}_Historical_Dataset_Previous_24H.csv"
 
         return Response(
             content=csv_content,
@@ -159,29 +153,19 @@ async def email_dataset_to_user(payload: DatasetEmailPayload):
     try:
         cat_raw = (payload.category or "aqi").lower()
         category = "weather" if "weather" in cat_raw or "meteo" in cat_raw else "aqi"
-        year = payload.year or 2026
-        month = payload.month
         
         table_name = TABLE_AQI_HISTORICAL if category == "aqi" else TABLE_WEATHER_HISTORICAL
-        rows = await fetch_dataset_range(table_name, year=year, month=month)
-        
-        # If no rows found for specific month, fallback to full year so recipient gets data
-        if not rows:
-            rows = await fetch_dataset_range(table_name, year=year, month=None)
+        rows = await fetch_table_rows(table_name, limit=96)
             
         if not rows:
             raise HTTPException(
                 status_code=404,
-                detail=f"No {category.upper()} records found in database for year {year}."
+                detail=f"No {category.upper()} records found in database."
             )
             
         csv_content = format_dataset_csv(rows, category=category)
         cat_title = "AQI" if category == "aqi" else "Weather"
-        if month:
-            m_name = MONTH_NAMES.get(month, f"{month:02d}")
-            filename = f"{cat_title}_Historical_Dataset_{year}_{month:02d}_{m_name}.csv"
-        else:
-            filename = f"{cat_title}_Historical_Dataset_{year}_Full_Year.csv"
+        filename = f"{cat_title}_Historical_Dataset_Previous_24H.csv"
             
         result = send_dataset_email(
             recipient_email=payload.recipient_email,

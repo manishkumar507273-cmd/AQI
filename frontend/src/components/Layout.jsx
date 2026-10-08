@@ -76,10 +76,8 @@ export default function Layout({
   const isWeather = activeTab === 'weather' && activeNav === 'home';
 
   const getCurrentNavTab = () => {
-    if (activeNav === 'overview') return 'overview';
-    if (activeNav === 'historical') return 'historical';
-    if (activeNav === 'forecast') return 'forecast';
-    return 'live';
+    if (activeNav === 'dashboard') return 'live';
+    return activeNav || 'live';
   };
 
   const handleTopTabClick = (tabId) => {
@@ -124,11 +122,13 @@ export default function Layout({
 
   const isAdmin = currentUser?.uid === 'admin-dev-bypass' || localStorage.getItem('SMART_WEATHER_ADMIN') === 'true';
 
-  // Navigation options; Predictive Forecast is visible to admins only
+  // Navigation options
   const NAV_ITEMS = [
-    { id: 'live', label: 'Live Data Stream', icon: Radio },
-    { id: 'historical', label: 'Analytics Archive', icon: Database },
-    ...(isAdmin ? [{ id: 'forecast', label: 'Predictive Forecast', icon: LineChart }] : []),
+    { id: 'live', label: 'Live Data Stream', mobileLabel: 'Live', icon: Radio },
+    { id: 'historical', label: 'Analytics Archive', mobileLabel: 'Archive', icon: Database },
+    ...(isAdmin 
+      ? [{ id: 'forecast', label: 'Predictive Forecast', mobileLabel: 'Forecast', icon: LineChart }] 
+      : [{ id: 'local-forecast', label: 'Predictive Forecast (Under Dev)', mobileLabel: 'Forecast', icon: LineChart }]),
   ];
 
   return (
@@ -215,7 +215,7 @@ export default function Layout({
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>SMVITM Campus</span>
-                <span className="location-coords" style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', borderLeft: '1px solid #e2e8f0', paddingLeft: 6, whiteSpace: 'nowrap' }}>13.254° N, 74.785° E</span>
+                <span className="location-coords mobile-hide" style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', borderLeft: '1px solid #e2e8f0', paddingLeft: 6, whiteSpace: 'nowrap' }}>13&deg;15'40&quot; N, 74&deg;47'13&quot; E</span>
               </div>
             </div>
             </div>
@@ -750,7 +750,7 @@ export default function Layout({
                     />
                   )}
                 </div>
-                <span className="mobile-bottom-nav-label">{tab.label}</span>
+                <span className="mobile-bottom-nav-label">{tab.mobileLabel || tab.label}</span>
               </motion.button>
             );
           })}
@@ -820,21 +820,41 @@ export default function Layout({
                 <UserCheck size={24} />
               </div>
 
-              <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 700, color: '#0f172a' }}>Developer Details</h3>
+
               
               <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#475569', lineHeight: 1.8 }}>
                 Developed by<br/>
                 <span style={{ color: '#00bfa5' }}>Manish Kumar</span><br/>
                 <span style={{ color: '#00bfa5' }}>Manikanta CH</span><br/>
                 <span style={{ color: '#00bfa5' }}>Madan</span><br/>
-                <span style={{ color: '#00bfa5' }}>Aditya Thunga K</span>
+                <span style={{ color: '#00bfa5' }}>Aditya Thunga K</span><br/>
+                <span style={{ color: '#00bfa5' }}>Prathvish Kumar</span>
               </p>
               
               <div style={{ margin: '20px auto', width: 40, height: 2, backgroundColor: '#e2e8f0', borderRadius: 2 }} />
 
               <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: '#64748b' }}>
                 Under the Guidance of<br/>
-                <strong style={{ color: '#334155', fontSize: 14 }}>Dr. Nagaraj Bhat</strong>
+                <a 
+                  href="https://sode-edu.in/smvitm/about-smvitm/principal/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: 4, 
+                    textDecoration: 'underline', 
+                    textUnderlineOffset: 3, 
+                    color: '#334155', 
+                    transition: 'all 0.2s ease',
+                    marginTop: 4
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.color = '#00bfa5'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.color = '#334155'; }}
+                >
+                  <strong style={{ fontSize: 14, color: 'inherit' }}>Dr. Nagaraj Bhat</strong>
+                  <ArrowUpRight size={14} style={{ color: 'inherit' }} />
+                </a>
               </p>
             </motion.div>
           </div>

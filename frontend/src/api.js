@@ -990,8 +990,7 @@ export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026,
       if (match && match[1]) {
         filename = match[1];
       } else {
-        const monthPart = (month && month !== 'all') ? `_${String(month).padStart(2, '0')}` : '_Full_Year';
-        filename = `${category === 'aqi' ? 'AQI' : 'Weather'}_Historical_Dataset_${year}${monthPart}.csv`;
+        filename = `${category === 'aqi' ? 'AQI' : 'Weather'}_Dataset_Last_24_Hours.csv`;
       }
 
       const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
@@ -1027,18 +1026,10 @@ export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026,
   // 2. Client-side fallback: fetch directly from Supabase with pagination
   try {
     const tableName = category === 'aqi' ? TABLE_AQI_HISTORICAL : TABLE_WEATHER_HISTORICAL;
-    let startDate = `${year}-01-01T00:00:00`;
-    let endDate = `${year + 1}-01-01T00:00:00`;
-
-    if (month && month !== 'all') {
-      const mNum = Number(month);
-      startDate = `${year}-${String(mNum).padStart(2, '0')}-01T00:00:00`;
-      if (mNum === 12) {
-        endDate = `${year + 1}-01-01T00:00:00`;
-      } else {
-        endDate = `${year}-${String(mNum + 1).padStart(2, '0')}-01T00:00:00`;
-      }
-    }
+    const now = new Date();
+    const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const startDate = past24h.toISOString();
+    const endDate = now.toISOString();
 
     const headers = getNoCacheHeaders();
     let allRows = [];
@@ -1064,7 +1055,7 @@ export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026,
     let rowsArr = [];
 
     if (category === 'aqi') {
-      headersArr = ['Date', 'Time', 'AQI', 'Temperature (Â°C)', 'Humidity (%)', 'PM2.5 (Âµg/mÂ³)', 'PM10 (Âµg/mÂ³)', 'CO (mg/mÂ³)', 'NO2 (Âµg/mÂ³)', 'O3 (Âµg/mÂ³)'];
+      headersArr = ['Date', 'Time', 'AQI', 'Temperature (°C)', 'Humidity (%)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO2 (µg/m³)', 'O3 (µg/m³)'];
       rowsArr = allRows.map((r) => {
         const ts = parseToIstIso(r.timestamp_hour || r.created_at || '');
         let dStr = ts;
@@ -1098,7 +1089,7 @@ export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026,
         ];
       });
     } else {
-      headersArr = ['Date', 'Time', 'Temperature (Â°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'];
+      headersArr = ['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'];
       rowsArr = allRows.map((r) => {
         const ts = parseToIstIso(r.timestamp_hour || r.created_at || '');
         let dStr = ts;
@@ -1132,8 +1123,7 @@ export const downloadHistoricalDataset = async ({ category = 'aqi', year = 2026,
     }
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headersArr.join(','), ...rowsArr.map(e => e.join(','))].join('\n');
-    const monthPart = (month && month !== 'all') ? `_${String(month).padStart(2, '0')}` : '_Full_Year';
-    const filename = `${category === 'aqi' ? 'AQI' : 'Weather'}_Historical_Dataset_${year}${monthPart}.csv`;
+    const filename = `${category === 'aqi' ? 'AQI' : 'Weather'}_Dataset_Last_24_Hours.csv`;
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.href = encodedUri;

@@ -147,6 +147,16 @@ export default function App() {
             <Forecast refreshKey={refreshKey} selectedStation={selectedStation} />
           )}
 
+          {activeNav === 'local-forecast' && (
+            <div style={{ padding: '80px 20px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: 24, border: '1px solid #e2e8f0', margin: '40px auto', maxWidth: 640, boxShadow: '0 10px 30px rgba(15, 23, 42, 0.04)' }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🚧</div>
+              <h2 style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', marginBottom: 12, letterSpacing: '-0.02em' }}>Forecast Under Development</h2>
+              <p style={{ fontSize: 16, color: '#64748b', lineHeight: 1.6, maxWidth: 450, margin: '0 auto' }}>
+                We are currently building localized predictive models specifically tailored for your region. Stay tuned for highly accurate, AI-powered air quality forecasts!
+              </p>
+            </div>
+          )}
+
           {activeNav === 'historical' && (
             <Historical refreshKey={refreshKey} selectedStation={selectedStation} />
           )}

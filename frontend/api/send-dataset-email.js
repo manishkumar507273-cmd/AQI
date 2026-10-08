@@ -41,12 +41,11 @@ const num = (v, digits) => (v != null && v !== '' && !isNaN(Number(v)) ? Number(
 
 const fetchRows = async (category, year, month) => {
   const table = category === 'aqi' ? 'AQI_NODE1' : 'WEATHER_NODE1';
-  let start = `${year}-01-01T00:00:00`;
-  let end = `${year + 1}-01-01T00:00:00`;
-  if (month) {
-    start = `${year}-${pad(month)}-01T00:00:00`;
-    end = month === 12 ? `${year + 1}-01-01T00:00:00` : `${year}-${pad(month + 1)}-01T00:00:00`;
-  }
+  const now = new Date();
+  const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  
+  const start = past24h.toISOString();
+  const end = now.toISOString();
   const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
   const rows = [];
   const batch = 1000;
@@ -141,8 +140,7 @@ export default async function handler(req, res) {
     }
 
     const csv = buildCsv(category, rows);
-    const monthPart = month ? `_${pad(month)}` : '_Full_Year';
-    const filename = `${category === 'aqi' ? 'AQI' : 'Weather'}_Historical_Dataset_${year}${monthPart}.csv`;
+    const filename = `${category === 'aqi' ? 'AQI' : 'Weather'}_Dataset_Last_24_Hours.csv`;
     const name = escapeHtml((record.name || 'Researcher').trim());
     const datasetName = escapeHtml(record.dataset || 'Atmospheric Dataset');
     const purpose = record.purpose ? escapeHtml(record.purpose) : '';
