@@ -72,6 +72,7 @@ export default function Layout({
 }) {
   const { currentUser, isRegisteredUser, openAuthModal, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const isWeather = activeTab === 'weather' && activeNav === 'home';
 
   const getCurrentNavTab = () => {
@@ -162,58 +163,67 @@ export default function Layout({
         boxSizing: 'border-box',
       }}>
 
-        {/* Left: Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {/* Back arrow — shown on all inner pages to return to start page */}
-          {activeNav !== 'overview' && (
-            <button
+        {/* Left: Brand & Location Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            {/* Back arrow — shown on all inner pages to return to start page */}
+            {activeNav !== 'overview' && (
+              <button
+                onClick={() => handleTopTabClick('overview')}
+                title="Back to Atmosphere Snapshot"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  border: '1.5px solid #e2e8f0',
+                  backgroundColor: '#f8fafc',
+                  color: '#475569',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#00bfa5'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = '#00bfa5'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.color = '#475569'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+              >
+                <ArrowLeft style={{ width: 16, height: 16 }} />
+              </button>
+            )}
+            <div
               onClick={() => handleTopTabClick('overview')}
-              title="Back to Atmosphere Snapshot"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                border: '1.5px solid #e2e8f0',
-                backgroundColor: '#f8fafc',
-                color: '#475569',
-                cursor: 'pointer',
-                flexShrink: 0,
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#00bfa5'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = '#00bfa5'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.color = '#475569'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
             >
-              <ArrowLeft style={{ width: 16, height: 16 }} />
-            </button>
-          )}
-          <div
-            onClick={() => handleTopTabClick('overview')}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
-          >
-          <div
-            className="app-header-brand-icon"
-            style={{
-              width: 38, height: 38, borderRadius: 12,
-              backgroundColor: '#00bfa5',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#ffffff',
-              boxShadow: '0 4px 14px rgba(0, 191, 165, 0.35)',
-              flexShrink: 0,
-            }}
-          >
-            <Wind style={{ width: 20, height: 20 }} />
-          </div>
-          <div>
-            <div className="app-header-title" style={{ fontSize: 'clamp(17px, 3vw, 20px)', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
-              Smart <span style={{ fontWeight: 500, color: '#00bfa5' }}>WeatherNet</span>
+            <div
+              className="app-header-brand-icon"
+              style={{
+                width: 38, height: 38, borderRadius: 12,
+                backgroundColor: '#00bfa5',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#ffffff',
+                boxShadow: '0 4px 14px rgba(0, 191, 165, 0.35)',
+                flexShrink: 0,
+              }}
+            >
+              <Wind style={{ width: 20, height: 20 }} />
             </div>
-            <div className="app-header-subtitle" style={{ fontSize: 10, fontWeight: 600, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: -1 }}>
-              Real-time AQI &amp; Weather
+            <div>
+              <div className="app-header-title" style={{ fontSize: 'clamp(17px, 3vw, 20px)', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+                Smart <span style={{ fontWeight: 500, color: '#00bfa5' }}>WeatherNet</span>
+              </div>
+              <div className="app-header-subtitle" style={{ fontSize: 10, fontWeight: 600, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: -1 }}>
+                Real-time AQI &amp; Weather
+              </div>
+            </div>
             </div>
           </div>
+
+          {/* Global Location Badge */}
+          <div className="global-location-badge" style={{ padding: '6px 12px', background: '#ffffff', borderRadius: 999, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>SMVITM Campus</span>
+            <span className="location-coords" style={{ fontSize: 11, fontWeight: 600, color: '#64748b', borderLeft: '1px solid #cbd5e1', paddingLeft: 8, whiteSpace: 'nowrap' }}>13.254° N, 74.785° E</span>
           </div>
         </div>
 
@@ -687,8 +697,37 @@ export default function Layout({
       </AnimatePresence>
 
       {/* ─── Main Content Container ─── */}
-      <main className="app-main" style={{ minHeight: 'calc(100vh - 140px)' }}>
+      <main className="app-main" style={{ minHeight: 'calc(100vh - 140px)', paddingBottom: 60 }}>
         {children}
+        
+        {/* ─── Global Footer (Contact Us) ─── */}
+        <div style={{
+          marginTop: 40,
+          marginBottom: 20,
+          textAlign: 'center',
+          position: 'relative',
+          zIndex: 2,
+        }}>
+          <button
+            onClick={() => setIsContactModalOpen(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 13.5,
+              fontWeight: 700,
+              color: '#64748b',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textDecorationColor: '#cbd5e1',
+              textUnderlineOffset: 4,
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#00bfa5'; e.currentTarget.style.textDecorationColor = '#00bfa5'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.textDecorationColor = '#cbd5e1'; }}
+          >
+            Contact Us
+          </button>
+        </div>
       </main>
 
       {/* ─── Native Mobile Bottom Navigation Bar (<768px) ─── */}
@@ -725,6 +764,88 @@ export default function Layout({
 
       {/* ─── Firebase Auth Modal ─── */}
       <AuthModal />
+
+      {/* ─── Contact Us Developer Modal ─── */}
+      <AnimatePresence>
+        {isContactModalOpen && (
+          <div style={{ position: 'fixed', zIndex: 100, inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setIsContactModalOpen(false)}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                backgroundColor: 'rgba(15, 23, 42, 0.4)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              style={{
+                position: 'relative',
+                background: '#ffffff',
+                borderRadius: 24,
+                padding: '32px 24px',
+                maxWidth: 400,
+                width: '100%',
+                boxShadow: '0 20px 40px rgba(15, 23, 42, 0.1)',
+                border: '1px solid #e2e8f0',
+                textAlign: 'center',
+              }}
+            >
+              <button
+                onClick={() => setIsContactModalOpen(false)}
+                style={{
+                  position: 'absolute',
+                  top: 16,
+                  right: 16,
+                  background: '#f1f5f9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: 32,
+                  height: 32,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                }}
+              >
+                <X size={16} />
+              </button>
+              
+              <div style={{ width: 48, height: 48, borderRadius: 16, background: '#e6fcf9', color: '#00bfa5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+                <UserCheck size={24} />
+              </div>
+
+              <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 700, color: '#0f172a' }}>Developer Details</h3>
+              
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#475569', lineHeight: 1.8 }}>
+                Developed by<br/>
+                <span style={{ color: '#00bfa5' }}>Manish Kumar</span><br/>
+                <span style={{ color: '#00bfa5' }}>Manikanta CH</span><br/>
+                <span style={{ color: '#00bfa5' }}>Madan</span><br/>
+                <span style={{ color: '#00bfa5' }}>Aditya Thunga K</span>
+              </p>
+              
+              <div style={{ margin: '20px auto', width: 40, height: 2, backgroundColor: '#e2e8f0', borderRadius: 2 }} />
+
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: '#64748b' }}>
+                Under the Guidance of<br/>
+                <strong style={{ color: '#334155', fontSize: 14 }}>Dr. Nagaraj Bhat</strong>
+              </p>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

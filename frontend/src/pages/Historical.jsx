@@ -1555,7 +1555,6 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                 {subTab === 'aqi'
                   ? [
                       { label: 'Date', hide: false }, { label: 'Time', hide: false }, { label: 'AQI', hide: false },
-                      { label: 'Temp (°C)', hide: true }, { label: 'Humidity (%)', hide: true },
                       { label: 'PM2.5 (µg/m³)', hide: false }, { label: 'PM10 (µg/m³)', hide: true },
                       { label: 'CO (mg/m³)', hide: true }, { label: 'NO₂ (µg/m³)', hide: true }, { label: 'O₃ (µg/m³)', hide: true }
                     ].map((col) => (
@@ -1574,7 +1573,7 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
             <tbody>
               {day24HourData.length === 0 ? (
                 <tr>
-                  <td colSpan={subTab === 'aqi' ? 10 : 8} style={{ textAlign: 'center', padding: '36px 20px', color: '#64748b' }}>
+                  <td colSpan={subTab === 'aqi' ? 8 : 8} style={{ textAlign: 'center', padding: '36px 20px', color: '#64748b' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <CalendarIcon style={{ width: 24, height: 24, color: '#94a3b8' }} />
                       <span style={{ fontSize: 14, fontWeight: 600 }}>
@@ -1614,8 +1613,6 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                       {subTab === 'aqi' ? (
                         <>
                           <td style={{ padding: '10px 16px', fontWeight: 800, color: hasData ? '#0f172a' : '#94a3b8', fontFamily: 'var(--font-mono)' }}>{r?.cpcb_aqi != null && !isNaN(Number(r.cpcb_aqi)) ? Math.round(Number(r.cpcb_aqi)) : (r?.cpcb_aqi ?? '-')}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.temperature != null && !isNaN(Number(r.temperature)) ? Number(r.temperature).toFixed(1) : '-'}</td>
-                          <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.humidity != null && !isNaN(Number(r.humidity)) ? Number(r.humidity).toFixed(1) : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm25 != null && !isNaN(Number(r.pm25)) ? Number(r.pm25).toFixed(3) : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.pm10 != null && !isNaN(Number(r.pm10)) ? Number(r.pm10).toFixed(3) : '-'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{r?.co != null && !isNaN(Number(r.co)) ? Number(r.co).toFixed(3) : '-'}</td>

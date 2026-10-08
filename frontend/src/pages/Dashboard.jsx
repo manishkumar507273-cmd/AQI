@@ -845,59 +845,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
           </div>
         </div>
 
-        {/* Right Side Weather Widget */}
-        {weather && (
-          <div
-            className="hero-right-col"
-            style={{
-              backgroundColor: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: 20,
-              padding: '18px 20px',
-              position: 'relative',
-              zIndex: 1,
-              boxShadow: '0 4px 16px rgba(15, 23, 42, 0.04)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 28 }}>🌤️</span>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: weather?.temperature === 'N/A' ? 24 : 32, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
-                      {weather?.temperature != null && weather.temperature !== 'N/A' && !isNaN(Number(weather.temperature))
-                        ? Number(weather.temperature).toFixed(1)
-                        : (weather?.temperature ?? 'N/A')}
-                    </span>
-                    {weather?.temperature !== 'N/A' && (
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#64748b' }}>°C</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginTop: 2 }}>
-                    Ambient Conditions
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              paddingTop: 8,
-              borderTop: '1px solid #f1f5f9',
-              width: '100%',
-              fontSize: 11.5,
-              color: '#475569'
-            }}>
-              <span>💧</span>
-              <span>Humidity <strong style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>{weather?.humidity != null && weather.humidity !== 'N/A' && !isNaN(Number(weather.humidity)) ? `${Number(weather.humidity).toFixed(1)}%` : (weather?.humidity !== 'N/A' ? `${weather?.humidity}%` : 'N/A')}</strong></span>
-            </div>
-          </div>
-        )}
       </motion.div>
 
       {/* ── MAJOR AIR POLLUTANTS (Cool Light Theme Cards - No Overflow Bug) ── */}
@@ -1309,7 +1257,7 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 borderBottom: '1px solid #e2e8f0',
               }}>
                 <tr>
-                  {['Records', 'Last Update', 'AQI', 'Temp (°C)', 'Humidity (%)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO₂ (µg/m³)', 'O₃ (µg/m³)'].map((h) => (
+                  {['Records', 'Last Update', 'AQI', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO₂ (µg/m³)', 'O₃ (µg/m³)'].map((h) => (
                     <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -1317,14 +1265,14 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
               <tbody>
                 {liveHistoryLoading ? (
                   <tr>
-                    <td colSpan="10" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan="8" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
                       <RefreshCw style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: 8, color: '#00bfa5' }} />
                       Loading stream...
                     </td>
                   </tr>
                 ) : liveHistory.length === 0 ? (
                   <tr>
-                    <td colSpan="10" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan="8" style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
                       No telemetry stream data.
                     </td>
                   </tr>
@@ -1352,8 +1300,6 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                         <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: '#0f172a', fontSize: 14 }}>
                           {row.cpcb_aqi != null && !isNaN(Number(row.cpcb_aqi)) ? Math.round(Number(row.cpcb_aqi)) : (row.cpcb_aqi || 'N/A')}
                         </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.temperature != null && !isNaN(Number(row.temperature)) ? Number(row.temperature).toFixed(1) : 'N/A'}</td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.humidity != null && !isNaN(Number(row.humidity)) ? Number(row.humidity).toFixed(1) : 'N/A'}</td>
                         <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm25 != null && !isNaN(Number(row.pm25)) ? Number(row.pm25).toFixed(3) : 'N/A'}</td>
                         <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.pm10 != null && !isNaN(Number(row.pm10)) ? Number(row.pm10).toFixed(3) : 'N/A'}</td>
                         <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', color: '#334155' }}>{row.co != null && !isNaN(Number(row.co)) ? Number(row.co).toFixed(3) : 'N/A'}</td>

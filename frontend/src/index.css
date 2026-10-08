@@ -1012,3 +1012,10 @@ img, svg, video, canvas {
     gap: 12px;
   }
 }
+
+/* Hide Location Coordinates on very small mobile screens to prevent overflow */
+@media (max-width: 600px) {
+  .location-coords {
+    display: none !important;
+  }
+}

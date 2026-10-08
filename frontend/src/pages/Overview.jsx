@@ -7,23 +7,11 @@ import {
   Wind,
   CloudRain,
   RefreshCw,
-  Clock,
-  Sparkles,
-  Sun,
-  Moon,
-  ChevronLeft,
-  ChevronRight,
-  CloudLightning,
-  CloudSun,
-  CloudMoon,
-  Cloud
 } from 'lucide-react';
 import {
   getCloudLatest,
   getWeatherLatest,
   getTimeAgo,
-  getWeatherForecast24h,
-  getAqiForecast,
   getCloudHistory,
   getCachedData
 } from '../api';
@@ -32,7 +20,7 @@ import {
 const fmt = (val, d = 3) =>
   val != null && !isNaN(Number(val)) ? Number(val).toFixed(d) : null;
 
-// Calculate Dew Point from Temperature (°C) and Humidity (%)
+// Calculate Dew Point from Temperature (Â°C) and Humidity (%)
 const calcDewPoint = (temp, hum) => {
   if (temp == null || hum == null || hum <= 0) return null;
   const a = 17.27;
@@ -137,60 +125,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   const [windUnit, setWindUnit] = useState('kmh'); // 'kmh' | 'ms'
   const canvasRef = useRef(null);
 
-  // 24-Hour Predictive Forecast States
-  const [forecastData, setForecastData] = useState(() => getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
-  const [historicalRecords, setHistoricalRecords] = useState([]);
-  const [forecastLoading, setForecastLoading] = useState(() => !getCachedData('CACHE_AQI_NODE1_FORECAST_24H'));
-  const [forecastLastUpdated, setForecastLastUpdated] = useState(null);
-  const [currentTime, setCurrentTime] = useState(() => new Date());
-
-  // Ultra-Smooth Drag & Horizontal Mouse-Wheel Scrolling
-  const timelineScrollerRef = useRef(null);
-  const [isDraggingTimeline, setIsDraggingTimeline] = useState(false);
-  const dragStartX = useRef(0);
-  const dragScrollLeft = useRef(0);
-
-  useEffect(() => {
-    const el = timelineScrollerRef.current;
-    if (!el) return;
-    const onWheel = (e) => {
-      // Direct 1:1 wheel scroll without queuing sluggish animations
-      if (Math.abs(e.deltaY) > 0 && !e.shiftKey) {
-        e.preventDefault();
-        el.scrollLeft += e.deltaY * 1.1;
-      }
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, []);
-
-  const handleMouseDownTimeline = (e) => {
-    if (!timelineScrollerRef.current) return;
-    setIsDraggingTimeline(true);
-    dragStartX.current = e.pageX - timelineScrollerRef.current.offsetLeft;
-    dragScrollLeft.current = timelineScrollerRef.current.scrollLeft;
-  };
-
-  const handleMouseLeaveOrUpTimeline = () => {
-    setIsDraggingTimeline(false);
-  };
-
-  const handleMouseMoveTimeline = (e) => {
-    if (!isDraggingTimeline || !timelineScrollerRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - timelineScrollerRef.current.offsetLeft;
-    const walk = (x - dragStartX.current) * 1.3;
-    timelineScrollerRef.current.scrollLeft = dragScrollLeft.current - walk;
-  };
-
-  const scrollTimeline = (direction) => {
-    if (!timelineScrollerRef.current) return;
-    const cardWidth = 116 + 12; // card width + gap = one data point
-    const offset = direction === 'left' ? -cardWidth : cardWidth;
-    timelineScrollerRef.current.scrollBy({ left: offset, behavior: 'smooth' });
-  };
-
-  // Fetch telemetry from both tables
+  // Fetch live telemetry from both tables
   const fetchData = async (isManual = false) => {
     if (isManual) setIsRefreshing(true);
     try {
@@ -198,7 +133,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
         getCloudLatest(),
         getWeatherLatest()
       ]);
-
       if (aqiRes.status === 'fulfilled' && aqiRes.value?.data?.data) {
         setAqiData(aqiRes.value.data.data);
       }
@@ -216,187 +150,6 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   useEffect(() => {
     fetchData();
   }, [refreshKey, selectedStation]);
-
-  const computeAqiFromForecastItem = (item) => {
-    if (!item) return null;
-    const subPm25 = calculateSubIndex('pm25', item.pm2_5_ug_m3);
-    const subPm10 = calculateSubIndex('pm10', item.pm10_ug_m3);
-    const subNo2 = calculateSubIndex('no2', item.no2_ug_m3);
-    const subCo = calculateSubIndex('co', item.co_mg_m3);
-    const subO3 = calculateSubIndex('o3', item.ozone_ug_m3);
-    return Math.max(subPm25, subPm10, subNo2, subCo, subO3);
-  };
-
-  // Fetch 24-Hour Predictive Forecast and Historical Actuals
-  const fetchForecast = async (force = false) => {
-    if (force || !forecastData) setForecastLoading(true);
-    try {
-      const [fcRes, aqiFcRes, histRes] = await Promise.allSettled([
-        getWeatherForecast24h(force),
-        getAqiForecast(force),
-        getCloudHistory(100)
-      ]);
-
-      const weatherForecast = (fcRes.status === 'fulfilled' && Array.isArray(fcRes.value?.data?.forecast)) ? fcRes.value.data.forecast : [];
-      const aqiForecast = (aqiFcRes.status === 'fulfilled' && Array.isArray(aqiFcRes.value?.data?.forecast)) ? aqiFcRes.value.data.forecast : [];
-
-      if (weatherForecast.length > 0 || aqiForecast.length > 0) {
-        const baseForecast = weatherForecast.length > 0 ? weatherForecast : aqiForecast;
-        const otherForecast = weatherForecast.length > 0 ? aqiForecast : [];
-
-        const merged = baseForecast.map(bItem => {
-          const bTime = new Date(bItem.forecast_for_time).getTime();
-          const match = otherForecast.find(oItem => Math.abs(new Date(oItem.forecast_for_time).getTime() - bTime) < 1000 * 60 * 30);
-          
-          if (weatherForecast.length > 0) {
-            return {
-               ...bItem,
-               // Prefer AQI model's temperature and humidity
-               temperature: match?.temperature_c != null ? match.temperature_c : bItem.temperature,
-               humidity: match?.humidity_pct != null ? match.humidity_pct : (bItem.humidity ?? bItem.humidity_pct),
-               // Pull AQI details from the matching AQI model forecast
-               aqi: match ? match.aqi : null
-            };
-          } else {
-            return {
-               ...bItem,
-               temperature: bItem.temperature_c,
-               humidity: bItem.humidity_pct,
-               aqi: bItem.aqi
-            };
-          }
-        });
-
-        setForecastData({ forecast: merged });
-        setForecastLastUpdated(new Date());
-      }
-
-      if (histRes.status === 'fulfilled' && Array.isArray(histRes.value?.data?.history)) {
-        setHistoricalRecords(histRes.value.data.history);
-      }
-    } catch (err) {
-      console.error('Failed to fetch forecast:', err);
-    } finally {
-      setForecastLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchForecast(false);
-  }, [refreshKey]);
-
-  // Process 24-Hour Forecast Items
-  const processedForecastItems = useMemo(() => {
-    if (!forecastData?.forecast) return [];
-    
-    const currentHourStart = new Date();
-    currentHourStart.setMinutes(0, 0, 0, 0);
-    
-    const cutoff = new Date(currentHourStart);
-    cutoff.setHours(cutoff.getHours() + 24);
-
-    const upcoming = forecastData.forecast.filter(item => {
-      if (!item.forecast_for_time) return true;
-      const itemTime = new Date(item.forecast_for_time).getTime();
-      if (isNaN(itemTime)) return true;
-      return itemTime > currentHourStart.getTime() && itemTime <= cutoff.getTime();
-    });
-    
-    // Take only the first 23 hours for the overview timeline (we'll add 'Now' as the 1st)
-    const first23 = upcoming.slice(0, 23);
-    
-    const mapped = first23.map((item, index) => {
-      const dt = new Date(item.forecast_for_time);
-      const hourStr = isNaN(dt.getTime())
-        ? `+${item.step}h`
-        : dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-
-      const hourNum = !isNaN(dt.getTime()) ? dt.getHours() : 12;
-      const isDaytime = hourNum >= 6 && hourNum < 19;
-      
-      const rain = Number(item.rain_gauge) || 0;
-      const hum = Number(item.humidity ?? item.humidity_pct) || 0;
-      const temp = Number(item.temperature ?? item.temperature_c) || 0;
-      
-      let weatherType = 'clear';
-      if (rain > 0.5) weatherType = 'rain';
-      else if (temp < 24) weatherType = 'cloudy';
-      else if (hum > 55) weatherType = 'partly-cloudy';
-      else weatherType = 'clear';
-
-      const aqiCat = getForecastAqiCategory(item.aqi);
-
-      return {
-        ...item,
-        index: index + 1,
-        display_hour: hourStr,
-        isDaytime,
-        weatherType,
-        temp: Number(temp).toFixed(1),
-        humidity: Math.round(hum),
-        aqi_val: item.aqi != null ? Math.round(item.aqi) : null,
-        aqi_color: aqiCat.color
-      };
-    });
-
-    // Create 'Now' item from current hour's FORECAST (user requested forecasted data, not live telemetry)
-    const currentHourNum = new Date().getHours();
-    const isNowDaytime = currentHourNum >= 6 && currentHourNum < 19;
-    
-    // Find the exact forecast item for the current hour
-    const currentHourForecast = forecastData.forecast.find(item => {
-      if (!item.forecast_for_time) return false;
-      const itemTime = new Date(item.forecast_for_time).getTime();
-      return itemTime === currentHourStart.getTime();
-    });
-
-    let nowTempStr = '0';
-    let nowHumVal = 0;
-    let nowRainVal = 0;
-    let nowAqiVal = null;
-
-    if (currentHourForecast) {
-      const t = Number(currentHourForecast.temperature ?? currentHourForecast.temperature_c) || 0;
-      const h = Number(currentHourForecast.humidity ?? currentHourForecast.humidity_pct) || 0;
-      const r = Number(currentHourForecast.rain_gauge) || 0;
-      nowTempStr = Number(t).toFixed(1);
-      nowHumVal = Math.round(h);
-      nowRainVal = Number(r).toFixed(1);
-      nowAqiVal = currentHourForecast.aqi != null ? Math.round(currentHourForecast.aqi) : null;
-    } else {
-      nowTempStr = mapped[0]?.temp || '0';
-      nowHumVal = mapped[0]?.humidity || 0;
-      nowRainVal = mapped[0]?.rain_gauge || 0;
-      nowAqiVal = mapped[0]?.aqi_val;
-    }
-
-    const nowTemp = nowTempStr;
-    const nowHum = nowHumVal;
-    const nowRain = nowRainVal;
-    const nowAqi = nowAqiVal != null ? nowAqiVal : (aqiData?.cpcb_aqi != null ? Math.round(aqiData.cpcb_aqi) : null);
-    const nowAqiColor = nowAqi != null ? getForecastAqiCategory(nowAqi).color : '#9ca3af';
-
-    let nowWeatherType = 'clear';
-    if (Number(nowRain) > 0.5) nowWeatherType = 'rain';
-    else if (Number(nowTemp) < 24) nowWeatherType = 'cloudy';
-    else if (nowHum > 55) nowWeatherType = 'partly-cloudy';
-
-    const nowItem = {
-      index: 0,
-      display_hour: 'Now',
-      isDaytime: isNowDaytime,
-      weatherType: nowWeatherType,
-      temp: nowTemp,
-      humidity: nowHum,
-      aqi_val: nowAqi,
-      aqi_color: nowAqiColor
-    };
-
-    return [nowItem, ...mapped];
-  }, [forecastData, weatherData, aqiData]);
-
-  const visibleForecastTimelineItems = processedForecastItems;
-
 
   // Derived values
   const aqiVal = aqiData?.cpcb_aqi ?? 0;
@@ -438,10 +191,10 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
   const displayRain = rawRain != null ? (fmt(rawRain, 1) ?? Number(rawRain).toFixed(1)) : '--';
   const isRaining = rawRain != null && Number(rawRain) > 0;
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // Dynamic Environmental Animation System (Light Atmospheric Theme)
   // Renders breeze air streams, floating mist motes, sunbeams, and rain ripples
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -576,7 +329,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
       border: '1px solid #e2e8f0',
       boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)',
     }}>
-      {/* ── Dynamic Ambient Canvas ── */}
+      {/* â”€â”€ Dynamic Ambient Canvas â”€â”€ */}
       <canvas
         ref={canvasRef}
         style={{
@@ -620,24 +373,18 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
         zIndex: 0,
       }} />
 
-      {/* ── Content Container ── */}
+      {/* â”€â”€ Content Container â”€â”€ */}
       <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* ── Compact Toolbar (Settings & Refresh) ── */}
+        {/* â”€â”€ Compact Toolbar (Settings & Refresh) â”€â”€ */}
         <div className="overview-toolbar" style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           gap: 6,
           flexWrap: 'wrap',
           marginBottom: 4,
         }}>
-          {/* Location Header */}
-          <div style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.9)', borderRadius: 999, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} />
-            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a' }}>SMVITM Campus</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b', borderLeft: '1px solid #cbd5e1', paddingLeft: 8 }}>13.254° N, 74.785° E</span>
-          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Settings Pill (Unit Toggles) */}
@@ -664,7 +411,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 transition: 'all 0.15s ease',
               }}
             >
-              °{tempUnit}
+              Â°{tempUnit}
             </button>
             <button
               onClick={() => setWindUnit(windUnit === 'kmh' ? 'ms' : 'kmh')}
@@ -710,10 +457,10 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           </div>
         </div>
 
-        {/* ── 5 Core Telemetry Cards in Harmonious, Compact Light Palette ── */}
+        {/* â”€â”€ 5 Core Telemetry Cards in Harmonious, Compact Light Palette â”€â”€ */}
         <div className="overview-grid">
 
-          {/* ════════ CARD 1: AIR QUALITY INDEX ════════ */}
+          {/* â•â•â•â•â•â•â•â• CARD 1: AIR QUALITY INDEX â•â•â•â•â•â•â•â• */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -792,7 +539,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   </span>
                 </div>
                 <div style={{ marginTop: 3, fontSize: 10, color: '#64748b' }}>
-                  Dominant: <strong style={{ color: '#0f172a' }}>{aqiData?.dominant_pollutant || 'O₃'}</strong>
+                  Dominant: <strong style={{ color: '#0f172a' }}>{aqiData?.dominant_pollutant || 'Oâ‚ƒ'}</strong>
                 </div>
               </div>
             </div>
@@ -817,15 +564,15 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               </div>
               <div className="overview-bar-scale">
                 <span>0</span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span style={{ color: '#cbd5e1' }}>â€¢</span>
                 <span>100</span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span style={{ color: '#cbd5e1' }}>â€¢</span>
                 <span>500</span>
               </div>
             </div>
           </motion.div>
 
-          {/* ════════ CARD 2: AMBIENT TEMPERATURE ════════ */}
+          {/* â•â•â•â•â•â•â•â• CARD 2: AMBIENT TEMPERATURE â•â•â•â•â•â•â•â• */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -877,7 +624,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 color: '#c2410c',
                 border: '1px solid #fed7aa',
               }}>
-                {displayTemp !== '--' ? (Number(displayTemp) > 30 ? 'Warm' : (Number(displayTemp) < 22 ? 'Cool' : 'Pleasant')) : '—'}
+                {displayTemp !== '--' ? (Number(displayTemp) > 30 ? 'Warm' : (Number(displayTemp) < 22 ? 'Cool' : 'Pleasant')) : 'â€”'}
               </span>
             </div>
 
@@ -895,7 +642,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                   {loading ? '--' : displayTemp}
                 </span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>
-                  °{tempUnit}
+                  Â°{tempUnit}
                 </span>
               </div>
             </div>
@@ -919,16 +666,16 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 }} />
               </div>
               <div className="overview-bar-scale">
-                <span>{tempUnit === 'F' ? '59°' : '15°'}</span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
-                <span>{tempUnit === 'F' ? '82°' : '28°'}</span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
-                <span>{tempUnit === 'F' ? '104°' : '40°'}</span>
+                <span>{tempUnit === 'F' ? '59Â°' : '15Â°'}</span>
+                <span style={{ color: '#cbd5e1' }}>â€¢</span>
+                <span>{tempUnit === 'F' ? '82Â°' : '28Â°'}</span>
+                <span style={{ color: '#cbd5e1' }}>â€¢</span>
+                <span>{tempUnit === 'F' ? '104Â°' : '40Â°'}</span>
               </div>
             </div>
           </motion.div>
 
-          {/* ════════ CARD 3: RELATIVE HUMIDITY ════════ */}
+          {/* â•â•â•â•â•â•â•â• CARD 3: RELATIVE HUMIDITY â•â•â•â•â•â•â•â• */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -980,7 +727,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 color: '#0369a1',
                 border: '1px solid #bae6fd',
               }}>
-                {displayHumidity !== '--' ? (Number(displayHumidity) > 75 ? 'Humid' : (Number(displayHumidity) < 40 ? 'Dry' : 'Comfort')) : '—'}
+                {displayHumidity !== '--' ? (Number(displayHumidity) > 75 ? 'Humid' : (Number(displayHumidity) < 40 ? 'Dry' : 'Comfort')) : 'â€”'}
               </span>
             </div>
 
@@ -1023,15 +770,15 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               </div>
               <div className="overview-bar-scale">
                 <span>20% Dry</span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span style={{ color: '#cbd5e1' }}>â€¢</span>
                 <span>55%</span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span style={{ color: '#cbd5e1' }}>â€¢</span>
                 <span>90% Humid</span>
               </div>
             </div>
           </motion.div>
 
-          {/* ════════ CARD 4: WIND SPEED ════════ */}
+          {/* â•â•â•â•â•â•â•â• CARD 4: WIND SPEED â•â•â•â•â•â•â•â• */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1145,15 +892,15 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               </div>
               <div className="overview-bar-scale">
                 <span>0</span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span style={{ color: '#cbd5e1' }}>â€¢</span>
                 <span>{windUnit === 'ms' ? '4.2' : '15'}</span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span style={{ color: '#cbd5e1' }}>â€¢</span>
                 <span>{windUnit === 'ms' ? '8.3 m/s' : '30 km/h'}</span>
               </div>
             </div>
           </motion.div>
 
-          {/* ════════ CARD 5: RAINFALL ════════ */}
+          {/* â•â•â•â•â•â•â•â• CARD 5: RAINFALL â•â•â•â•â•â•â•â• */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1207,7 +954,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
                 color: isRaining ? '#0369a1' : '#4338ca',
                 border: isRaining ? '1px solid #bae6fd' : '1px solid #c7d2fe',
               }}>
-                {rawRain == null ? '—' : (isRaining ? '🌧️ Rain' : 'Dry')}
+                {rawRain == null ? 'â€”' : (isRaining ? 'ðŸŒ§ï¸ Rain' : 'Dry')}
               </span>
             </div>
 
@@ -1261,9 +1008,9 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
               </div>
               <div className="overview-bar-scale">
                 <span>Dry</span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span style={{ color: '#cbd5e1' }}>â€¢</span>
                 <span>15mm</span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
+                <span style={{ color: '#cbd5e1' }}>â€¢</span>
                 <span>50mm</span>
               </div>
             </div>
@@ -1271,248 +1018,10 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
 
         </div>
 
-        {/* ── Bespoke Atmospheric 24-Hour Predictive Horizon ── */}
-        <div className="overview-forecast-section" style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Distinctive Ambient Header */}
-          <div className="overview-forecast-header" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 12,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <h2 className="overview-forecast-title" style={{
-                fontSize: 22,
-                fontWeight: 700,
-                color: '#0f172a',
-                margin: 0,
-                letterSpacing: '-0.02em',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 9,
-              }}>
-                <Sparkles style={{ width: 22, height: 22, color: '#00bfa5' }} />
-                Predictive Forecast (24h)
-              </h2>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {forecastLastUpdated && (
-                <span className="overview-forecast-updated" style={{ fontSize: 12, color: '#94a3b8' }}>
-                  Updated {getTimeAgo(forecastLastUpdated)}
-                </span>
-              )}
-
-            </div>
-          </div>
-
-          {/* 24-Hour Horizon Track Card */}
-          <div className="overview-forecast-card" style={{
-            background: '#ffffff',
-            borderRadius: 22,
-            padding: '22px 24px',
-            border: '1.5px solid #e2e8f0',
-            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)',
-            position: 'relative',
-            overflow: 'visible',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={17} color="#0ea5e9" />
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-                  24-Hour Timeline Horizon
-                </h3>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                {/* Smooth Scroll Navigation Arrows (Hidden on mobile where swipe is native) */}
-                <div className="desktop-only-inline" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => scrollTimeline('left')}
-                    title="Scroll left"
-                    aria-label="Scroll left"
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: '50%',
-                      border: '1px solid #cbd5e1',
-                      background: '#ffffff',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      color: '#475569',
-                      transition: 'all 0.15s ease',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                    }}
-                  >
-                    <ChevronLeft size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scrollTimeline('right')}
-                    title="Scroll right"
-                    aria-label="Scroll right"
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: '50%',
-                      border: '1px solid #cbd5e1',
-                      background: '#ffffff',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      color: '#475569',
-                      transition: 'all 0.15s ease',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                    }}
-                  >
-                    <ChevronRight size={15} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Horizontal Scroller for Hourly Weather Horizon Cards */}
-            <div
-              ref={timelineScrollerRef}
-              onMouseDown={handleMouseDownTimeline}
-              onMouseUp={handleMouseLeaveOrUpTimeline}
-              onMouseLeave={handleMouseLeaveOrUpTimeline}
-              onMouseMove={handleMouseMoveTimeline}
-              className={`overview-timeline-scroller ${isDraggingTimeline ? 'is-dragging' : ''}`}
-              style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 10, scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            >
-              {visibleForecastTimelineItems.length === 0 ? (
-                <div style={{ padding: '28px 0', color: '#94a3b8', fontSize: 13, textAlign: 'center', width: '100%' }}>
-                  {forecastLoading ? 'Synthesizing hourly weather forecast...' : 'No forecast timeline items available at this time.'}
-                </div>
-              ) : (
-                visibleForecastTimelineItems.map((item) => {
-                  const isFirst = item.index === 0;
-                  
-                  // Determine Icon
-                  let WeatherIcon = Sun;
-                  let iconColor = '#facc15';
-                  let iconFill = '#fef08a';
-                  
-                  if (item.weatherType === 'storm') {
-                    WeatherIcon = CloudLightning;
-                    iconColor = isFirst ? '#94a3b8' : '#64748b';
-                    iconFill = isFirst ? '#475569' : '#e2e8f0';
-                  } else if (item.weatherType === 'rain') {
-                    WeatherIcon = CloudRain;
-                    iconColor = isFirst ? '#7dd3fc' : '#38bdf8';
-                    iconFill = isFirst ? '#0284c7' : '#e0f2fe';
-                  } else if (item.weatherType === 'cloudy') {
-                    WeatherIcon = Cloud;
-                    iconColor = isFirst ? '#cbd5e1' : '#94a3b8';
-                    iconFill = isFirst ? '#64748b' : '#f1f5f9';
-                  } else if (item.weatherType === 'partly-cloudy') {
-                    WeatherIcon = item.isDaytime ? CloudSun : CloudMoon;
-                    iconColor = isFirst ? '#facc15' : '#f59e0b';
-                    iconFill = isFirst ? '#475569' : '#fef3c7';
-                  } else {
-                    WeatherIcon = item.isDaytime ? Sun : Moon;
-                    iconColor = isFirst ? '#facc15' : '#f59e0b';
-                    iconFill = isFirst ? 'rgba(250, 204, 21, 0.2)' : 'rgba(245, 158, 11, 0.2)';
-                  }
-
-                  return (
-                    <div
-                      key={item.index}
-                      style={{
-                        flex: '0 0 auto',
-                        width: 72,
-                        borderRadius: 18,
-                        padding: '16px 8px',
-                        background: isFirst ? '#0f172a' : '#ffffff',
-                        border: isFirst ? '1px solid #1e293b' : '1px solid #e2e8f0',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        height: 140,
-                        boxShadow: isFirst ? '0 4px 12px rgba(15,23,42,0.15)' : 'none',
-                        transition: 'all 0.2s ease',
-                      }}
-                    >
-                      {/* Top Hour */}
-                      <span style={{ 
-                        fontSize: 12, 
-                        fontWeight: 600, 
-                        color: isFirst ? '#e2e8f0' : '#64748b',
-                        marginBottom: 12 
-                      }}>
-                        {item.display_hour}
-                      </span>
-
-                      {/* Middle Weather Icon */}
-                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <WeatherIcon 
-                          size={28} 
-                          color={iconColor} 
-                          fill={iconFill}
-                          strokeWidth={isFirst ? 1.5 : 2}
-                        />
-                      </div>
-
-                      {/* Bottom Stats */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 12, gap: 4 }}>
-                        <span style={{ 
-                          fontSize: 15, 
-                          fontWeight: 700, 
-                          color: isFirst ? '#ffffff' : '#0f172a',
-                          lineHeight: 1
-                        }}>
-                          {item.temp}°
-                        </span>
-                        <span style={{ 
-                          fontSize: 11, 
-                          fontWeight: 700, 
-                          color: item.aqi_color
-                        }}>
-                          AQI {item.aqi_val ?? '--'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-
 
       </div>
 
-      {/* ── Footer ── */}
-      <div style={{
-        marginTop: 40,
-        marginBottom: 20,
-        textAlign: 'center',
-        position: 'relative',
-        zIndex: 2,
-        padding: '24px 16px',
-        background: 'rgba(255,255,255,0.6)',
-        borderRadius: 24,
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 4px 20px rgba(15, 23, 42, 0.02)'
-      }}>
-        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em' }}>
-          Developed by{' '}
-          <span style={{ color: '#00bfa5' }}>Manish Kumar</span> •{' '}
-          <span style={{ color: '#00bfa5' }}>Manikanta CH</span> •{' '}
-          <span style={{ color: '#00bfa5' }}>Madan</span> •{' '}
-          <span style={{ color: '#00bfa5' }}>Aditya Thunga K</span>
-        </p>
-        <p style={{ margin: '6px 0 0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
-          Under the Guidance of <strong style={{ color: '#334155' }}>Dr. Nagaraj Bhat</strong>
-        </p>
-      </div>
+
 
       <style>{`
         @keyframes spin {
@@ -1525,7 +1034,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           100% { opacity: 0.4; transform: scale(0.96) translate(0, 0); }
         }
 
-        /* ── 24-Hour Horizon Track Smooth Performance Styles ── */
+        /* â”€â”€ 24-Hour Horizon Track Smooth Performance Styles â”€â”€ */
         .overview-timeline-scroller {
           display: flex;
           gap: 12px;
@@ -1587,7 +1096,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08) !important;
         }
 
-        /* ── Compact & Balanced 5-Card Telemetry Grid ── */
+        /* â”€â”€ Compact & Balanced 5-Card Telemetry Grid â”€â”€ */
         .overview-grid {
           display: grid !important;
           grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
@@ -1636,7 +1145,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           white-space: nowrap;
         }
 
-        /* ── Comprehensive Mobile Optimization ── */
+        /* â”€â”€ Comprehensive Mobile Optimization â”€â”€ */
         @media (max-width: 1100px) {
           .overview-grid {
             grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important;
@@ -1787,7 +1296,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           }
         }
 
-        /* ── Standard Phones (< 480px) ── */
+        /* â”€â”€ Standard Phones (< 480px) â”€â”€ */
         @media (max-width: 480px) {
           .overview-sub-badge {
             font-size: 8.5px !important;
@@ -1816,7 +1325,7 @@ export default function Overview({ refreshKey = 0, selectedStation = 'station-1'
           }
         }
 
-        /* ── Ultra-compact Phones (< 360px) ── */
+        /* â”€â”€ Ultra-compact Phones (< 360px) â”€â”€ */
         @media (max-width: 360px) {
           .overview-grid {
             grid-template-columns: 1fr !important;
