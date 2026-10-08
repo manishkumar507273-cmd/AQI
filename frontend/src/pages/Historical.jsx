@@ -1554,18 +1554,30 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
               <tr style={{ color: '#475569', fontSize: 12 }}>
                 {subTab === 'aqi'
                   ? [
-                      { label: 'Date', hide: false }, { label: 'Time', hide: false }, { label: 'AQI', hide: false },
+                      { label: 'Time', hide: false }, { label: 'AQI', hide: false },
                       { label: 'PM2.5 (µg/m³)', hide: false }, { label: 'PM10 (µg/m³)', hide: true },
                       { label: 'CO (mg/m³)', hide: true }, { label: 'NO₂ (µg/m³)', hide: true }, { label: 'O₃ (µg/m³)', hide: true }
-                    ].map((col) => (
-                      <th key={col.label} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{col.label}</th>
+                    ].map((col, i) => (
+                      <th key={col.label} style={{ 
+                        padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap',
+                        position: i === 0 ? 'sticky' : 'static', left: i === 0 ? 0 : 'auto', 
+                        backgroundColor: i === 0 ? '#f8fafc' : 'transparent', zIndex: i === 0 ? 3 : 1,
+                        boxShadow: i === 0 ? '2px 0 4px rgba(0,0,0,0.05)' : 'none',
+                        borderRight: i === 0 ? '1px solid #e2e8f0' : 'none'
+                      }}>{col.label}</th>
                     ))
                   : [
-                      { label: 'Date', hide: false }, { label: 'Time', hide: false }, { label: 'Temp (°C)', hide: false },
+                      { label: 'Time', hide: false }, { label: 'Temp (°C)', hide: false },
                       { label: 'Humidity (%)', hide: true }, { label: 'Wind Spd (km/h)', hide: false },
                       { label: 'Wind Gust (km/h)', hide: true }, { label: 'Wind Dir', hide: true }, { label: 'Rain (mm)', hide: true }
-                    ].map((col) => (
-                      <th key={col.label} style={{ padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>{col.label}</th>
+                    ].map((col, i) => (
+                      <th key={col.label} style={{ 
+                        padding: '11px 16px', fontWeight: 700, whiteSpace: 'nowrap',
+                        position: i === 0 ? 'sticky' : 'static', left: i === 0 ? 0 : 'auto', 
+                        backgroundColor: i === 0 ? '#f8fafc' : 'transparent', zIndex: i === 0 ? 3 : 1,
+                        boxShadow: i === 0 ? '2px 0 4px rgba(0,0,0,0.05)' : 'none',
+                        borderRight: i === 0 ? '1px solid #e2e8f0' : 'none'
+                      }}>{col.label}</th>
                     ))
                 }
               </tr>
@@ -1590,24 +1602,30 @@ export default function Historical({ refreshKey, selectedStation = 'station-1' }
                   const hasData = slot.hasData;
                   return (
                     <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc', opacity: hasData ? 1 : 0.65 }}>
-                      <td style={{ padding: '10px 16px', color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>{slot.date}</td>
-                      <td style={{ padding: '10px 16px', color: '#00bfa5', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
-                        {slot.fullTime}
-                        {slot.isNextDay && (
-                          <span style={{
-                            marginLeft: 6,
-                            fontSize: 10,
-                            backgroundColor: '#e0f2fe',
-                            color: '#0284c7',
-                            padding: '1px 5px',
-                            borderRadius: 4,
-                            fontWeight: 700,
-                            fontFamily: 'var(--font-sans)',
-                            display: 'inline-block'
-                          }}>
-                            +1d
-                          </span>
-                        )}
+                      <td style={{ 
+                        padding: '10px 16px', whiteSpace: 'nowrap',
+                        position: 'sticky', left: 0, backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc', zIndex: 1,
+                        boxShadow: '2px 0 4px rgba(0,0,0,0.02)', borderRight: '1px solid #e2e8f0'
+                      }}>
+                        <div style={{ color: '#0f172a', fontWeight: 600, fontSize: 11, marginBottom: 2 }}>{slot.date}</div>
+                        <div style={{ color: '#00bfa5', fontFamily: 'var(--font-mono)' }}>
+                          {slot.fullTime}
+                          {slot.isNextDay && (
+                            <span style={{
+                              marginLeft: 6,
+                              fontSize: 10,
+                              backgroundColor: '#e0f2fe',
+                              color: '#0284c7',
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              fontWeight: 700,
+                              fontFamily: 'var(--font-sans)',
+                              display: 'inline-block'
+                            }}>
+                              +1d
+                            </span>
+                          )}
+                        </div>
                       </td>
                       
                       {subTab === 'aqi' ? (

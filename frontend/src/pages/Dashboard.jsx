@@ -719,19 +719,15 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
         custom={0} variants={cardVariants} initial="hidden" animate="visible"
         className="hero-card-responsive"
         style={{
-          backgroundColor: aqiColor === '#22c55e' ? '#f0fdf4' :
-                           aqiColor === '#eab308' ? '#fefce8' :
-                           aqiColor === '#00bfa5' ? '#fff7ed' :
-                           aqiColor === '#ef4444' ? '#fef2f2' :
-                           aqiColor === '#a855f7' ? '#faf5ff' : '#fff1f2',
+          background: `linear-gradient(135deg, #ffffff 0%, ${aqiColor}15 100%)`,
           borderRadius: 24,
           padding: '28px 32px',
           color: '#0f172a',
-          border: `1.5px solid ${aqiColor}40`,
-          boxShadow: `0 8px 30px ${aqiColor}15, 0 1px 3px rgba(15,23,42,0.04)`,
+          border: `1px solid ${aqiColor}20`,
+          boxShadow: `0 8px 32px ${aqiColor}10, 0 1px 3px rgba(15,23,42,0.02)`,
           position: 'relative',
           overflow: 'hidden',
-          transition: 'background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease',
+          transition: 'all 0.4s ease',
         }}
       >
         <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 6, backgroundColor: aqiColor }} />
@@ -745,25 +741,21 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
             </span>
           </div>
 
-          <div className="hero-metric-container" style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20, flexWrap: 'wrap' }}>
-            <div>
-              <div className="hero-metric-val" style={{ fontFamily: 'var(--font-mono)', fontSize: 72, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', color: '#0f172a' }}>
+          <div className="hero-metric-container" style={{ display: 'flex', alignItems: 'flex-start', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+              {(isOnline || isInitialCheckPending) ? 'LIVE AQI' : 'LAST RECORDED AQI'}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div className="hero-metric-val" style={{ fontFamily: 'var(--font-sans)', fontSize: 72, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.04em', color: '#0f172a' }}>
                 {aqiValue}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-                {(isOnline || isInitialCheckPending) ? 'LIVE AQI' : 'LAST RECORDED AQI'}
-              </div>
-            </div>
-
-            <div>
-              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Air Quality is</div>
               <div className="hero-score-badge" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 7,
-                padding: '6px 18px', borderRadius: 999,
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 16px', borderRadius: 999,
                 backgroundColor: '#ffffff',
-                border: `1.5px solid ${aqiColor}50`,
-                color: '#0f172a', fontSize: 16, fontWeight: 800,
-                boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)',
+                border: `1px solid ${aqiColor}30`,
+                color: '#0f172a', fontSize: 14, fontWeight: 700,
+                boxShadow: `0 2px 8px ${aqiColor}20`,
               }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: aqiColor }} />
                 <span>{aqiLabel}</span>
@@ -1130,8 +1122,14 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                 borderBottom: '1px solid #e2e8f0',
               }}>
                 <tr>
-                  {['Records', 'Last Update', 'AQI', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO₂ (µg/m³)', 'O₃ (µg/m³)'].map((h) => (
-                    <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                  {['Time', 'AQI', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)', 'CO (mg/m³)', 'NO₂ (µg/m³)', 'O₃ (µg/m³)'].map((h, i) => (
+                    <th key={h} style={{ 
+                      padding: '12px 16px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap',
+                      position: i === 0 ? 'sticky' : 'static', left: i === 0 ? 0 : 'auto', 
+                      backgroundColor: i === 0 ? '#f8fafc' : 'transparent', zIndex: i === 0 ? 2 : 1,
+                      boxShadow: i === 0 ? '2px 0 4px rgba(0,0,0,0.05)' : 'none',
+                      borderRight: i === 0 ? '1px solid #e2e8f0' : 'none'
+                    }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -1164,10 +1162,11 @@ export default function Dashboard({ cloudData, cloudLoading, cloudError, onDataL
                           backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc',
                         }}
                       >
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#00bfa5' }}>
-                          #{index + 1}
-                        </td>
-                        <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
+                        <td style={{ 
+                          padding: '11px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap',
+                          position: 'sticky', left: 0, backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc', zIndex: 1,
+                          boxShadow: '2px 0 4px rgba(0,0,0,0.02)', borderRight: '1px solid #e2e8f0'
+                        }}>
                           {formattedTime}
                         </td>
                         <td style={{ padding: '11px 16px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: '#0f172a', fontSize: 14 }}>

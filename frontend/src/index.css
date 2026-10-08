@@ -366,7 +366,7 @@ img, svg, video, canvas {
   }
 
   .app-main {
-    padding: 8px 10px calc(80px + env(safe-area-inset-bottom, 20px)) !important;
+    padding: 8px 10px calc(112px + env(safe-area-inset-bottom, 20px)) !important;
     max-width: 100vw !important;
   }
 
@@ -508,6 +508,8 @@ img, svg, video, canvas {
   .grid-pollutants > *:nth-child(5) {
     grid-column: span 2 !important;
   }
+
+
 
   .grid-weather {
     grid-template-columns: repeat(2, 1fr) !important;
@@ -749,8 +751,8 @@ img, svg, video, canvas {
     right: 0 !important;
     height: calc(56px + env(safe-area-inset-bottom, 20px)) !important;
     background: rgba(255, 255, 255, 0.85) !important;
-    backdrop-filter: blur(24px) saturate(1.2) !important;
-    -webkit-backdrop-filter: blur(24px) saturate(1.2) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
     border-top: 1px solid rgba(226, 232, 240, 0.6) !important;
     align-items: flex-start !important;
     justify-content: space-around !important;
@@ -1019,3 +1021,6 @@ img, svg, video, canvas {
     display: none !important;
   }
 }
+
+
+

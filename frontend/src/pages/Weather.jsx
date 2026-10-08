@@ -761,8 +761,14 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                 borderBottom: '1px solid #e2e8f0',
               }}>
                 <tr>
-                  {['# Record', 'Time / Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'].map((h) => (
-                    <th key={h} style={{ padding: '13px 18px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                  {['Time', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'Wind Gust (km/h)', 'Wind Direction', 'Rain Gauge (mm)'].map((h, i) => (
+                    <th key={h} style={{ 
+                      padding: '13px 18px', fontWeight: 700, color: '#475569', fontSize: 12, whiteSpace: 'nowrap',
+                      position: i === 0 ? 'sticky' : 'static', left: i === 0 ? 0 : 'auto', 
+                      backgroundColor: i === 0 ? '#f8fafc' : 'transparent', zIndex: i === 0 ? 2 : 1,
+                      boxShadow: i === 0 ? '2px 0 4px rgba(0,0,0,0.05)' : 'none',
+                      borderRight: i === 0 ? '1px solid #e2e8f0' : 'none'
+                    }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -799,10 +805,11 @@ export default function Weather({ cloudData, cloudLoading, cloudError, refreshKe
                           backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc',
                         }}
                       >
-                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#00bfa5' }}>
-                          #{index + 1}
-                        </td>
-                        <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
+                        <td style={{ 
+                          padding: '12px 18px', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap',
+                          position: 'sticky', left: 0, backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc', zIndex: 1,
+                          boxShadow: '2px 0 4px rgba(0,0,0,0.02)', borderRight: '1px solid #e2e8f0'
+                        }}>
                           {formattedTime}
                         </td>
                         <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', fontSize: 13.5, fontWeight: 800, color: '#ea580c' }}>
